@@ -38,7 +38,7 @@ end
 
 function compute_J_helper(x::Array{Float64,1})
     # todo hard coded here ix, m
-    ix, m = 1, 1
+    ix, m = 1, 2
     nx = length(x)
     J = x[ix]^m
     pJ_px = zeros(nx)
@@ -92,34 +92,35 @@ function adjoint(μ::Array{Float64,1}, xs::Array{Float64,2}, pJ_pxs::Array{Float
     
     dJ_dμ = zeros(nμ)
     for i=2:nt+1
-        dJ_dμ[1:nx] .+= df_dμ(xs[:,i-1], σ, r, β)' * lambdas[:,i]*Δt
+        dJ_dμ[nx+1:nμ] .+= df_dμ(xs[:,i-1], σ, r, β)' * lambdas[:,i]*Δt
     end
     
-    dJ_dμ[nx+1:nμ] = lambdas[:,1]
+    dJ_dμ[1:nx] = lambdas[:,1]
     
     #J = ∑_j^k f(xi)/(k-j+1)
     return dJ_dμ
 end
 
 function fd_test()
-    T = 1
+    T = 20
     Δt = 0.01
     nt = Int64(T/Δt)
-    σ, r, β = 10.0, 28.0, 8.0/3.0
+    #σ, r, β = 10.0, 28.0, 8.0/3.0
 
-    #σ, r, β = 1.0, 2.0, 3.0
+    σ, r, β = 1.0, 2.0, 3.0
     
     μ = [-8.67139571762; 4.98065219709; 25; σ; r; β]
     nμ = length(μ)
-    #δμ = rand(nμ)
-    δμ = [1.0;1.0;1.0;1.0;1.0;1.0]
+    δμ = rand(nμ)
+    #δμ = [1.0;1.0;1.0;1.0;1.0;1.0]
+    #δμ = [1.0;2.0;3.0;4.0;5.0;6.0]
     ε = 1.0e-4
 
     xs = foward(μ, Δt, nt)
     J, pJ_pxs = compute_J(xs, μ, 1, nt+1)
     dJ_dμ = adjoint(μ, xs, pJ_pxs, Δt, nt)
 
-    @info μ, J, dJ_dμ 
+    @info "μ, J, dJ_dμ ", μ, J, dJ_dμ 
 
     μ_p = μ + δμ*ε
     xs_p = foward(μ_p, Δt, nt)
@@ -131,6 +132,8 @@ function fd_test()
     J_m, _ = compute_J(xs_m, μ_m, 1, nt+1)
         
     @info "fd error is ", (J_p - J_m)/(2*ε) .- dJ_dμ'*δμ
+
+    @info "QoI ", J_p , J_m, dJ_dμ, δμ, (J_p - J_m)/(2*ε)
 
 end
 
