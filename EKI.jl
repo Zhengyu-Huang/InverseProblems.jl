@@ -109,14 +109,19 @@ function update_ensemble!(eki::EKIObj{FT}, g) where {FT}
     cov_ug = cov_ug / eki.N_ens - u_bar * g_bar'
     cov_gg = cov_gg / eki.N_ens - g_bar * g_bar'
 
-    
+    @show u_bar, g_bar
+    @show cov_ug, cov_gg
 
     # update the parameters (with additive noise too)
     noise = rand(MvNormal(zeros(size(g)[2]), eki.cov), eki.N_ens) # N_data * N_ens
     y = (eki.g_t .+ noise)' # add g_t (N_data) to each column of noise (N_data x N_ens), then transp. into N_ens x N_data
     
-
+    @show size(y), mean(y, dims=1)
+    @show size(y-g), mean(y-g, dims=1)
     tmp = (cov_gg + eki.cov) \ (y - g)' # N_data x N_data \ [N_ens x N_data - N_ens x N_data]' --> tmp is N_data x N_ens
+    
+    @info cov_gg,  eki.cov, cov_gg + eki.cov
+    @show size(tmp), mean(tmp, dims=2)
     u += (cov_ug * tmp)' # N_ens x N_params
 
     # store new parameters (and observations)
@@ -125,4 +130,58 @@ function update_ensemble!(eki::EKIObj{FT}, g) where {FT}
 
     compute_error(eki)
 
+end
+
+
+
+
+function dot_Γ(x,y, Γ) 
+    return x'*(Γ\y)
+end
+
+function update_ensemble_eks!(eki::EKIObj{FT}, g) where {FT}
+    # u: N_ens x N_params
+    u = eki.u[end]
+    u_prior = eki.u[1]
+    N_ens, N_params = size(u)
+
+    θs = vec([u[i,:] for i = 1:N_ens])
+    fθs = vec([g[i,:] for i = 1:N_ens])
+    prior = vec([u_prior[i,:] for i = 1:N_ens])
+
+    obs = eki.g_t
+    space = eki.cov
+
+
+
+    covθ = cov(θs)
+    meanθ = mean(θs)
+
+    m = mean(fθs)
+
+    J = length(θs)
+    CG = [dot_Γ(fθk - m, fθj - obs, space)/J for fθj in fθs, fθk in fθs]
+
+    Δt = FT(1) / (norm(CG) + sqrt(eps(FT)))
+
+    implicit = lu( I + Δt .* (covθ * inv(cov(prior))) ) # todo: incorporate means
+    Z = covθ * (cov(prior) \ mean(prior))
+
+    noise = MvNormal(covθ)
+
+    # θs .- Δt .* (CG*(θs .- Ref(meanθ))) .+ Δt .* Ref(covθ * (cov(prob.prior) \ mean(prob.prior)))
+
+    # compute next set of θs
+    map(enumerate(θs)) do (j, θj)
+        X = sum(enumerate(θs)) do (k, θk)
+            CG[j,k]*(θk-meanθ)
+        end
+        rhs = θj .- Δt .* X .+ Δt .* Z
+        u[j,:] .= (implicit \ rhs) .+ sqrt(2*Δt)*rand(noise)
+    end
+    
+
+    push!(eki.u, u) # N_ens x N_params
+    push!(eki.g, g) # N_ens x N_data
+    compute_error(eki)
 end

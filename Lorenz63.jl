@@ -121,6 +121,28 @@ function compute_adjoint(μ::Array{Float64,1}, xs::Array{Float64,2}, pJ_pxs::Arr
     return dJ_dμ
 end
 
+# function compute_stat(xs::Array{Float64,2}, Δt::Float64, nt::Int64, nspinup::Int64)
+#     @assert(nt+1 == size(xs,2))
+#     T = Δt * nt
+#     ts =  LinRange(0,T,nt+1)
+    
+#     ns = 9
+#     # x1, x2, x3, x1^2, x2^2, x3^2, x2x3, x3x1, x1x2
+#     stats = zeros(ns, nt+1)
+
+#     x1, x2, x3 = xs[1,:]', xs[2,:]', xs[3,:]'
+
+#     obs = [x1; x2; x3; x1.^2; x2.^2; x3.^2; x2.*x3; x3.*x1; x1.*x2]
+
+
+#     fig = figure(figsize=(6,6))
+#     for pid = 1:9
+#         ax = fig.add_subplot(9,1,pid)
+#         ax.plot(ts, stats[pid,:])
+#     end
+
+# end
+
 
 function visualize_stat(xs::Array{Float64,2}, Δt::Float64, nt::Int64, nspinup::Int64)
     @assert(nt+1 == size(xs,2))
@@ -186,7 +208,7 @@ function fd_test()
 end
 
 function adjoint_test()
-    T = 2000
+    T = 200
     Tspinup = 10
     Δt = 0.01
     nt = Int64(T/Δt)
