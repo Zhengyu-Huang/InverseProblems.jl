@@ -133,7 +133,59 @@ function update_ensemble!(eki::EKIObj{FT}, g) where {FT}
 end
 
 
+function update_ensemble_unscented!(eki::EKIObj{FT}, g) where {FT}
+    # u: N_ens x N_params
+    u = eki.u[end]
 
+    u_bar = fill(FT(0), size(u)[2])
+    # g: N_ens x N_data
+    g_bar = fill(FT(0), size(g)[2])
+
+    cov_ug = fill(FT(0), size(u)[2], size(g)[2])
+    cov_gg = fill(FT(0), size(g)[2], size(g)[2])
+
+    # update means/covs with new param/observation pairs u, g
+    for j = 1:eki.N_ens
+
+        u_ens = u[j, :]
+        g_ens = g[j, :]
+
+        # add to mean
+        u_bar += u_ens
+        g_bar += g_ens
+
+        #add to cov
+        cov_ug += u_ens * g_ens' # cov_ug is N_params x N_data
+        cov_gg += g_ens * g_ens'
+    end
+
+    u_bar = u_bar / eki.N_ens
+    g_bar = g_bar / eki.N_ens
+    cov_ug = cov_ug / eki.N_ens - u_bar * g_bar'
+    cov_gg = cov_gg / eki.N_ens - g_bar * g_bar'
+
+    @show u_bar, g_bar
+    @show cov_ug, cov_gg
+
+    # update the parameters (with additive noise too)
+    noise = rand(MvNormal(zeros(size(g)[2]), eki.cov), eki.N_ens) # N_data * N_ens
+    y = (eki.g_t .+ noise)' # add g_t (N_data) to each column of noise (N_data x N_ens), then transp. into N_ens x N_data
+    
+    @show size(y), mean(y, dims=1)
+    @show size(y-g), mean(y-g, dims=1)
+    tmp = (cov_gg + eki.cov) \ (y - g)' # N_data x N_data \ [N_ens x N_data - N_ens x N_data]' --> tmp is N_data x N_ens
+    
+    @info cov_gg,  eki.cov, cov_gg + eki.cov
+    @show size(tmp), mean(tmp, dims=2)
+    u += (cov_ug * tmp)' # N_ens x N_params
+
+    # store new parameters (and observations)
+    push!(eki.u, u) # N_ens x N_params
+    push!(eki.g, g) # N_ens x N_data
+
+    compute_error(eki)
+
+end
 
 function dot_Γ(x,y, Γ) 
     return x'*(Γ\y)

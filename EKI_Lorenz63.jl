@@ -3,46 +3,44 @@ using Statistics
 using LinearAlgebra
 
 include("EKI.jl")
+include("UKI.jl")
 include("Lorenz63.jl")
+
+function compute_obs(xs::Array{Float64,2})
+    # N_x × N_t
+    x1, x2, x3 = xs[1,:]', xs[2,:]', xs[3,:]'
+    # obs = [x1; x2; x3; x1.^2; x2.^2; x3.^2; x2.*x3; x3.*x1; x1.*x2]
+    obs = [x3;x3.^2]
+end
 
 # fix σ, learn r and β
 # f = [σ*(x[2]-x[1]); x[1]*(r-x[3])-x[2]; x[1]*x[2]-β*x[3]]
 # σ, r, β = 10.0, 28.0, 8.0/3.0
-
 function run_Lorenz_ensemble(params_i, Tobs, Tspinup, Δt)
-
     T = Tobs + Tspinup
     nt = Int64(T/Δt)
     nspinup = Int64(Tspinup/Δt)
     
-    N_ensemble,  N_parameters = size(params_i)
+    N_ens,  N_θ = size(params_i)
     #N_data = 9
     N_data = 2
 
-    g_ens = zeros(Float64,N_ensemble,  N_data)
+    g_ens = Vector{Float64}[]
 
-    for i = 1:N_ensemble
+    for i = 1:N_ens
         σ, r, β = 10.0, 28.0, 8.0/3.0
-        #r, β = params_i[i, :]
-        r = params_i[i, :]
+        r, β = params_i[i, :]
+        #r = params_i[i, :]
+        
         μ = [-8.67139571762; 4.98065219709; 25; σ; r; β]
         xs = compute_foward_RK4(μ, Δt, nt)
-
-        x1, x2, x3 = xs[1,:]', xs[2,:]', xs[3,:]'
-
-        #obs = [x1; x2; x3; x1.^2; x2.^2; x3.^2; x2.*x3; x3.*x1; x1.*x2]
-        obs = [x3;x3.^2]
-        
+        obs = compute_obs(xs)
         # g: N_ens x N_data
-
-        g_ens[i, :] = mean(obs[:, nspinup : end], dims = 2)
+        push!(g_ens, dropdims(mean(obs[:, nspinup : end], dims = 2), dims=2)) 
     end
-
-    @info "g_ens", mean(g_ens, dims=1)
-
-    return g_ens
-
+    return hcat(g_ens...)'
 end
+
 
 function Data_Gen(T::Float64 = 360.0, Tobs::Float64 = 10.0, Tspinup::Float64 = 30.0, Δt::Float64 = 0.01)
     
@@ -54,13 +52,8 @@ function Data_Gen(T::Float64 = 360.0, Tobs::Float64 = 10.0, Tspinup::Float64 = 3
     μ = [-8.67139571762; 4.98065219709; 25; σ; r; β]
     xs = compute_foward_RK4(μ, Δt, nt)
 
-    
-    x1, x2, x3 = xs[1,:]', xs[2,:]', xs[3,:]'
-
-    #obs = [x1; x2; x3; x1.^2; x2.^2; x3.^2; x2.*x3; x3.*x1; x1.*x2]
-    obs = [x3;x3.^2]
+    obs = compute_obs(xs)
   
-
     ##############################################################################
 
     n_obs_box = Int64((T - Tspinup)/Tobs)
@@ -69,11 +62,7 @@ function Data_Gen(T::Float64 = 360.0, Tobs::Float64 = 10.0, Tspinup::Float64 = 3
     n_obs = Int64(Tobs/Δt)
 
     for i = 1:n_obs_box
-        
         n_obs_start = nspinup + (i - 1)*n_obs + 1
-
-        @info n_obs_start , n_obs_start + n_obs - 1
-
         obs_box[:, i] = mean(obs[:, n_obs_start : n_obs_start + n_obs - 1], dims = 2)
     end
 
@@ -93,7 +82,6 @@ function Data_Gen(T::Float64 = 360.0, Tobs::Float64 = 10.0, Tspinup::Float64 = 3
 end
 
 function EKI_Run(t_mean, t_cov, Tobs::Float64 = 10.0, Tspinup::Float64 = 30.0, Δt::Float64 = 0.01)
-
 
     parameter_names = ["r", "β"]
     # initial distribution is 
@@ -138,7 +126,45 @@ end
 
 
 
+function UKI_Run(t_mean, t_cov, Tobs::Float64 = 10.0, Tspinup::Float64 = 30.0, Δt::Float64 = 0.01)
 
+    parameter_names = ["r", "β"]
+    # initial distribution is 
+    θ_bar = [1.2 ; 3.3]           # mean 
+    θθ_cov = [0.5^2  0.0; 
+              0.0    0.15^2]      # standard deviation
+
+    # θ_bar = [1.2]           # mean 
+    # θθ_cov = reshape([0.5^2],1,1)       # standard deviation
+
+    ens_func(θ_ens) = run_Lorenz_ensemble(θ_ens, Tobs, Tspinup, Δt)
+
+    ukiobj = UKIObj(parameter_names,
+                θ_bar, 
+                θθ_cov,
+                t_mean, # observation
+                t_cov)
+    
+
+    # EKI iterations
+    N_iter = 30
+
+    for i in 1:N_iter
+        # Note that the parameters are exp-transformed for use as input
+        # to Cloudy
+        params_i = deepcopy(ukiobj.θ_bar[end])
+
+        @info "params_i : ", params_i
+        
+        update_ensemble!(ukiobj, ens_func) 
+
+        # if i%2 == 0 && i <= 30
+        #     reset_θθ_cov!(ukiobj)
+        # end
+
+    end
+    
+end
 
 Tobs = 10.0
 Tspinup = 30.0
@@ -156,4 +182,5 @@ Data_Gen(T, Tobs, Tspinup, Δt)
 t_cov[1,2] = 0.0
 t_cov[2,1] = 0.0
 # t_cov .*= 0.0
-EKI_Run(t_mean, t_cov, Tobs, Tspinup, Δt)
+#EKI_Run(t_mean, t_cov, Tobs, Tspinup, Δt)
+UKI_Run(t_mean, t_cov, Tobs, Tspinup, Δt)
