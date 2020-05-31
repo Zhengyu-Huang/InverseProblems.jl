@@ -55,7 +55,7 @@ function UKIObj(parameter_names::Vector{String},
     cov_weights = zeros(FT, N_ens)
 
     # todo parameters λ, α, β
-    #α, β = 1.0e-3, 2.0
+    # α, β = 1.0e-3, 2.0
     α, β = 1.0, 2.0
     κ = 0.0
     λ = α^2*(N_θ + κ) - N_θ
@@ -68,7 +68,6 @@ function UKIObj(parameter_names::Vector{String},
 
     sample_weights[1:N_θ]     .=  sqrt(N_θ + λ)
 
-    @show λ
     μ_weights[1] = λ/(N_θ + λ)
     μ_weights[2:N_ens] .= 1/(2(N_θ + λ))
 
@@ -195,20 +194,15 @@ function update_ensemble!(uki::UKIObj{FT}, ens_func::Function) where {FT}
     
     θθ_p_cov = construct_cov(uki, θ_p, θ_p_bar) + uki.θθ_cov[1]
 
-    @show θ_p 
-    @show θ_p_bar
-    @show θθ_p_cov
-
     ############# Update
     # Generate sigma points
     N_θ, N_g, N_ens = uki.N_θ, uki.N_g, uki.N_ens
-    # θ_p = construct_sigma_ensemble(uki, θ_p_bar, θθ_p_cov)
-    # θθ_p_cov = construct_cov(uki, θ_p, θ_p_bar)
+    θ_p = construct_sigma_ensemble(uki, θ_p_bar, θθ_p_cov)
+    θ_p_bar  = construct_mean(uki, θ_p)
+    θθ_p_cov = construct_cov(uki, θ_p, θ_p_bar)
 
     g = zeros(FT, N_ens, N_g)
-
     g .= ens_func(θ_p)
-
     g_bar = construct_mean(uki, g)
 
     
@@ -220,12 +214,6 @@ function update_ensemble!(uki::UKIObj{FT}, ens_func::Function) where {FT}
     
     θθ_cov =  θθ_p_cov - tmp*θg_cov' 
 
-    @show tmp
-    @show "Δθ_bar", tmp*(uki.g_t - g_bar)
-    @show θg_cov
-    @show gg_cov
-    @show θθ_cov
-    @show g_bar, uki.g_t
 
     # store new parameters (and observations)
     push!(uki.θ_bar, θ_bar) # N_ens x N_params

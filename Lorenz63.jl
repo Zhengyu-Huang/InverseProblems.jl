@@ -172,6 +172,18 @@ function visualize_stat(xs::Array{Float64,2}, Δt::Float64, nt::Int64, nspinup::
 
 end
 
+function visualize_states(xs::Array{Float64,2}, Δt::Float64, nt::Int64)
+    @assert(nt+1 == size(xs,2))
+    T = Δt * nt
+    ts =  LinRange(0,T,nt+1)
+    
+    fig = figure(figsize=(6,6))
+    for pid = 1:3
+        ax = fig.add_subplot(9,1,pid)
+        ax.plot(ts, xs[pid,:])
+    end
+
+end
 
 function fd_test()
     T = 20
@@ -228,3 +240,17 @@ function adjoint_test()
 
 
 end
+
+
+
+
+# T = 200
+# Tspinup = 30
+# Δt = 0.01
+# nspinup = Int64(Tspinup/Δt)
+
+# nt = Int64(T/Δt)
+# μ = [-8.67139571762; 4.98065219709; 25.0; 10.0; 6.0;  5.0]
+# xs = compute_foward(μ, Δt, nt)
+# #visualize_stat(xs, Δt, nt, nspinup)
+# visualize_states(xs, Δt, nt)
