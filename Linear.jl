@@ -176,6 +176,9 @@ end
 
 function Hilbert_Test()
     nθ = 100
+    θ0_bar = zeros(Float64, nθ)  # mean 
+    θθ0_cov = Array(Diagonal(fill(0.5^2, nθ)))     # standard deviation
+
     G = zeros(nθ, nθ)
     for i = 1:nθ
         for j = 1:nθ
@@ -187,7 +190,7 @@ function Hilbert_Test()
     t_mean = G*θ_ref 
     t_cov = Array(Diagonal(fill(0.5^2, nθ)))
     
-    ukiobj = UKI_Run(t_mean, t_cov, G)
+    ukiobj = UKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov, G)
     @info "θ ~ N ( " ukiobj.θ_bar[end], ukiobj.θθ_cov[end], " )"
 end
 
@@ -198,5 +201,5 @@ end
 # ukiobj = Linear_Test(10, "under-determined")
 
 # ukiobj = Linear_Test(0, "over-determined")
-ukiobj = Linear_Test(10, "over-determined")
-#Hilbert_Test()
+# ukiobj = Linear_Test(10, "over-determined")
+Hilbert_Test()
