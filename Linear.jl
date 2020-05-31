@@ -81,13 +81,13 @@ function UKI_Run(t_mean, t_cov, θ_bar, θθ_cov,  G,  N_iter::Int64 = 100,  upd
     
     ny, nθ = size(G)
     # initial distribution is 
-
+    
     @info θ_bar, θθ_cov
     θ_bar = zeros(Float64, nθ)  # mean 
     θθ_cov = Array(Diagonal(fill(0.5^2, nθ)))     # standard deviation
     
     @info θ_bar, θθ_cov
-
+    
     #todo delete
     #θθ_cov =[0.02 0.01; 0.01 0.03]
     ens_func(θ_ens) = run_linear_ensemble(θ_ens, G)
@@ -120,17 +120,17 @@ end
 
 function Linear_Test(update_cov::Int64 = 0, case::String = "square")
     γ = 2.0
-
+    
     nθ = 2
     θ0_bar = zeros(Float64, nθ)  # mean 
     θθ0_cov = Array(Diagonal(fill(0.5^2, nθ)))     # standard deviation
-
+    
     N_ite = 100
-
+    
     if case == "square"
         # Square matrix case
         t_mean = [3.0;7.0]
-
+        
         t_cov = Array(Diagonal(fill(0.1^2, size(t_mean) )))
         G = [1.0 2.0; 3.0 4.0]
         
@@ -152,7 +152,7 @@ function Linear_Test(update_cov::Int64 = 0, case::String = "square")
         
         ukiobj = UKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov, G, N_ite, update_cov)
         @info "θ ~ N ( " ukiobj.θ_bar[end], ukiobj.θθ_cov[end], " )"
-
+        
         
     end
     
@@ -165,7 +165,7 @@ function Linear_Test(update_cov::Int64 = 0, case::String = "square")
         
         ukiobj = UKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov, G, N_ite, update_cov)
         @info "θ ~ N ( " ukiobj.θ_bar[end], ukiobj.θθ_cov[end], " )"
-
+        
         @info "optimal error : ", inv(ukiobj.θθ_cov[end]) - G'*inv(t_cov)*G
         #@info "suboptimal error :", inv(ukiobj.θθ_cov[end]) - 1/γ*inv(θθ_cov_opt) - (γ-1)/γ*inv((γ-1)/γ*ukiobj.θθ_cov[end] + 1/γ*t_cov)
         
@@ -177,9 +177,9 @@ function Hilbert_Test()
     nθ = 100
     θ0_bar = zeros(Float64, nθ)  # mean 
     θθ0_cov = Array(Diagonal(fill(0.5^2, nθ)))     # standard deviation
-
+    
     N_ite = 1000
-
+    
     G = zeros(nθ, nθ)
     for i = 1:nθ
         for j = 1:nθ
@@ -193,8 +193,36 @@ function Hilbert_Test()
     
     ukiobj = UKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov, G, N_ite)
     @info "θ ~ N ( " ukiobj.θ_bar[end], ukiobj.θθ_cov[end], " )"
+    
+    
+    # Plot
+    ites = Array(LinRange(1, N_ite+1, N_ite+1))
+    errors = zeros(Float64, N_ite+1)
+    for i = 1:N_ite+1
+        errors[i] = norm(ukiobj.θ_bar[i] .- 1.0)
+    end
+    
+    rcParams = PyPlot.PyDict(PyPlot.matplotlib."rcParams")
+    mysize = 18
+    font0 = Dict(
+    "font.size" => mysize,
+    "axes.labelsize" => mysize,
+    "xtick.labelsize" => mysize,
+    "ytick.labelsize" => mysize,
+    "legend.fontsize" => mysize,
+    )
+    merge!(rcParams, font0)
+    
+    loglog(ites, errors, "--or", fillstyle="none")
+    xlabel("Iterations")
+    ylabel("\$L_2\$ error")
+    ylim((0.1,15))
+    grid("on")
+    tight_layout()
 
+    savefig("Hilbert.pdf")
 
+    
     return ukiobj
 end
 
@@ -208,33 +236,8 @@ end
 # ukiobj = Linear_Test(10, "over-determined")
 
 
-ukiobj = Hilbert_Test()
-N_ite = 1000
-ites = Array(LinRange(1, N_ite+1, N_ite+1))
-errors = zeros(Float64, N_ite+1)
-for i = 1:N_ite+1
-    errors[i] = norm(ukiobj.θ_bar[i] .- 1.0)
-end
+Hilbert_Test()
 
-
-rcParams = PyPlot.PyDict(PyPlot.matplotlib."rcParams")
-mysize = 18
-font0 = Dict(
-        "font.size" => mysize,
-        "axes.labelsize" => mysize,
-        "xtick.labelsize" => mysize,
-        "ytick.labelsize" => mysize,
-        "legend.fontsize" => mysize,
-)
-merge!(rcParams, font0)
-
-loglog(ites, errors, "--or", fillstyle="none")
-xlabel("Iterations")
-ylabel("\$L_2\$ error")
-ylim((0.1,15))
-
-grid("on")
-tight_layout()
 
 
 
