@@ -426,9 +426,6 @@ function UKI_Run(t_mean, t_cov, θ_bar, θθ_cov, Tobs::Float64 = 10.0, Tspinup:
     t_cov)
     
     
-    # UKI iterations
-    N_iter = 100
-    
     for i in 1:N_iter
         # Note that the parameters are exp-transformed for use as input
         # to Cloudy
@@ -443,34 +440,69 @@ function UKI_Run(t_mean, t_cov, θ_bar, θθ_cov, Tobs::Float64 = 10.0, Tspinup:
         end
     end
     
-    @info "θ is ", ukiobj.θ_bar[end], " θ_ref is ",  28.0, 8.0/3.0
+    @info "θ is ", ukiobj.θ_bar[end], " θ_ref is ",  10.0, 28.0, 8.0/3.0
+
+    return ukiobj
     
 end
 
 
 # adjoint_demo()
 
-# Tobs = 20.0
-# Tspinup = 30.0
-# T = Tspinup + 30*Tobs
-# Δt = 0.01
+Tobs = 20.0
+Tspinup = 30.0
+T = Tspinup + 30*Tobs
+Δt = 0.01
 
-# Data_Gen(T, Tobs, Tspinup, Δt)
-# #Data_Gen(30, Tobs, Tspinup, Δt)
+Data_Gen(T, Tobs, Tspinup, Δt)
+#Data_Gen(30, Tobs, Tspinup, Δt)
 
-# @load "t_mean.jld2"
-# @load "t_cov.jld2"
+@load "t_mean.jld2"
+@load "t_cov.jld2"
 
-# @info t_mean
-# @info t_cov
-# # error("t_mean")
+@info "t_mean is ", t_mean
+@info "t_cov is ", t_cov
 
-# @info "t_mean is ", t_mean
-# @info "t_cov is ", t_cov
+# initial distribution is 
+θ0_bar = [5.0 ; 5.0;  5.0]          # mean 
+θθ0_cov = [0.5^2  0.0    0.0; 
+          0.0    0.5^2  0.0;        # standard deviation
+          0.0    0.0    0.5^2;]
 
-# # initial distribution is 
-# θ0_bar = [5.0 ; 5.0;  5.0]          # mean 
-# θθ0_cov = [0.5^2  0.0    0.0; 
-#           0.0    0.5^2  0.0;        # standard deviation
-#           0.0    0.0    0.5^2;]
-# UKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov,  Tobs, Tspinup, Δt)
+N_ite = 50 
+update_cov = 0
+
+ukiobj = UKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov,  Tobs, Tspinup, Δt, N_ite, update_cov)
+ites = Array(LinRange(1, N_ite+1, N_ite+1))
+θ_bar = ukiobj.θ_bar
+θθ_cov = ukiobj.θθ_cov
+
+θ_bar_arr = hcat(θ_bar...)
+
+
+
+rcParams = PyPlot.PyDict(PyPlot.matplotlib."rcParams")
+    mysize = 18
+    font0 = Dict(
+    "font.size" => mysize,
+    "axes.labelsize" => mysize,
+    "xtick.labelsize" => mysize,
+    "ytick.labelsize" => mysize,
+    "legend.fontsize" => mysize,
+    )
+    merge!(rcParams, font0)
+
+    
+plot(ites, θ_bar_arr[1,:], "--o", fillstyle="none", label=L"\sigma")
+plot(ites, fill(10.0, N_ite+1), "--", color="gray")
+plot(ites, θ_bar_arr[2,:], "--o", fillstyle="none", label=L"r")
+plot(ites, fill(28.0, N_ite+1), "--", color="gray")
+plot(ites, θ_bar_arr[3,:], "--o", fillstyle="none", label=L"\beta")
+plot(ites, fill(8.0/3.0, N_ite+1), "--", color="gray")
+
+xlabel("Iterations")
+legend()
+grid("on")
+tight_layout()
+savefig("Lorenz_inverse.pdf")
+close("all")
