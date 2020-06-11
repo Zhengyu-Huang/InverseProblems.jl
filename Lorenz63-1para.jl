@@ -127,27 +127,6 @@ function compute_adjoint(μ::Array{Float64,1}, xs::Array{Float64,2}, pJ_pxs::Arr
     return dJ_dμ
 end
 
-# function compute_stat(xs::Array{Float64,2}, Δt::Float64, nt::Int64, nspinup::Int64)
-#     @assert(nt+1 == size(xs,2))
-#     T = Δt * nt
-#     ts =  LinRange(0,T,nt+1)
-
-#     ns = 9
-#     # x1, x2, x3, x1^2, x2^2, x3^2, x2x3, x3x1, x1x2
-#     stats = zeros(ns, nt+1)
-
-#     x1, x2, x3 = xs[1,:]', xs[2,:]', xs[3,:]'
-
-#     obs = [x1; x2; x3; x1.^2; x2.^2; x3.^2; x2.*x3; x3.*x1; x1.*x2]
-
-
-#     fig = figure(figsize=(6,6))
-#     for pid = 1:9
-#         ax = fig.add_subplot(9,1,pid)
-#         ax.plot(ts, stats[pid,:])
-#     end
-
-# end
 
 
 function visualize_stat(xs::Array{Float64,2}, Δt::Float64, nt::Int64, nspinup::Int64)
@@ -379,7 +358,7 @@ end
 function compute_obs(xs::Array{Float64,2})
     # N_x × N_t
     x1, x2, x3 = xs[1,:]', xs[2,:]', xs[3,:]'
-    obs = [x1; x2; x3; x1.^2; x2.^2; x3.^2]
+    obs = [x3;]
 end
 
 # fix σ, learn r and β
@@ -396,9 +375,8 @@ function run_Lorenz_ensemble(params_i, Tobs, Tspinup, Δt)
     g_ens = Vector{Float64}[]
     
     for i = 1:N_ens
-        # σ, r, β = 10.0, 28.0, 8.0/3.0
-        σ, r, β = params_i[i, :]
-        σ, β = abs(σ), abs(β)
+        σ,  β = 10.0, 8.0/3.0
+        r = params_i[i, :]
         
         
         μ = [-8.67139571762; 4.98065219709; 25; σ; r; β]
@@ -452,55 +430,11 @@ function Data_Gen(T::Float64 = 360.0, Tobs::Float64 = 10.0, Tspinup::Float64 = 3
 end
 
 
-function EKI_Run(t_mean, t_cov, Tobs::Float64 = 10.0, Tspinup::Float64 = 30.0, Δt::Float64 = 0.01)
-    
-    parameter_names = ["r", "β"]
-    # initial distribution is 
-    μ0 = [1.2 ; 3.3]       #mean 
-    σ0 = [0.5,  0.15]      #standard deviation
-    
-    # μ0 = [3.3 ; 1.2]       #mean 
-    # σ0 = [0.15,  0.5]      #standard deviation
-    
-    # prior normal
-    # priors = [Distributions.Normal(μ0[1], σ0[1]),  
-    # Distributions.Normal(μ0[2], σ0[2])]
-    
-    priors = [Distributions.Normal(μ0[1], σ0[1])]
-    
-    N_ens = 500
-    initial_params = construct_initial_ensemble(N_ens, priors; rng_seed=6)
-    
-    # observation t_mean, observation covariance matrix t_cov
-    
-    ekiobj = EKIObj(initial_params, parameter_names, t_mean, t_cov)
-    
-    
-    # EKI iterations
-    N_iter = 100
-    
-    for i in 1:N_iter
-        # Note that the parameters are exp-transformed for use as input
-        # to Cloudy
-        params_i = deepcopy(ekiobj.u[end])
-        
-        @info "params_i : ", mean(params_i, dims=1)
-        
-        g_ens = run_Lorenz_ensemble(params_i, Tobs, Tspinup, Δt)
-        
-        update_ensemble!(ekiobj, g_ens) 
-        #update_ensemble_eks!(ekiobj, g_ens) 
-        
-    end
-    
-end
-
-
 
 function UKI_Run(t_mean, t_cov, θ_bar, θθ_cov, Tobs::Float64 = 10.0, Tspinup::Float64 = 30.0, Δt::Float64 = 0.01, 
     N_iter::Int64 = 100, update_cov::Int64 = 0)
     
-    parameter_names = ["σ", "r", "β"]
+    parameter_names = ["r"]
     
     
     ens_func(θ_ens) = run_Lorenz_ensemble(θ_ens, Tobs, Tspinup, Δt)
@@ -513,8 +447,7 @@ function UKI_Run(t_mean, t_cov, θ_bar, θθ_cov, Tobs::Float64 = 10.0, Tspinup:
     
     
     for i in 1:N_iter
-        # Note that the parameters are exp-transformed for use as input
-        # to Cloudy
+
         params_i = deepcopy(ukiobj.θ_bar[end])
         
         @info "At iter ", i, " params_i : ", params_i
@@ -526,7 +459,7 @@ function UKI_Run(t_mean, t_cov, θ_bar, θθ_cov, Tobs::Float64 = 10.0, Tspinup:
         end
     end
     
-    @info "θ is ", ukiobj.θ_bar[end], " θ_ref is ",  10.0, 28.0, 8.0/3.0
+    @info "θ is ", ukiobj.θ_bar[end], " θ_ref is ",  28.0
 
     return ukiobj
     
@@ -536,24 +469,21 @@ end
 #adjoint_demo()
 #adjoint_plot()
 
+@info "start"
 Tobs = 20.0
 Tspinup = 30.0
-T = Tspinup + 30*Tobs
-Δt = 0.01
+T = Tspinup + 5*Tobs
+Δt = 0.001
 
-Data_Gen(T, Tobs, Tspinup, Δt)
+t_mean, t_cov = Data_Gen(T, Tobs, Tspinup, Δt)
 
-@load "t_mean.jld2"
-@load "t_cov.jld2"
 
-@info "t_mean is ", t_mean
-@info "t_cov is ", t_cov
+t_cov = Array(Diagonal(0.01*t_mean))
 
 # initial distribution is 
-θ0_bar = [5.0 ; 5.0;  5.0]          # mean 
-θθ0_cov = [0.5^2  0.0    0.0; 
-          0.0    0.5^2  0.0;        # standard deviation
-          0.0    0.0    0.5^2;]
+θ0_bar = [5.0;]          # mean 
+θθ0_cov = rashape([0.5^2], (1,1))        # standard deviation
+          
 
 N_ite = 20 
 update_cov = 0
@@ -579,16 +509,12 @@ rcParams = PyPlot.PyDict(PyPlot.matplotlib."rcParams")
     merge!(rcParams, font0)
 
     
-plot(ites, θ_bar_arr[1,:], "--o", fillstyle="none", label=L"\sigma")
-plot(ites, fill(10.0, N_ite+1), "--", color="gray")
-plot(ites, θ_bar_arr[2,:], "--o", fillstyle="none", label=L"r")
+plot(ites, θ_bar_arr[1,:], "--o", fillstyle="none", label=L"r")
 plot(ites, fill(28.0, N_ite+1), "--", color="gray")
-plot(ites, θ_bar_arr[3,:], "--o", fillstyle="none", label=L"\beta")
-plot(ites, fill(8.0/3.0, N_ite+1), "--", color="gray")
 
 xlabel("Iterations")
 legend()
 grid("on")
 tight_layout()
-savefig("Lorenz_inverse.pdf")
+savefig("Lorenz_inverse-1para.pdf")
 close("all")
