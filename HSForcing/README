@@ -1,0 +1,7 @@
+export JULIA_NUM_THREADS=11
+
+srun -N1 -n1 julia Thread_Test.jl
+
+srun -N1 -n1 julia UKI_HS.jl |& tee uki.log
+
+

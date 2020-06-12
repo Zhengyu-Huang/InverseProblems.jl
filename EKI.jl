@@ -1,5 +1,3 @@
-
-
 using Random
 using Statistics
 using Distributions
@@ -8,51 +6,52 @@ using DocStringExtensions
 
 
 """
-    EKIObj{FT<:AbstractFloat, IT<:Int}
+EKIObj{FT<:AbstractFloat, IT<:Int}
 Structure that is used in Ensemble Kalman Inversion (EKI)
 #Fields
 $(DocStringExtensions.FIELDS)
 """
 struct EKIObj{FT<:AbstractFloat, IT<:Int}
     "a vector of arrays of size N_ensemble x N_parameters containing the parameters (in each EKI iteration a new array of parameters is added)"
-     u::Vector{Array{FT, 2}}
+     θ::Vector{Array{FT, 2}}
+     "Prior convariance"
+     θθ0_cov::Array{FT, 2}
      "vector of parameter names"
      unames::Vector{String}
      "vector of observations (length: N_data); mean of all observation samples"
      g_t::Vector{FT}
      "covariance of the observational noise, which is assumed to be normally distributed"
-     cov::Array{FT, 2}
+     obs_cov::Array{FT, 2}
      "ensemble size"
      N_ens::IT
-     "vector of arrays of size N_ensemble x N_data containing the data G(u) (in each EKI iteration a new array of data is added)"
-     g::Vector{Array{FT, 2}}
-     "vector of errors"
-     err::Vector{FT}
+     "function size"
+     N_g::IT
+     
 end
 
 # outer constructors
-function EKIObj(parameters::Array{FT, 2},
-                parameter_names::Vector{String},
-                t_mean,
-                t_cov::Array{FT, 2}) where {FT<:AbstractFloat}
+function EKIObj(parameter_names::Vector{String},
+                θ0::Array{FT, 2},
+                θθ0_cov::Array{FT, 2},
+                g_t,
+                obs_cov::Array{FT, 2}) where {FT<:AbstractFloat}
 
     # ensemble size
-    N_ens = size(parameters)[1]
+    N_ens = size(θ0)[1]
     IT = typeof(N_ens)
     # parameters
-    u = Array{FT, 2}[] # array of Array{FT, 2}'s
-    push!(u, parameters) # insert parameters at end of array (in this case just 1st entry)
+    θ = Array{FT, 2}[] # array of Array{FT, 2}'s
+    push!(θ, θ0) # insert parameters at end of array (in this case just 1st entry)
     # observations
     g = Vector{FT}[]
-    # error store
-    err = []
+    N_g = size(g_t, 1)
 
-    EKIObj{FT,IT}(u, parameter_names, t_mean, t_cov, N_ens, g, err)
+    EKIObj{FT,IT}(θ, θθ0_cov, parameter_names, g_t, obs_cov, N_ens, N_g)
 end
 
 
 """
-    construct_initial_ensemble(N_ens::IT, priors; rng_seed=42) where {IT<:Int}
+construct_initial_ensemble(N_ens::IT, priors; rng_seed=42) where {IT<:Int}
 Construct the initial parameters, by sampling N_ens samples from specified
 prior distributions.
 """
@@ -69,171 +68,65 @@ function construct_initial_ensemble(N_ens::IT, priors; rng_seed=42) where {IT<:I
     return params
 end
 
-function compute_error(eki)
-    meang = dropdims(mean(eki.g[end], dims=1), dims=1)
-    diff = eki.g_t - meang
-    X = eki.cov \ diff # diff: column vector
-    newerr = dot(diff, X)
-    push!(eki.err, newerr)
+"""
+    construct_initial_ensemble(N_ens::IT, priors; rng_seed=42) where {IT<:Int}
+Construct the initial parameters, by sampling N_ens samples from specified
+prior distributions.
+"""
+function construct_cov(eki::EKIObj{FT}, x::Array{FT,2}, x_bar::Array{FT}, y::Array{FT,2}, y_bar::Array{FT}) where {FT<:AbstractFloat}
+    N_ens, N_x, N_y = eki.N_ens, size(x_bar,1), size(y_bar,1)
+
+    xy_cov = zeros(FT, N_x, N_y)
+
+    for i = 1: N_ens
+        xy_cov .+= cov_weights[i]*(x[i,:] - x_bar)*(y[i,:] - y_bar)'
+    end
+
+    return xy_cov/(N_ens - 1)
 end
 
 
-function update_ensemble!(eki::EKIObj{FT}, g) where {FT}
-    # u: N_ens x N_params
-    u = eki.u[end]
 
-    u_bar = fill(FT(0), size(u)[2])
-    # g: N_ens x N_data
-    g_bar = fill(FT(0), size(g)[2])
-
-    cov_ug = fill(FT(0), size(u)[2], size(g)[2])
-    cov_gg = fill(FT(0), size(g)[2], size(g)[2])
-
-    # update means/covs with new param/observation pairs u, g
-    for j = 1:eki.N_ens
-
-        u_ens = u[j, :]
-        g_ens = g[j, :]
-
-        # add to mean
-        u_bar += u_ens
-        g_bar += g_ens
-
-        #add to cov
-        cov_ug += u_ens * g_ens' # cov_ug is N_params x N_data
-        cov_gg += g_ens * g_ens'
+function update_ensemble!(eki::EKIObj{FT}, ens_func::Function) where {FT}
+    # θ: N_ens x N_params
+    N_ens, N_params = size(eki.θ[1])
+    N_g = eki.N_g
+    ############# Prediction 
+    θ_p = copy(eki.θ[end])
+    noise = rand(MvNormal(zeros(N_params), eki.θθ0_cov), N_ens) # N_ens
+    
+    for j = 1:N_ens
+        θ_p[j, :] += noise[:, j]
     end
 
-    u_bar = u_bar / eki.N_ens
-    g_bar = g_bar / eki.N_ens
-    cov_ug = cov_ug / eki.N_ens - u_bar * g_bar'
-    cov_gg = cov_gg / eki.N_ens - g_bar * g_bar'
+    θ_p_bar = dropdims(mean(θ_p, dims=1), dims=1)
 
-    @show u_bar, g_bar
-    @show cov_ug, cov_gg
+    ############# Update and Analysis
+    
+    g = zeros(FT, N_ens, N_g)
+    g .= ens_func(θ_p)
+    
+    y = zeros(FT, N_ens, N_g)
+    noise = rand(MvNormal(zeros(N_g), 2*eki.obs_cov), N_ens) # N_ens
+    for j = 1:N_ens
+        y[j, :] = g[j, :] + noise[:, j]
+    end
 
-    # update the parameters (with additive noise too)
-    noise = rand(MvNormal(zeros(size(g)[2]), eki.cov), eki.N_ens) # N_data * N_ens
-    y = (eki.g_t .+ noise)' # add g_t (N_data) to each column of noise (N_data x N_ens), then transp. into N_ens x N_data
+
+    g_bar = dropdims(mean(g, dims=1), dims=1)
+    gg_cov = construct_cov(eki, g, g_bar) + 2eki.obs_cov
+    θg_cov = construct_cov(eki, θ_p, θ_p_bar, g, g_bar)
+
+    tmp = θg_cov/gg_cov
     
-    @show size(y), mean(y, dims=1)
-    @show size(y-g), mean(y-g, dims=1)
-    tmp = (cov_gg + eki.cov) \ (y - g)' # N_data x N_data \ [N_ens x N_data - N_ens x N_data]' --> tmp is N_data x N_ens
-    
-    @info cov_gg,  eki.cov, cov_gg + eki.cov
-    @show size(tmp), mean(tmp, dims=2)
-    u += (cov_ug * tmp)' # N_ens x N_params
+    θ = copy(θ_p) 
+    for j = 1:N_ens
+        θ[j,:] += tmp*(eki.g_t - y[j, :]) # N_ens x N_params
+    end
 
     # store new parameters (and observations)
-    push!(eki.u, u) # N_ens x N_params
-    push!(eki.g, g) # N_ens x N_data
-
-    compute_error(eki)
+    push!(eki.θ, θ) # N_ens x N_params
 
 end
 
 
-function update_ensemble_unscented!(eki::EKIObj{FT}, g) where {FT}
-    # u: N_ens x N_params
-    u = eki.u[end]
-
-    u_bar = fill(FT(0), size(u)[2])
-    # g: N_ens x N_data
-    g_bar = fill(FT(0), size(g)[2])
-
-    cov_ug = fill(FT(0), size(u)[2], size(g)[2])
-    cov_gg = fill(FT(0), size(g)[2], size(g)[2])
-
-    # update means/covs with new param/observation pairs u, g
-    for j = 1:eki.N_ens
-
-        u_ens = u[j, :]
-        g_ens = g[j, :]
-
-        # add to mean
-        u_bar += u_ens
-        g_bar += g_ens
-
-        #add to cov
-        cov_ug += u_ens * g_ens' # cov_ug is N_params x N_data
-        cov_gg += g_ens * g_ens'
-    end
-
-    u_bar = u_bar / eki.N_ens
-    g_bar = g_bar / eki.N_ens
-    cov_ug = cov_ug / eki.N_ens - u_bar * g_bar'
-    cov_gg = cov_gg / eki.N_ens - g_bar * g_bar'
-
-    @show u_bar, g_bar
-    @show cov_ug, cov_gg
-
-    # update the parameters (with additive noise too)
-    noise = rand(MvNormal(zeros(size(g)[2]), eki.cov), eki.N_ens) # N_data * N_ens
-    y = (eki.g_t .+ noise)' # add g_t (N_data) to each column of noise (N_data x N_ens), then transp. into N_ens x N_data
-    
-    @show size(y), mean(y, dims=1)
-    @show size(y-g), mean(y-g, dims=1)
-    tmp = (cov_gg + eki.cov) \ (y - g)' # N_data x N_data \ [N_ens x N_data - N_ens x N_data]' --> tmp is N_data x N_ens
-    
-    @info cov_gg,  eki.cov, cov_gg + eki.cov
-    @show size(tmp), mean(tmp, dims=2)
-    u += (cov_ug * tmp)' # N_ens x N_params
-
-    # store new parameters (and observations)
-    push!(eki.u, u) # N_ens x N_params
-    push!(eki.g, g) # N_ens x N_data
-
-    compute_error(eki)
-
-end
-
-function dot_Γ(x,y, Γ) 
-    return x'*(Γ\y)
-end
-
-function update_ensemble_eks!(eki::EKIObj{FT}, g) where {FT}
-    # u: N_ens x N_params
-    u = eki.u[end]
-    u_prior = eki.u[1]
-    N_ens, N_params = size(u)
-
-    θs = vec([u[i,:] for i = 1:N_ens])
-    fθs = vec([g[i,:] for i = 1:N_ens])
-    prior = vec([u_prior[i,:] for i = 1:N_ens])
-
-    obs = eki.g_t
-    space = eki.cov
-
-
-
-    covθ = cov(θs)
-    meanθ = mean(θs)
-
-    m = mean(fθs)
-
-    J = length(θs)
-    CG = [dot_Γ(fθk - m, fθj - obs, space)/J for fθj in fθs, fθk in fθs]
-
-    Δt = FT(1) / (norm(CG) + sqrt(eps(FT)))
-
-    implicit = lu( I + Δt .* (covθ * inv(cov(prior))) ) # todo: incorporate means
-    Z = covθ * (cov(prior) \ mean(prior))
-
-    noise = MvNormal(covθ)
-
-    # θs .- Δt .* (CG*(θs .- Ref(meanθ))) .+ Δt .* Ref(covθ * (cov(prob.prior) \ mean(prob.prior)))
-
-    # compute next set of θs
-    map(enumerate(θs)) do (j, θj)
-        X = sum(enumerate(θs)) do (k, θk)
-            CG[j,k]*(θk-meanθ)
-        end
-        rhs = θj .- Δt .* X .+ Δt .* Z
-        u[j,:] .= (implicit \ rhs) .+ sqrt(2*Δt)*rand(noise)
-    end
-    
-
-    push!(eki.u, u) # N_ens x N_params
-    push!(eki.g, g) # N_ens x N_data
-    compute_error(eki)
-end

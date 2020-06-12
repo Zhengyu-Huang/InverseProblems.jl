@@ -169,14 +169,6 @@ function construct_cov(uki::UKIObj{FT}, x::Array{FT,2}, x_bar::Array{FT}, y::Arr
 end
 
 
-function compute_error(uki)
-    meang = dropdims(mean(uki.g[end], dims=1), dims=1)
-    diff = uki.g_t - meang
-    X = uki.cov \ diff # diff: column vector
-    newerr = dot(diff, X)
-    push!(uki.err, newerr)
-end
-
 
 function reset_θθ0_cov!(uki::UKIObj)
     uki.θθ_cov[1] = copy(uki.θθ_cov[end])
