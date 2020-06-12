@@ -26,7 +26,6 @@ struct EKIObj{FT<:AbstractFloat, IT<:Int}
      N_ens::IT
      "function size"
      N_g::IT
-     
 end
 
 # outer constructors
@@ -79,7 +78,7 @@ function construct_cov(eki::EKIObj{FT}, x::Array{FT,2}, x_bar::Array{FT}, y::Arr
     xy_cov = zeros(FT, N_x, N_y)
 
     for i = 1: N_ens
-        xy_cov .+= cov_weights[i]*(x[i,:] - x_bar)*(y[i,:] - y_bar)'
+        xy_cov .+= (x[i,:] - x_bar)*(y[i,:] - y_bar)'
     end
 
     return xy_cov/(N_ens - 1)
@@ -94,6 +93,7 @@ function update_ensemble!(eki::EKIObj{FT}, ens_func::Function) where {FT}
     ############# Prediction 
     θ_p = copy(eki.θ[end])
     noise = rand(MvNormal(zeros(N_params), eki.θθ0_cov), N_ens) # N_ens
+
     
     for j = 1:N_ens
         θ_p[j, :] += noise[:, j]
@@ -114,8 +114,12 @@ function update_ensemble!(eki::EKIObj{FT}, ens_func::Function) where {FT}
 
 
     g_bar = dropdims(mean(g, dims=1), dims=1)
-    gg_cov = construct_cov(eki, g, g_bar) + 2eki.obs_cov
-    θg_cov = construct_cov(eki, θ_p, θ_p_bar, g, g_bar)
+    y_bar = dropdims(mean(y, dims=1), dims=1)
+    # gg_cov = construct_cov(eki, g, g_bar, g, g_bar) + 2eki.obs_cov
+    # θg_cov = construct_cov(eki, θ_p, θ_p_bar, g, g_bar)
+
+    gg_cov = construct_cov(eki, y, y_bar, y, y_bar) 
+    θg_cov = construct_cov(eki, θ_p, θ_p_bar, y, y_bar)
 
     tmp = θg_cov/gg_cov
     

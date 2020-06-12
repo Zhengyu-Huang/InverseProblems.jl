@@ -69,36 +69,28 @@ function UKI_Run(t_mean, t_cov, θ_bar, θθ_cov,  G,  N_iter::Int64 = 100,  upd
 end
 
 
-function EKI_Run(t_mean, t_cov, θ_bar, θθ_cov,  G,  N_iter::Int64 = 100)
+function EKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov,  G,  N_ens, N_iter::Int64 = 100)
     parameter_names = ["θ"]
     
     ny, nθ = size(G)
 
-    #todo delete
-    #θθ_cov =[0.02 0.01; 0.01 0.03]
     ens_func(θ_ens) = run_linear_ensemble(θ_ens, G)
     
-    priors = [Distributions.Normal(θ_bar[i], θθ_cov[i]) for i=1:nθ]
+    priors = [Distributions.Normal(θ0_bar[i], sqrt(θθ0_cov[i,i])) for i=1:nθ]
     
-    N_ens = 2*nθ + 1
     initial_params = construct_initial_ensemble(N_ens, priors; rng_seed=6)
 
 
     ekiobj = EKIObj(parameter_names,
     initial_params, 
-    θθ_cov,
+    θθ0_cov,
     t_mean, # observation
     t_cov)
     
     
     for i in 1:N_iter
-
-        params_i = deepcopy(ekiobj.θ[end])
-        
-        #@info "At iter ", i, " θ: ", params_i
         
         update_ensemble!(ekiobj, ens_func) 
-        
         
     end
     
@@ -165,12 +157,12 @@ function Linear_Test(update_cov::Int64 = 0, case::String = "square", N_ite::Int6
     return ukiobj
 end
 
-function Hilbert_Test()
-    nθ = 100
+function Hilbert_Test(nθ::Int64 = 10, N_ite::Int64 = 1000)
+    
     θ0_bar = zeros(Float64, nθ)  # mean 
     θθ0_cov = Array(Diagonal(fill(0.5^2, nθ)))     # standard deviation
     
-    N_ite = 1000
+    
     
     G = zeros(nθ, nθ)
     for i = 1:nθ
@@ -184,33 +176,42 @@ function Hilbert_Test()
     t_cov = Array(Diagonal(fill(0.5^2, nθ)))
     
     ukiobj = UKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov, G, N_ite)
-    
+    ekiobj_1 = EKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov, G, 2nθ+1, N_ite)
+    ekiobj_2 = EKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov, G, 100nθ+1, N_ite)
     
     
     # Plot
     ites = Array(LinRange(1, N_ite+1, N_ite+1))
-    errors = zeros(Float64, N_ite+1)
+    errors = zeros(Float64, (3,N_ite+1))
     for i = 1:N_ite+1
-        errors[i] = norm(ukiobj.θ_bar[i] .- 1.0)
+        errors[1, i] = norm(ukiobj.θ_bar[i] .- 1.0)
+
+        θ_bar = dropdims(mean(ekiobj_1.θ[i], dims=1), dims=1)
+        errors[2, i] = norm(θ_bar .- 1.0)
+
+        θ_bar = dropdims(mean(ekiobj_2.θ[i], dims=1), dims=1)
+        errors[3, i] = norm(θ_bar .- 1.0)
     end
+ 
     
-    
-    loglog(ites, errors, "--or", fillstyle="none")
+    semilogy(ites, errors[1, :], "--o", fillstyle="none", label= "UKI")
+    semilogy(ites, errors[2, :], "--o", fillstyle="none", label= "EKI (\$J=2N_{θ}+1)\$")
+    semilogy(ites, errors[3, :], "--o", fillstyle="none", label= "EKI (\$J=100N_{θ}+1)\$")
     xlabel("Iterations")
     ylabel("\$L_2\$ norm error")
-    ylim((0.1,15))
+    #ylim((0.1,15))
     grid("on")
+    legend()
     tight_layout()
     
-    savefig("Hilbert.pdf")
-    close("all")
+    savefig("Hilbert-"*string(nθ)*".pdf")
+    #close("all")
     
-    
-    return ukiobj
+    return ukiobj, ekiobj
 end
 
 #mission : "2params" "Hilbert"
-mission = "2params"
+mission = "Hilbert"
 
 if mission == "2params"
     ukiobj_ssub = Linear_Test(0, "square", 10000)
@@ -307,11 +308,11 @@ if mission == "2params"
     savefig("Linear-Under-Sigma.pdf")
     #close("all")
     
-
     
 else
     
-    Hilbert_Test()
+    Hilbert_Test(10,  1000)
+    Hilbert_Test(100, 1000)
 end
 
 @info "finished"
