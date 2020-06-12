@@ -195,8 +195,8 @@ function Hilbert_Test(nθ::Int64 = 10, N_ite::Int64 = 1000)
  
     
     semilogy(ites, errors[1, :], "--o", fillstyle="none", label= "UKI")
-    semilogy(ites, errors[2, :], "--o", fillstyle="none", label= "EKI (\$J=2N_{θ}+1)\$")
-    semilogy(ites, errors[3, :], "--o", fillstyle="none", label= "EKI (\$J=100N_{θ}+1)\$")
+    semilogy(ites, errors[2, :], "--o", fillstyle="none", label= "EnKI (\$J=2N_{θ}+1)\$")
+    semilogy(ites, errors[3, :], "--o", fillstyle="none", label= "EnKI (\$J=100N_{θ}+1)\$")
     xlabel("Iterations")
     ylabel("\$L_2\$ norm error")
     #ylim((0.1,15))
@@ -211,8 +211,8 @@ function Hilbert_Test(nθ::Int64 = 10, N_ite::Int64 = 1000)
 end
 
 #mission : "2params" "Hilbert"
-#mission = "Hilbert"
-mission = "2params"
+mission = "Hilbert"
+#mission = "2params"
 if mission == "2params"
     ukiobj_ssub = Linear_Test(0, "square", 10000)
     ukiobj_sopt = Linear_Test(5, "square", 10000)
@@ -243,12 +243,12 @@ if mission == "2params"
     end
     
     
-    semilogy(ites, errors[1, :], "--o", fillstyle="none", label="Square")
-    semilogy(ites, errors[2, :], "--o", fillstyle="none", label="Square (Update)")
-    semilogy(ites, errors[3, :], "--o", fillstyle="none", label="Under")
-    semilogy(ites, errors[4, :], "--o", fillstyle="none", label="Under  (Update)")
-    semilogy(ites, errors[5, :], "--o", fillstyle="none", label="Over")
-    semilogy(ites, errors[6, :], "--o", fillstyle="none", label="Over    (Update)")
+    semilogy(ites, errors[1, :], "--o", fillstyle="none", label="SM")
+    semilogy(ites, errors[2, :], "--o", fillstyle="none", label="SM (Update)")
+    semilogy(ites, errors[3, :], "--o", fillstyle="none", label="UD")
+    semilogy(ites, errors[4, :], "--o", fillstyle="none", label="UD (Update)")
+    semilogy(ites, errors[5, :], "--o", fillstyle="none", label="OD")
+    semilogy(ites, errors[6, :], "--o", fillstyle="none", label="OD (Update)")
     xlabel("Iterations")
     ylabel("\$L_2\$ norm error")
     grid("on")
