@@ -211,8 +211,8 @@ function Hilbert_Test(nθ::Int64 = 10, N_ite::Int64 = 1000)
 end
 
 #mission : "2params" "Hilbert"
-mission = "Hilbert"
-#mission = "2params"
+#mission = "Hilbert"
+mission = "2params"
 if mission == "2params"
     ukiobj_ssub = Linear_Test(0, "square", 10000)
     ukiobj_sopt = Linear_Test(5, "square", 10000)
@@ -243,12 +243,12 @@ if mission == "2params"
     end
     
     
-    semilogy(ites, errors[1, :], "--o", fillstyle="none", label="SM")
-    semilogy(ites, errors[2, :], "--o", fillstyle="none", label="SM (Update)")
+    semilogy(ites, errors[1, :], "--o", fillstyle="none", label="NS")
+    semilogy(ites, errors[2, :], "--o", fillstyle="none", label="NS (update)")
     semilogy(ites, errors[3, :], "--o", fillstyle="none", label="UD")
-    semilogy(ites, errors[4, :], "--o", fillstyle="none", label="UD (Update)")
+    semilogy(ites, errors[4, :], "--o", fillstyle="none", label="UD (update)")
     semilogy(ites, errors[5, :], "--o", fillstyle="none", label="OD")
-    semilogy(ites, errors[6, :], "--o", fillstyle="none", label="OD (Update)")
+    semilogy(ites, errors[6, :], "--o", fillstyle="none", label="OD (update)")
     xlabel("Iterations")
     ylabel("\$L_2\$ norm error")
     grid("on")
@@ -272,16 +272,18 @@ if mission == "2params"
     end
     
     
-    semilogy(ites, errors[1, :], "--o", fillstyle="none", label="Square")
-    semilogy(ites, errors[2, :], "--o", fillstyle="none", label="Square (Update)")
-    semilogy(ites, errors[5, :], "--o", fillstyle="none", label="Over")
-    semilogy(ites, errors[6, :], "--o", fillstyle="none", label="Over    (Update)")
+    semilogy(ites, errors[1, :], "--o", fillstyle="none", label="NS")
+    semilogy(ites, errors[2, :], "--o", fillstyle="none", label="NS (update)")
+    semilogy(ites, errors[5, :], "--o", fillstyle="none", label="OD")
+    semilogy(ites, errors[6, :], "--o", fillstyle="none", label="OD (update)")
     xlabel("Iterations")
     ylabel("Frobenius norm error")
     grid("on")
     legend()
     tight_layout()
     savefig("Linear-Sigma.pdf")
+
+    close("all")
 
 
     # Plot θθ_cov diverge
@@ -298,15 +300,15 @@ if mission == "2params"
     end
     
     
-    semilogy(ites, errors[3, :], "--o", fillstyle="none", label="Under")
-    semilogy(ites, errors[4, :], "--o", fillstyle="none", label="Under (Update)")
+    semilogy(ites, errors[3, :], "--o", fillstyle="none", label="UD")
+    semilogy(ites, errors[4, :], "--o", fillstyle="none", label="UD (update)")
     xlabel("Iterations")
     ylabel("Frobenius norm error")
     grid("on")
     legend()
     tight_layout()
     savefig("Linear-Under-Sigma.pdf")
-    #close("all")
+    close("all")
     
     
 else
