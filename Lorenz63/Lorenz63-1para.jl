@@ -193,22 +193,29 @@ function adjoint_plot()
     filtered_x3_arr = copy(x3_arr)
     filtered_dx3_dr_arr = copy(dx3_dr_arr)
     
-    σr = 0.4
-    filter_Δ = Int64(ceil(σr/dr))
+    σr = sqrt(0.17)
+    filter_Δ = Int64(ceil(3*σr/dr))
     for i = 1:N_r
         if (i > filter_Δ && i < N_r - filter_Δ)
             filtered_x3 = 0.0
+            weights = 0.0
             filtered_dx3_dr = 0.0
             filtered_dx3_dr_numerator = 0.0
             filtered_dx3_dr_denominator = 0.0
             
             for j = i-filter_Δ:i+filter_Δ
-                filtered_x3 += x3_arr[j]
-                filtered_dx3_dr_numerator += (r_arr[j] - r_arr[i])*(x3_arr[j] - x3_arr[i])
-                filtered_dx3_dr_denominator += (r_arr[j] - r_arr[i])*(r_arr[j] - r_arr[i])
+                weight = 1/(sqrt(2*pi)*σr)*exp(-(r_arr[j] - r_arr[i])^2/(2*σr^2))
+                filtered_x3 += x3_arr[j]*weight
+                filtered_dx3_dr_numerator += (r_arr[j] - r_arr[i])*(x3_arr[j] - x3_arr[i])*weight
+                filtered_dx3_dr_denominator += (r_arr[j] - r_arr[i])*(r_arr[j] - r_arr[i])*weight
+                weights += weight
+
+                
             end
+
             
-            filtered_x3_arr[i] =  filtered_x3/(2*filter_Δ+1)
+            
+            filtered_x3_arr[i] =  filtered_x3/weights 
             filtered_dx3_dr_arr[i] =  filtered_dx3_dr_numerator/filtered_dx3_dr_denominator
         end
     end
