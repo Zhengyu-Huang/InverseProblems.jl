@@ -222,7 +222,7 @@ function adjoint_plot()
     
     plot(r_arr[filter_Δ+1:N_r - filter_Δ-1], filtered_x3_arr[filter_Δ+1:N_r - filter_Δ-1], "--", fillstyle="none")
     xlabel(L"r")
-    ylabel(L"\mathcal{F}\mathcal{G}(x)")
+    ylabel(L"\mathcal{F}\mathcal{G}(r)")
     grid("on")
     tight_layout()
     savefig("Filtered_Lorenz_J.pdf")

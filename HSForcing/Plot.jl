@@ -3,7 +3,7 @@ using JLD2
 include("../Plot.jl")
 include("../UKI.jl")
 
-@load "UKI_Obj_Ite_10.dat" ukiobj
+@load "UKI_Obj_Ite_20.dat" ukiobj
 
 
 """
@@ -61,7 +61,7 @@ function visualize(uki::UKIObj{Float64}, θ_ref::Array{Float64, 1}, file_name::S
     end
 
     @info "final result is ", θ_bar_arr[:,end],  θθ_cov[end]
-
+  
     errorbar(ites, θ_bar_arr[1,:], yerr=3.0*θθ_cov_arr[1,:], fmt="--o",fillstyle="none", label=L"k_a")
     #semilogy(ites, θ_bar_arr[1,:], "--o", fillstyle="none", label=L"k_a")
     semilogy(ites, fill(θ_ref[1], N_ite+1), "--", color="gray")
