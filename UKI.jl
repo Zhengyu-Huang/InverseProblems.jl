@@ -181,11 +181,10 @@ function update_ensemble!(uki::UKIObj{FT}, ens_func::Function) where {FT}
     θθ_cov = copy(uki.θθ_cov[end])
     ############# Prediction 
     # Generate sigma points, and time step update 
-    θ_p      = construct_sigma_ensemble(uki, θ_bar, θθ_cov)
-    θ_p_bar  = construct_mean(uki, θ_p)
     
-    θθ_p_cov = construct_cov(uki, θ_p, θ_p_bar) + uki.θθ_cov[1]
-
+    
+    θ_p_bar  = θ_bar 
+    θθ_p_cov = θθ_cov + uki.θθ_cov[1]
     ############# Update
     # Generate sigma points
     N_θ, N_g, N_ens = uki.N_θ, uki.N_g, uki.N_ens
