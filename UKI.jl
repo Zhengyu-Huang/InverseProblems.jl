@@ -193,6 +193,7 @@ function update_ensemble!(uki::UKIObj{FT}, ens_func::Function) where {FT}
     θ_p_bar  = construct_mean(uki, θ_p)
     θθ_p_cov = construct_cov(uki, θ_p, θ_p_bar)
 
+    @info "min θ_p", minimum(θ_p)
     g = zeros(FT, N_ens, N_g)
     g .= ens_func(θ_p)
     g_bar = construct_mean(uki, g)
@@ -203,6 +204,9 @@ function update_ensemble!(uki::UKIObj{FT}, ens_func::Function) where {FT}
 
     tmp = θg_cov/gg_cov
     θ_bar =  θ_p_bar + tmp*(uki.g_t - g_bar)
+
+    @info "norm(uki.g_t - g_bar)", norm(uki.g_t - g_bar), "/", norm(uki.g_t)
+    @info "norm(θθ_cov)", norm(θθ_cov)
     
     θθ_cov =  θθ_p_cov - tmp*θg_cov' 
 
