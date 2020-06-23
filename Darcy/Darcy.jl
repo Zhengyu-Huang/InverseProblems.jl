@@ -8,6 +8,8 @@ include("../Plot.jl")
 include("../UKI.jl")
 include("../EKI.jl")
 
+
+
 mutable struct Param_Darcy
     N::Int64
     L::Float64
@@ -130,12 +132,13 @@ function generate_θ_KL(N::Int64, xx::Array{Float64,1}, trunc::Int64, α::Float6
         λ[i] = (pi^2*(seq_pairs[i, 1]^2 + seq_pairs[i, 2]^2) + τ^2)^(-α)
     end
     
+    Random.seed!(123);
     u = rand(Normal(0, 1), trunc)
     logκ_2d = zeros(Float64, N, N)
     for i = 1:trunc
         logκ_2d .+= u[i]*sqrt(λ[i])*φ[i, :, :]
     end
-    
+  
     return logκ_2d, φ, λ, u
 end
 
@@ -343,8 +346,8 @@ function Darcy_Test()
     N_ens = 200
     
     
-    trunc = 16
-    N_θ = trunc
+    trunc = 128
+    N_θ = 16
     α = 2.0
     τ = 3.0
 
@@ -368,14 +371,11 @@ function Darcy_Test()
     #θ0_bar = darcy.u_ref[1:N_θ]
     θθ0_cov = Array(Diagonal(fill(1.0, N_θ)))
 
-    
-    @info "start UKI"
     ukiobj = UKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov, darcy, N_ite)
-    @info "start EKI"
-    ekiobj = EKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov, darcy, N_ens, N_ite)
     
+
     
-    error("stop")
+
     # Plot
     ites = Array(LinRange(1, N_ite+1, N_ite+1))
     errors = zeros(Float64, (2,N_ite+1))
@@ -386,7 +386,6 @@ function Darcy_Test()
         errors[2, i] = norm(θ_bar .- logκ)
         
     end
-    
     
     semilogy(ites, errors[1, :], "--o", fillstyle="none", label= "UKI")
     semilogy(ites, errors[2, :], "--o", fillstyle="none", label= "EnKI (\$J=2N_{θ}+1)\$")
@@ -400,7 +399,7 @@ function Darcy_Test()
     savefig("Darcy-"*string(N)*".pdf")
     close("all")
     
-    return ukiobj, ekiobj
+    return ukiobj
 end
 
 #mission : "2params" "Hilbert"

@@ -101,13 +101,6 @@ function construct_sigma_ensemble(uki::UKIObj{FT}, x_bar::Array{FT}, x_cov::Arra
 
     chol_xx_cov = cholesky(Hermitian(x_cov)).L
 
-    @info size(chol_xx_cov), N_x
-    #diag = [chol_xx_cov[i,i] for i = 1:N_x]
-    #@info diag
-    #@info "x_bar", x_bar
-
-    #@info chol_xx_cov
-
     x = zeros(Float64, 2*N_x+1, N_x)
     x[1, :] = x_bar
     for i = 1: N_x
@@ -202,7 +195,6 @@ function update_ensemble!(uki::UKIObj{FT}, ens_func::Function) where {FT}
     θ_p_bar  = construct_mean(uki, θ_p)
     θθ_p_cov = construct_cov(uki, θ_p, θ_p_bar)
 
-    @info "min θ_p", minimum(θ_p)
     g = zeros(FT, N_ens, N_g)
     g .= ens_func(θ_p)
     g_bar = construct_mean(uki, g)
@@ -213,10 +205,6 @@ function update_ensemble!(uki::UKIObj{FT}, ens_func::Function) where {FT}
 
     tmp = θg_cov/gg_cov
     θ_bar =  θ_p_bar + tmp*(uki.g_t - g_bar)
-
-    @info "norm(uki.g_t - g_bar)", norm(uki.g_t - g_bar), "/", norm(uki.g_t)
-    @info "norm(uki.g_t - g[1])", norm(uki.g_t - g[1,:]), "/", norm(uki.g_t)
-    @info "norm(θθ_cov)", norm(θθ_cov)
     
     θθ_cov =  θθ_p_cov - tmp*θg_cov' 
 

@@ -94,7 +94,6 @@ function update_ensemble!(eki::EKIObj{FT}, ens_func::Function) where {FT}
     θ_p = copy(eki.θ[end])
     noise = rand(MvNormal(zeros(N_params), eki.θθ0_cov), N_ens) # N_ens
 
-    
     for j = 1:N_ens
         θ_p[j, :] += noise[:, j]
     end
@@ -105,23 +104,21 @@ function update_ensemble!(eki::EKIObj{FT}, ens_func::Function) where {FT}
     
     g = zeros(FT, N_ens, N_g)
     g .= ens_func(θ_p)
+
+    g_bar = dropdims(mean(g, dims=1), dims=1)
+
+    gg_cov = construct_cov(eki, g, g_bar, g, g_bar) + 2eki.obs_cov
+    θg_cov = construct_cov(eki, θ_p, θ_p_bar, g, g_bar)
     
+
+    tmp = θg_cov/gg_cov
+
+
     y = zeros(FT, N_ens, N_g)
     noise = rand(MvNormal(zeros(N_g), 2*eki.obs_cov), N_ens) # N_ens
     for j = 1:N_ens
         y[j, :] = g[j, :] + noise[:, j]
     end
-
-
-    g_bar = dropdims(mean(g, dims=1), dims=1)
-    y_bar = dropdims(mean(y, dims=1), dims=1)
-    # gg_cov = construct_cov(eki, g, g_bar, g, g_bar) + 2eki.obs_cov
-    # θg_cov = construct_cov(eki, θ_p, θ_p_bar, g, g_bar)
-
-    gg_cov = construct_cov(eki, y, y_bar, y, y_bar) 
-    θg_cov = construct_cov(eki, θ_p, θ_p_bar, y, y_bar)
-
-    tmp = θg_cov/gg_cov
     
     θ = copy(θ_p) 
     for j = 1:N_ens
