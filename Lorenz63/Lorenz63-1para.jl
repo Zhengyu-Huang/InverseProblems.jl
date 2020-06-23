@@ -392,8 +392,8 @@ end
 
 # mission is  "adjoint_plt" or "UKI"
 
-# mission  =  "UKI"
-mission = "adjoint_plt"
+mission  =  "UKI"
+# mission = "adjoint_plt"
 
 if mission == "adjoint_plt"
     #adjoint_demo()

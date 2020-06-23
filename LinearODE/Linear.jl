@@ -212,7 +212,7 @@ end
 
 #mission : "2params" "Hilbert"
 #mission = "Hilbert"
-mission = "2params"
+mission = "Hilbert"
 if mission == "2params"
     ukiobj_ssub = Linear_Test(0, "square", 10000)
     ukiobj_sopt = Linear_Test(5, "square", 10000)
