@@ -296,6 +296,11 @@ function UKI_Run(t_mean, t_cov, θ_bar, θθ_cov,  darcy::Param_Darcy, N_iter::I
         params_i = deepcopy(ukiobj.θ_bar[end])
 
         @info "L₂ error of params_i :", norm(darcy.u_ref[1:length(params_i)] - params_i), " / ",  norm(darcy.u_ref[1:length(params_i)])
+
+        logκ_2d_i = compute_logκ_2d(darcy, params_i)
+
+        @info "F error of logκ :", norm(darcy.logκ_2d - logκ_2d_i), " / ",  norm(darcy.logκ_2d )
+
         
         update_ensemble!(ukiobj, ens_func) 
         
