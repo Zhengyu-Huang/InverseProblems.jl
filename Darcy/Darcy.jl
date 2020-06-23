@@ -338,16 +338,12 @@ end
 
 
 
-function Darcy_Test()
-    
+function Darcy_Test(trunc::Int64= 128, N_θ::Int64= 16, N_ite::Int64 = 100)
     N, L = 80, 1.0
     obs_ΔN = 8
-    N_ite = 1000
-    N_ens = 200
     
-    
-    trunc = 128
-    N_θ = 16
+    trunc 
+    N_θ 
     α = 2.0
     τ = 3.0
 
@@ -362,53 +358,47 @@ function Darcy_Test()
 
     t_mean = compute_obs(darcy, h_2d)
 
-    
-    #t_cov = Array(Diagonal(fill(0.01, size(t_mean))))
     t_cov = Array(Diagonal(fill(0.01*maximum(t_mean)^2, length(t_mean))))
     
     θ0_bar = zeros(Float64, N_θ)  # mean 
 
-    #θ0_bar = darcy.u_ref[1:N_θ]
     θθ0_cov = Array(Diagonal(fill(1.0, N_θ)))
 
     ukiobj = UKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov, darcy, N_ite)
     
-
-    
-
-    # Plot
-    ites = Array(LinRange(1, N_ite+1, N_ite+1))
-    errors = zeros(Float64, (2,N_ite+1))
-    for i = 1:N_ite+1
-        errors[1, i] = norm(ukiobj.θ_bar[i] .- logκ)
-        
-        θ_bar = dropdims(mean(ekiobj.θ[i], dims=1), dims=1)
-        errors[2, i] = norm(θ_bar .- logκ)
-        
-    end
-    
-    semilogy(ites, errors[1, :], "--o", fillstyle="none", label= "UKI")
-    semilogy(ites, errors[2, :], "--o", fillstyle="none", label= "EnKI (\$J=2N_{θ}+1)\$")
-    xlabel("Iterations")
-    ylabel("\$L_2\$ norm error")
-    #ylim((0.1,15))
-    darcy("on")
-    legend()
-    tight_layout()
-    
-    savefig("Darcy-"*string(N)*".pdf")
-    close("all")
-    
     return ukiobj
 end
 
-#mission : "2params" "Hilbert"
-#mission = "Hilbert"
 
 
-# 20/(1+|θ|) - 10
+ukiobj_1 = Darcy_Test(128, 16, 100)
+ukiobj_2 = Darcy_Test(128, 8, 100)
 
-Darcy_Test()
+# Plot logκ error and Data mismatch
+
+ites = Array(LinRange(1, N_ite+1, N_ite+1))
+errors = zeros(Float64, (4, N_ite+1))
+for i = 1:N_ite+1
+    errors[1, i] = norm(ukiobj.θ_bar[i] .- logκ)
+    
+    θ_bar = dropdims(mean(ekiobj.θ[i], dims=1), dims=1)
+    errors[2, i] = norm(θ_bar .- logκ)
+    
+end
+
+semilogy(ites, errors[1, :], "--o", fillstyle="none", label= "UKI")
+semilogy(ites, errors[2, :], "--o", fillstyle="none", label= "EnKI (\$J=2N_{θ}+1)\$")
+xlabel("Iterations")
+ylabel("\$L_2\$ norm error")
+#ylim((0.1,15))
+darcy("on")
+legend()
+tight_layout()
+
+savefig("Darcy-"*string(N)*".pdf")
+close("all")
+
+
 @info "finished"
 
 
