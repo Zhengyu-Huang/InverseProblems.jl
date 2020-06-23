@@ -22,6 +22,8 @@ struct UKIObj{FT<:AbstractFloat, IT<:Int}
      g_t::Vector{FT}
      "covariance of the observational noise, which is assumed to be normally distributed"
      obs_cov::Array{FT, 2}
+     "a vector of arrays of size N_ensemble x N_parameters containing the parameters (in each EKI iteration a new array of parameters is added)"
+     g_bar::Vector{Array{FT}}
      "ensemble size"
      N_ens::IT
      "g = G(u), z = [u, g]"
@@ -63,10 +65,14 @@ function UKIObj(parameter_names::Vector{String},
     
     λ = α^2*(N_θ + κ) - N_θ
 
+    
+
     θ_bar = Array{FT}[]  # array of Array{FT, 2}'s
     push!(θ_bar, θ0_bar) # insert parameters at end of array (in this case just 1st entry)
     θθ_cov = Array{FT,2}[] # array of Array{FT, 2}'s
     push!(θθ_cov, θθ0_cov) # insert parameters at end of array (in this case just 1st entry)
+
+    g_bar = Array{FT}[]  # array of Array{FT, 2}'s
    
 
     sample_weights[1:N_θ]     .=  sqrt(N_θ + λ)
@@ -79,7 +85,7 @@ function UKIObj(parameter_names::Vector{String},
 
     #error(">_<")
 
-    UKIObj{FT,IT}(parameter_names, θ_bar, θθ_cov, g_t, obs_cov, N_ens, N_θ, N_g, 
+    UKIObj{FT,IT}(parameter_names, θ_bar, θθ_cov, g_t, obs_cov, g_bar, N_ens, N_θ, N_g, 
                   sample_weights, μ_weights, cov_weights)
 
 end
@@ -209,8 +215,11 @@ function update_ensemble!(uki::UKIObj{FT}, ens_func::Function) where {FT}
 
 
     # store new parameters (and observations)
+    push!(uki.g_bar, g_bar) # N_ens x N_data
     push!(uki.θ_bar, θ_bar) # N_ens x N_params
     push!(uki.θθ_cov, θθ_cov) # N_ens x N_data
+
+    
 
 end
 

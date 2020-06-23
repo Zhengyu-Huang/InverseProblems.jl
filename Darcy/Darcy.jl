@@ -43,6 +43,7 @@ function Param_Darcy(N::Int64, obs_ΔN::Int64, L::Float64, trunc::Int64, N_θ::I
 
     logκ_2d,φ,λ,u = generate_θ_KL(N, xx, trunc, α, τ)
     f_2d = compute_f_2d(N, xx)
+
     Param_Darcy(N, L, Δx, xx, obs_ΔN, trunc, N_θ, α, τ, logκ_2d, φ, λ, u, f_2d)
 end
 
@@ -282,7 +283,7 @@ end
 # end
 
 
-function UKI_Run(t_mean, t_cov, θ_bar, θθ_cov,  darcy::Param_Darcy, N_iter::Int64 = 100)
+function UKI_Run(t_mean, t_cov, θ_bar, θθ_cov,  darcy::Param_Darcy,  N_iter::Int64 = 100)
     parameter_names = ["logκ_2d"]
     
     ens_func(θ_ens) = run_Darcy_ensemble(darcy, θ_ens)
@@ -306,6 +307,9 @@ function UKI_Run(t_mean, t_cov, θ_bar, θθ_cov,  darcy::Param_Darcy, N_iter::I
 
         
         update_ensemble!(ukiobj, ens_func) 
+
+        @info "F error of data_mismatch :", (ukiobj.g_bar[end] - ukiobj.g_t)'*(ukiobj.obs_cov\(ukiobj.g_bar[end] - ukiobj.g_t))
+
         
     end
     
