@@ -56,8 +56,12 @@ function UKIObj(parameter_names::Vector{String},
 
     # todo parameters λ, α, β
     # α, β = 1.0e-3, 2.0
-    α, β = 1.0, 2.0
     κ = 0.0
+    β = 2.0
+
+    α = sqrt(4/(N_θ + κ))
+    #α = 1.0e-4
+    
     λ = α^2*(N_θ + κ) - N_θ
 
     θ_bar = Array{FT}[]  # array of Array{FT, 2}'s
@@ -96,6 +100,13 @@ function construct_sigma_ensemble(uki::UKIObj{FT}, x_bar::Array{FT}, x_cov::Arra
 
 
     chol_xx_cov = cholesky(Hermitian(x_cov)).L
+
+    @info size(chol_xx_cov), N_x
+    #diag = [chol_xx_cov[i,i] for i = 1:N_x]
+    #@info diag
+    #@info "x_bar", x_bar
+
+    #@info chol_xx_cov
 
     x = zeros(Float64, 2*N_x+1, N_x)
     x[1, :] = x_bar
@@ -182,7 +193,6 @@ function update_ensemble!(uki::UKIObj{FT}, ens_func::Function) where {FT}
     ############# Prediction 
     # Generate sigma points, and time step update 
     
-    
     θ_p_bar  = θ_bar 
     θθ_p_cov = θθ_cov + uki.θθ_cov[1]
     ############# Update
@@ -205,6 +215,7 @@ function update_ensemble!(uki::UKIObj{FT}, ens_func::Function) where {FT}
     θ_bar =  θ_p_bar + tmp*(uki.g_t - g_bar)
 
     @info "norm(uki.g_t - g_bar)", norm(uki.g_t - g_bar), "/", norm(uki.g_t)
+    @info "norm(uki.g_t - g[1])", norm(uki.g_t - g[1,:]), "/", norm(uki.g_t)
     @info "norm(θθ_cov)", norm(θθ_cov)
     
     θθ_cov =  θθ_p_cov - tmp*θg_cov' 
