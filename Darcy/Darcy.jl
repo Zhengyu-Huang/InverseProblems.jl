@@ -94,25 +94,22 @@ end
 
 
 function generate_θ_KL(N::Int64, xx::Array{Float64,1}, trunc::Int64, α::Float64=2.0, τ::Float64=3.0)
-    #logκ = ∑ u_l √λ_l φ_l(x)      l = (0, 0), 
-    #                                  (1, 0), (0, -1), (-1, 0) (0, 1) 
-    #                                  (2, 0), (1,  -1), (0, -2)  ...
+    #logκ = ∑ u_l √λ_l φ_l(x)      l ∈ Z^{+}
+    #                                  (0, 0)
+    #                                  (0, 1), (1, 0) 
+    #                                  (0, 2), (1,  1), (2, 0)  ...
     
-    @assert((trunc-1)%4 == 0)
     X,Y = repeat(xx, 1, N), repeat(xx, 1, N)'
 
     seq_pairs = zeros(Int64, trunc, 2)
 
-    itrunc = 1
-    for k = 1:1000 # any large number
-        # |x| + |y| = k, (4k lattices)
-        for j = 0:k-1
-            # (j, k-j), (k-j, -j), (-j, j-k), (j-k, j) 
+    itrunc = 0
+    for k = 0:1000 # any large number
+        # |x| + |y| = k, (k+1 lattices)
+        for j = 0:k
+            # (j, k-j)
             seq_pairs[itrunc+1, :] .=  j, k-j
-            seq_pairs[itrunc+2, :] .=  k-j, -j
-            seq_pairs[itrunc+3, :] .=  -j, j-k
-            seq_pairs[itrunc+4, :] .=  j-k, j
-            itrunc += 4
+            itrunc += 1
             if itrunc >= trunc
                 break
             end
@@ -345,6 +342,7 @@ function Darcy_Test()
     τ = 3.0
 
     darcy = Param_Darcy(N, obs_ΔN, L, trunc, N_θ, α, τ)
+
 
     κ_2d = exp.(darcy.logκ_2d)
     h_2d = solve_GWF(darcy, κ_2d)
