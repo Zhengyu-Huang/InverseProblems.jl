@@ -82,10 +82,12 @@ function compute_f_2d(N::Int64, yy::Array{Float64, 1})
     f_2d = zeros(Float64, N, N)
 
     for i = 1:N
-        if (yy[i] >= 4/6 && yy[i] <= 5/6)
-            f_2d[:,i] .= 137.0
+        if (yy[i] <= 4/6)
+            f_2d[:,i] .= 1000.0
+        elseif (yy[i] >= 4/6 && yy[i] <= 5/6)
+            f_2d[:,i] .= 2000.0
         elseif (yy[i] >= 5/6)
-            f_2d[:,i] .= 274.0
+            f_2d[:,i] .= 3000.0
         end
     end
 
@@ -335,8 +337,8 @@ function Darcy_Test()
     N_ite = 1000
     N_ens = 200
     
-    K = 5
-    trunc = 2*K*(K-1) + 1
+    
+    trunc = 16
     N_θ = trunc
     α = 2.0
     τ = 3.0
