@@ -390,8 +390,8 @@ end
 
 
 
-N, L = 160, 1.0
-obs_ΔN = 20
+N, L = 80, 1.0
+obs_ΔN = 10
 α = 2.0
 τ = 3.0
 KL_trunc = 256
@@ -400,8 +400,8 @@ darcy = Param_Darcy(N, obs_ΔN, L, KL_trunc, α, τ)
 
 N_ite = 200
 N_θ1, N_θ2 = 32, 8
-ukiobj_1 = Darcy_Test(darcy, N_θ1, N_ite) #N_θ=16
-ukiobj_2 = Darcy_Test(darcy, N_θ2, N_ite)  #N_θ=8
+ukiobj_1 = Darcy_Test(darcy, N_θ1, N_ite) 
+ukiobj_2 = Darcy_Test(darcy, N_θ2, N_ite) 
 
 # Plot logκ error and Data mismatch
 
