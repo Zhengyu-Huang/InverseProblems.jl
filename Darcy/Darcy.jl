@@ -165,6 +165,7 @@ function generate_θ_KL(N::Int64, xx::Array{Float64,1}, trunc_KL::Int64, α::Flo
     
     Random.seed!(123);
     u = rand(Normal(0, 1), trunc_KL)
+
     logκ_2d = zeros(Float64, N, N)
     for i = 1:trunc_KL
         logκ_2d .+= u[i]*sqrt(λ[i])*φ[i, :, :]
@@ -398,8 +399,43 @@ function Darcy_Test(darcy::Param_Darcy, N_θ::Int64= 16, N_ite::Int64 = 100, noi
 end
 
 
-
-
+function plot_KI_error(ukiobj::UKIObj, filename::String)
+    N_θ = 5 #first 3 components
+    θ_bar = ukiobj.θ_bar
+    θθ_cov = ukiobj.θθ_cov
+    θ_bar_arr = hcat(θ_bar...)[:, 1:N_ite]
+    
+    θθ_cov_arr = zeros(Float64, (N_θ, N_ite))
+    for i = 1:N_ite
+        for j = 1:N_θ
+            θθ_cov_arr[j, i] = sqrt(θθ_cov[i][j,j])
+        end
+    end
+    
+    errorbar(ites, θ_bar_arr[1,:], yerr=3.0*θθ_cov_arr[1,:], fmt="--o",fillstyle="none", label=L"\theta_0")
+    #plot(ites, θ_bar_arr[1,:], "--o", fillstyle="none", label=L"\sigma")
+    plot(ites, fill(darcy.u_ref[1], N_ite), "--", color="gray")
+    errorbar(ites.+0.1, θ_bar_arr[2,:], yerr=3.0*θθ_cov_arr[2,:], fmt="--o",fillstyle="none", label=L"\theta_1")
+    #plot(ites, θ_bar_arr[2,:], "--o", fillstyle="none", label=L"r")
+    plot(ites, fill(darcy.u_ref[2], N_ite), "--", color="gray")
+    errorbar(ites.-0.1, θ_bar_arr[3,:], yerr=3.0*θθ_cov_arr[3,:], fmt="--o",fillstyle="none", label=L"\theta_2")
+    #plot(ites, θ_bar_arr[3,:], "--o", fillstyle="none", label=L"\beta")
+    plot(ites, fill(darcy.u_ref[3], N_ite), "--", color="gray")
+    errorbar(ites.+0.2, θ_bar_arr[4,:], yerr=3.0*θθ_cov_arr[4,:], fmt="--o",fillstyle="none", label=L"\theta_3")
+    #plot(ites, θ_bar_arr[2,:], "--o", fillstyle="none", label=L"r")
+    plot(ites, fill(darcy.u_ref[4], N_ite), "--", color="gray")
+    errorbar(ites.-0.2, θ_bar_arr[5,:], yerr=3.0*θθ_cov_arr[5,:], fmt="--o",fillstyle="none", label=L"\theta_4")
+    #plot(ites, θ_bar_arr[3,:], "--o", fillstyle="none", label=L"\beta")
+    plot(ites, fill(darcy.u_ref[5], N_ite), "--", color="gray")
+    
+    xlabel("Iterations")
+    legend()
+    grid("on")
+    tight_layout()
+    savefig(filename)
+    close("all")
+    
+end
 
 N, L = 80, 1.0
 obs_ΔN = 10
@@ -409,7 +445,7 @@ KL_trunc = 256
 darcy = Param_Darcy(N, obs_ΔN, L, KL_trunc, α, τ)
 
 
-N_ite = 10
+N_ite = 200
 N_θ1, N_θ2 = 32, 8
 ukiobj_1 = Darcy_Test(darcy, N_θ1, N_ite, false) 
 ukiobj_2 = Darcy_Test(darcy, N_θ2, N_ite, false) 
@@ -461,30 +497,8 @@ plot_field(darcy, compute_logκ_2d(darcy, ukiobj_2.θ_bar[N_ite]), "Darcy-logk-8
 
 
 ####################################################################################
-
-N_θ = 3 #first 3 components
-θ_bar = ukiobj_1.θ_bar
-θθ_cov = ukiobj_1.θθ_cov
-θ_bar_arr = hcat(θ_bar...)[:, 1:N_ite]
-
-θθ_cov_arr = zeros(Float64, (N_θ, N_ite))
-for i = 1:N_ite
-    for j = 1:N_θ
-        θθ_cov_arr[j, i] = sqrt(θθ_cov[i][j,j])
-    end
-end
-
-@info "final result is ", θ_bar[end],  θθ_cov[end]
-
-errorbar(ites, θ_bar_arr[1,:], yerr=3.0*θθ_cov_arr[1,:], fmt="--o",fillstyle="none", label=L"\sigma")
-#plot(ites, θ_bar_arr[1,:], "--o", fillstyle="none", label=L"\sigma")
-plot(ites, fill(darcy.u_ref[1], N_ite), "--", color="gray")
-errorbar(ites, θ_bar_arr[2,:], yerr=3.0*θθ_cov_arr[2,:], fmt="--o",fillstyle="none", label=L"r")
-#plot(ites, θ_bar_arr[2,:], "--o", fillstyle="none", label=L"r")
-plot(ites, fill(darcy.u_ref[2], N_ite), "--", color="gray")
-errorbar(ites, θ_bar_arr[3,:], yerr=3.0*θθ_cov_arr[3,:], fmt="--o",fillstyle="none", label=L"\beta")
-#plot(ites, θ_bar_arr[3,:], "--o", fillstyle="none", label=L"\beta")
-plot(ites, fill(darcy.u_ref[3], N_ite), "--", color="gray")
+plot_KI_error(ukiobj_1,  "darcy_error_32.pdf")
+plot_KI_error(ukiobj_2,  "darcy_error_8.pdf")
 
 
 @info "finished"
