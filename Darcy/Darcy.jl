@@ -58,7 +58,8 @@ function plot_field(darcy::Param_Darcy, u_2d::Array{Float64, 2}, filename::Strin
     N = darcy.N
     xx = darcy.xx
     X,Y = repeat(xx, 1, N), repeat(xx, 1, N)'
-    pcolormesh(X, Y, u_2d, shading= "gouraud", cmap="viridis")
+    #pcolormesh(X, Y, u_2d, shading= "gouraud", cmap="jet")
+    pcolormesh(X, Y, u_2d, cmap="jet")
     colorbar()
     tight_layout()
     if filename != "None"
@@ -76,8 +77,9 @@ function plot_obs(darcy::Param_Darcy, u_2d::Array{Float64, 2}, filename::String 
     
     x_obs, y_obs = X[obs_ΔN:obs_ΔN:N-obs_ΔN,obs_ΔN:obs_ΔN:N-obs_ΔN][:], Y[obs_ΔN:obs_ΔN:N-obs_ΔN,obs_ΔN:obs_ΔN:N-obs_ΔN][:] 
     
-    pcolormesh(X, Y, u_2d, shading= "gouraud", cmap="viridis")
-    scatter(x_obs, y_obs, color="red")
+    #pcolormesh(X, Y, u_2d, shading= "gouraud", cmap="jet")
+    pcolormesh(X, Y, u_2d, cmap="jet")
+    scatter(x_obs, y_obs, color="black")
     colorbar()
     tight_layout()
     if filename != "None"
