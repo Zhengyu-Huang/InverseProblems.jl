@@ -413,22 +413,22 @@ function plot_KI_error(ukiobj::UKIObj, filename::String)
             θθ_cov_arr[j, i] = sqrt(θθ_cov[i][j,j])
         end
     end
+    ites = Array(LinRange(1, N_ite, N_ite))
+    errorbar(ites, θ_bar_arr[1,:], yerr=3.0*θθ_cov_arr[1,:], errorevery = 20, fmt="--o",fillstyle="none", label=L"\theta_0")
+
+    errorbar(ites.+2, θ_bar_arr[2,:], yerr=3.0*θθ_cov_arr[2,:], errorevery = 20,fmt="--o",fillstyle="none", label=L"\theta_1")
+ 
+    errorbar(ites.-2, θ_bar_arr[3,:], yerr=3.0*θθ_cov_arr[3,:], errorevery = 20,fmt="--o",fillstyle="none", label=L"\theta_2")
+
+    errorbar(ites.+4, θ_bar_arr[4,:], yerr=3.0*θθ_cov_arr[4,:], errorevery = 20,fmt="--o",fillstyle="none", label=L"\theta_3")
+
+    errorbar(ites.-4, θ_bar_arr[5,:], yerr=3.0*θθ_cov_arr[5,:], errorevery = 20,fmt="--o",fillstyle="none", label=L"\theta_4")
     
-    errorbar(ites, θ_bar_arr[1,:], yerr=3.0*θθ_cov_arr[1,:], fmt="--o",fillstyle="none", label=L"\theta_0")
-    #plot(ites, θ_bar_arr[1,:], "--o", fillstyle="none", label=L"\sigma")
-    plot(ites, fill(darcy.u_ref[1], N_ite), "--", color="gray")
-    errorbar(ites.+0.1, θ_bar_arr[2,:], yerr=3.0*θθ_cov_arr[2,:], fmt="--o",fillstyle="none", label=L"\theta_1")
-    #plot(ites, θ_bar_arr[2,:], "--o", fillstyle="none", label=L"r")
-    plot(ites, fill(darcy.u_ref[2], N_ite), "--", color="gray")
-    errorbar(ites.-0.1, θ_bar_arr[3,:], yerr=3.0*θθ_cov_arr[3,:], fmt="--o",fillstyle="none", label=L"\theta_2")
-    #plot(ites, θ_bar_arr[3,:], "--o", fillstyle="none", label=L"\beta")
-    plot(ites, fill(darcy.u_ref[3], N_ite), "--", color="gray")
-    errorbar(ites.+0.2, θ_bar_arr[4,:], yerr=3.0*θθ_cov_arr[4,:], fmt="--o",fillstyle="none", label=L"\theta_3")
-    #plot(ites, θ_bar_arr[2,:], "--o", fillstyle="none", label=L"r")
-    plot(ites, fill(darcy.u_ref[4], N_ite), "--", color="gray")
-    errorbar(ites.-0.2, θ_bar_arr[5,:], yerr=3.0*θθ_cov_arr[5,:], fmt="--o",fillstyle="none", label=L"\theta_4")
-    #plot(ites, θ_bar_arr[3,:], "--o", fillstyle="none", label=L"\beta")
-    plot(ites, fill(darcy.u_ref[5], N_ite), "--", color="gray")
+    
+    ites = Array(LinRange(1, N_ite+10, N_ite+10))
+    for i = 1:N_θ
+        plot(ites, fill(darcy.u_ref[i], N_ite+10), "--", color="gray")
+    end
     
     xlabel("Iterations")
     legend()
