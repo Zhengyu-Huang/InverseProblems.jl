@@ -78,9 +78,10 @@ function plot_obs(darcy::Param_Darcy, u_2d::Array{Float64, 2}, filename::String 
     x_obs, y_obs = X[obs_ΔN:obs_ΔN:N-obs_ΔN,obs_ΔN:obs_ΔN:N-obs_ΔN][:], Y[obs_ΔN:obs_ΔN:N-obs_ΔN,obs_ΔN:obs_ΔN:N-obs_ΔN][:] 
     
     #pcolormesh(X, Y, u_2d, shading= "gouraud", cmap="jet")
+    
     pcolormesh(X, Y, u_2d, cmap="jet")
-    scatter(x_obs, y_obs, color="black")
     colorbar()
+    scatter(x_obs, y_obs, color="black")
     tight_layout()
     if filename != "None"
         savefig(filename)
@@ -459,10 +460,10 @@ errors = zeros(Float64, (4, N_ite))
 for i = 1:N_ite
     
     errors[1, i] = norm(darcy.logκ_2d - compute_logκ_2d(darcy, ukiobj_1.θ_bar[i]))/norm(darcy.logκ_2d)
-    errors[2, i] = (ukiobj_1.g_bar[i] - ukiobj_1.g_t)'*(ukiobj_1.obs_cov\(ukiobj_1.g_bar[i] - ukiobj_1.g_t))
+    errors[2, i] = 0.5*(ukiobj_1.g_bar[i] - ukiobj_1.g_t)'*(ukiobj_1.obs_cov\(ukiobj_1.g_bar[i] - ukiobj_1.g_t))
     
     errors[3, i] = norm(darcy.logκ_2d - compute_logκ_2d(darcy, ukiobj_2.θ_bar[i]))/norm(darcy.logκ_2d)
-    errors[4, i] = (ukiobj_2.g_bar[i] - ukiobj_2.g_t)'*(ukiobj_2.obs_cov\(ukiobj_2.g_bar[i] - ukiobj_2.g_t))
+    errors[4, i] = 0.5*(ukiobj_2.g_bar[i] - ukiobj_2.g_t)'*(ukiobj_2.obs_cov\(ukiobj_2.g_bar[i] - ukiobj_2.g_t))
     
 end
 
@@ -474,14 +475,14 @@ ylabel("Relative Frobenius norm error")
 grid("on")
 legend()
 tight_layout()
-savefig("Darcy-Params-Noise.pdf")
+savefig("Darcy-Params.pdf")
 close("all")
 
 
 semilogy(ites, errors[2, :], "--o", fillstyle="none", label= "\$N_{θ}=32\$")
 semilogy(ites, errors[4, :], "--o", fillstyle="none", label= "\$N_{θ}=8\$")
 xlabel("Iterations")
-ylabel("Data misfit")
+ylabel("Optimization error")
 #ylim((0.1,15))
 grid("on")
 legend()
