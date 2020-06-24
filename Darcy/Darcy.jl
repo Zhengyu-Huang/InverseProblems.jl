@@ -381,12 +381,12 @@ function Darcy_Test(darcy::Param_Darcy, N_θ::Int64= 16, N_ite::Int64 = 100, noi
     t_mean = compute_obs(darcy, h_2d)
     if noise
         Random.seed!(123);
-        noise = rand(Normal(0.0, 0.05), length(t_mean))
+        noise = rand(Uniform(-0.01,0.01), length(t_mean))
         t_mean .*= (1.0 .+ noise)
     end
     
     
-    t_cov = Array(Diagonal(fill(0.01, length(t_mean))))
+    t_cov = Array(Diagonal(fill(1.0, length(t_mean))))
     
     θ0_bar = zeros(Float64, N_θ)  # mean 
     
@@ -401,131 +401,94 @@ end
 
 
 
-# mission = "noise", "noise-free"
-mission = "noise"
+N, L = 80, 1.0
+obs_ΔN = 10
+α = 2.0
+τ = 3.0
+KL_trunc = 256
+darcy = Param_Darcy(N, obs_ΔN, L, KL_trunc, α, τ)
 
-if mission == "noise"
-    N, L = 80, 1.0
-    obs_ΔN = 10
-    α = 2.0
-    τ = 3.0
-    KL_trunc = 256
-    darcy = Param_Darcy(N, obs_ΔN, L, KL_trunc, α, τ)
+
+N_ite = 10
+N_θ1, N_θ2 = 32, 8
+ukiobj_1 = Darcy_Test(darcy, N_θ1, N_ite, false) 
+ukiobj_2 = Darcy_Test(darcy, N_θ2, N_ite, false) 
+
+# Plot logκ error and Data mismatch
+
+ites = Array(LinRange(1, N_ite, N_ite))
+errors = zeros(Float64, (4, N_ite))
+for i = 1:N_ite
     
+    errors[1, i] = norm(darcy.logκ_2d - compute_logκ_2d(darcy, ukiobj_1.θ_bar[i]))/norm(darcy.logκ_2d)
+    errors[2, i] = (ukiobj_1.g_bar[i] - ukiobj_1.g_t)'*(ukiobj_1.obs_cov\(ukiobj_1.g_bar[i] - ukiobj_1.g_t))
     
-    N_ite = 200
-    N_θ1, N_θ2 = 32, 8
-    ukiobj_1 = Darcy_Test(darcy, N_θ1, N_ite, true) 
-    ukiobj_2 = Darcy_Test(darcy, N_θ2, N_ite, true) 
+    errors[3, i] = norm(darcy.logκ_2d - compute_logκ_2d(darcy, ukiobj_2.θ_bar[i]))/norm(darcy.logκ_2d)
+    errors[4, i] = (ukiobj_2.g_bar[i] - ukiobj_2.g_t)'*(ukiobj_2.obs_cov\(ukiobj_2.g_bar[i] - ukiobj_2.g_t))
     
-    # Plot logκ error and Data mismatch
-    
-    ites = Array(LinRange(1, N_ite, N_ite))
-    errors = zeros(Float64, (4, N_ite))
-    for i = 1:N_ite
-        
-        errors[1, i] = norm(darcy.logκ_2d - compute_logκ_2d(darcy, ukiobj_1.θ_bar[i]))/norm(darcy.logκ_2d)
-        errors[2, i] = (ukiobj_1.g_bar[i] - ukiobj_1.g_t)'*(ukiobj_1.obs_cov\(ukiobj_1.g_bar[i] - ukiobj_1.g_t))
-        
-        errors[3, i] = norm(darcy.logκ_2d - compute_logκ_2d(darcy, ukiobj_2.θ_bar[i]))/norm(darcy.logκ_2d)
-        errors[4, i] = (ukiobj_2.g_bar[i] - ukiobj_2.g_t)'*(ukiobj_2.obs_cov\(ukiobj_2.g_bar[i] - ukiobj_2.g_t))
-        
+end
+
+semilogy(ites, errors[1, :], "--o", fillstyle="none", label= "\$N_{θ}=32\$")
+semilogy(ites, errors[3, :], "--o", fillstyle="none", label= "\$N_{θ}=8\$")
+xlabel("Iterations")
+ylabel("Relative Frobenius norm error")
+#ylim((0.1,15))
+grid("on")
+legend()
+tight_layout()
+savefig("Darcy-Params-Noise.pdf")
+close("all")
+
+
+semilogy(ites, errors[2, :], "--o", fillstyle="none", label= "\$N_{θ}=32\$")
+semilogy(ites, errors[4, :], "--o", fillstyle="none", label= "\$N_{θ}=8\$")
+xlabel("Iterations")
+ylabel("Data misfit")
+#ylim((0.1,15))
+grid("on")
+legend()
+tight_layout()
+savefig("Darcy-Data-Mismatch.pdf")
+close("all")
+
+
+κ_2d = exp.(darcy.logκ_2d)
+h_2d = solve_GWF(darcy, κ_2d)
+plot_obs(darcy, h_2d, "Darcy-obs-ref.pdf")
+plot_field(darcy, darcy.logκ_2d, "Darcy-logk-ref.pdf")
+plot_field(darcy, compute_logκ_2d(darcy, ukiobj_1.θ_bar[N_ite]), "Darcy-logk-32.pdf")
+plot_field(darcy, compute_logκ_2d(darcy, ukiobj_2.θ_bar[N_ite]), "Darcy-logk-8.pdf")
+
+
+####################################################################################
+
+N_θ = 3 #first 3 components
+θ_bar = ukiobj_1.θ_bar
+θθ_cov = ukiobj_1.θθ_cov
+θ_bar_arr = hcat(θ_bar...)[:, 1:N_ite]
+
+θθ_cov_arr = zeros(Float64, (N_θ, N_ite))
+for i = 1:N_ite
+    for j = 1:N_θ
+        θθ_cov_arr[j, i] = sqrt(θθ_cov[i][j,j])
     end
-    
-    semilogy(ites, errors[1, :], "--o", fillstyle="none", label= "\$N_{θ}=32\$")
-    semilogy(ites, errors[3, :], "--o", fillstyle="none", label= "\$N_{θ}=8\$")
-    xlabel("Iterations")
-    ylabel("Relative Frobenius norm error")
-    #ylim((0.1,15))
-    grid("on")
-    legend()
-    tight_layout()
-    savefig("Darcy-Params-Noise.pdf")
-    close("all")
-    
-    
-    semilogy(ites, errors[2, :], "--o", fillstyle="none", label= "\$N_{θ}=32\$")
-    semilogy(ites, errors[4, :], "--o", fillstyle="none", label= "\$N_{θ}=8\$")
-    xlabel("Iterations")
-    ylabel("Frobenius norm error")
-    #ylim((0.1,15))
-    grid("on")
-    legend()
-    tight_layout()
-    savefig("Darcy-Data-Mismatch-Noise.pdf")
-    close("all")
-    
-    
-    κ_2d = exp.(darcy.logκ_2d)
-    h_2d = solve_GWF(darcy, κ_2d)
-    plot_obs(darcy, h_2d, "Darcy-obs-ref-Noise.pdf")
-    plot_field(darcy, darcy.logκ_2d, "Darcy-logk-ref-Noise.pdf")
-    plot_field(darcy, compute_logκ_2d(darcy, ukiobj_1.θ_bar[N_ite]), "Darcy-logk-32-Noise.pdf")
-    plot_field(darcy, compute_logκ_2d(darcy, ukiobj_2.θ_bar[N_ite]), "Darcy-logk-8-Noise.pdf")
-    
-else
-    N, L = 80, 1.0
-    obs_ΔN = 10
-    α = 2.0
-    τ = 3.0
-    KL_trunc = 256
-    darcy = Param_Darcy(N, obs_ΔN, L, KL_trunc, α, τ)
-    
-    
-    N_ite = 200
-    N_θ1, N_θ2 = 32, 8
-    ukiobj_1 = Darcy_Test(darcy, N_θ1, N_ite, false) 
-    ukiobj_2 = Darcy_Test(darcy, N_θ2, N_ite, false) 
-    
-    # Plot logκ error and Data mismatch
-    
-    ites = Array(LinRange(1, N_ite, N_ite))
-    errors = zeros(Float64, (4, N_ite))
-    for i = 1:N_ite
-        
-        errors[1, i] = norm(darcy.logκ_2d - compute_logκ_2d(darcy, ukiobj_1.θ_bar[i]))/norm(darcy.logκ_2d)
-        errors[2, i] = (ukiobj_1.g_bar[i] - ukiobj_1.g_t)'*(ukiobj_1.obs_cov\(ukiobj_1.g_bar[i] - ukiobj_1.g_t))
-        
-        errors[3, i] = norm(darcy.logκ_2d - compute_logκ_2d(darcy, ukiobj_2.θ_bar[i]))/norm(darcy.logκ_2d)
-        errors[4, i] = (ukiobj_2.g_bar[i] - ukiobj_2.g_t)'*(ukiobj_2.obs_cov\(ukiobj_2.g_bar[i] - ukiobj_2.g_t))
-        
-    end
-    
-    semilogy(ites, errors[1, :], "--o", fillstyle="none", label= "\$N_{θ}=32\$")
-    semilogy(ites, errors[3, :], "--o", fillstyle="none", label= "\$N_{θ}=8\$")
-    xlabel("Iterations")
-    ylabel("Relative Frobenius norm error")
-    #ylim((0.1,15))
-    grid("on")
-    legend()
-    tight_layout()
-    savefig("Darcy-Params-Noise.pdf")
-    close("all")
-    
-    
-    semilogy(ites, errors[2, :], "--o", fillstyle="none", label= "\$N_{θ}=32\$")
-    semilogy(ites, errors[4, :], "--o", fillstyle="none", label= "\$N_{θ}=8\$")
-    xlabel("Iterations")
-    ylabel("Frobenius norm error")
-    #ylim((0.1,15))
-    grid("on")
-    legend()
-    tight_layout()
-    savefig("Darcy-Data-Mismatch.pdf")
-    close("all")
-    
-    
-    κ_2d = exp.(darcy.logκ_2d)
-    h_2d = solve_GWF(darcy, κ_2d)
-    plot_obs(darcy, h_2d, "Darcy-obs-ref.pdf")
-    plot_field(darcy, darcy.logκ_2d, "Darcy-logk-ref.pdf")
-    plot_field(darcy, compute_logκ_2d(darcy, ukiobj_1.θ_bar[N_ite]), "Darcy-logk-32.pdf")
-    plot_field(darcy, compute_logκ_2d(darcy, ukiobj_2.θ_bar[N_ite]), "Darcy-logk-8.pdf")
-end 
+end
+
+@info "final result is ", θ_bar[end],  θθ_cov[end]
+
+errorbar(ites, θ_bar_arr[1,:], yerr=3.0*θθ_cov_arr[1,:], fmt="--o",fillstyle="none", label=L"\sigma")
+#plot(ites, θ_bar_arr[1,:], "--o", fillstyle="none", label=L"\sigma")
+plot(ites, fill(darcy.u_ref[1], N_ite), "--", color="gray")
+errorbar(ites, θ_bar_arr[2,:], yerr=3.0*θθ_cov_arr[2,:], fmt="--o",fillstyle="none", label=L"r")
+#plot(ites, θ_bar_arr[2,:], "--o", fillstyle="none", label=L"r")
+plot(ites, fill(darcy.u_ref[2], N_ite), "--", color="gray")
+errorbar(ites, θ_bar_arr[3,:], yerr=3.0*θθ_cov_arr[3,:], fmt="--o",fillstyle="none", label=L"\beta")
+#plot(ites, θ_bar_arr[3,:], "--o", fillstyle="none", label=L"\beta")
+plot(ites, fill(darcy.u_ref[3], N_ite), "--", color="gray")
+
 
 @info "finished"
-    
-    
-    
-    
-    
+
+
+
+
