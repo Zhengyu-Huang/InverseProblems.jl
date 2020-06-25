@@ -414,7 +414,7 @@ end
 
 
 function plot_KI_error(ukiobj::UKIObj, filename::String)
-    N_θ = 5 #first 3 components
+    N_θ = 5 #first 2 components
     θ_bar = ukiobj.θ_bar
     θθ_cov = ukiobj.θθ_cov
     θ_bar_arr = hcat(θ_bar...)[:, 1:N_ite]
@@ -426,15 +426,15 @@ function plot_KI_error(ukiobj::UKIObj, filename::String)
         end
     end
     ites = Array(LinRange(1, N_ite, N_ite))
-    errorbar(ites, θ_bar_arr[1,:], yerr=3.0*θθ_cov_arr[1,:], errorevery = 20, fmt="--o",fillstyle="none", label=L"\theta_{(0)}")
+    errorbar(ites, θ_bar_arr[1,:], yerr=3.0*θθ_cov_arr[1,:], errorevery = 20, markevery=20, fmt="--o",fillstyle="none", label=L"\theta_{(0)}")
 
-    errorbar(ites.+2, θ_bar_arr[2,:], yerr=3.0*θθ_cov_arr[2,:], errorevery = 20,fmt="--o",fillstyle="none", label=L"\theta_{(1)}")
+    errorbar(ites.+2, θ_bar_arr[2,:], yerr=3.0*θθ_cov_arr[2,:], errorevery = 20,markevery=20, fmt="--o",fillstyle="none", label=L"\theta_{(1)}")
  
-    errorbar(ites.-2, θ_bar_arr[3,:], yerr=3.0*θθ_cov_arr[3,:], errorevery = 20,fmt="--o",fillstyle="none", label=L"\theta_{(2)}")
+    errorbar(ites.-2, θ_bar_arr[3,:], yerr=3.0*θθ_cov_arr[3,:], errorevery = 20,markevery=20, fmt="--o",fillstyle="none", label=L"\theta_{(2)}")
 
-    errorbar(ites.+4, θ_bar_arr[4,:], yerr=3.0*θθ_cov_arr[4,:], errorevery = 20,fmt="--o",fillstyle="none", label=L"\theta_{(3)}")
+    errorbar(ites.+4, θ_bar_arr[4,:], yerr=3.0*θθ_cov_arr[4,:], errorevery = 20,markevery=20, fmt="--o",fillstyle="none", label=L"\theta_{(3)}")
 
-    errorbar(ites.-4, θ_bar_arr[5,:], yerr=3.0*θθ_cov_arr[5,:], errorevery = 20,fmt="--o",fillstyle="none", label=L"\theta_{(4)}")
+    errorbar(ites.-4, θ_bar_arr[5,:], yerr=3.0*θθ_cov_arr[5,:], errorevery = 20,markevery=20, fmt="--o",fillstyle="none", label=L"\theta_{(4)}")
     
     
     ites = Array(LinRange(1, N_ite+10, N_ite+10))
@@ -478,8 +478,8 @@ for i = 1:N_ite
     
 end
 
-semilogy(ites, errors[1, :], "--o", fillstyle="none", label= "\$N_{θ}=32\$")
-semilogy(ites, errors[3, :], "--o", fillstyle="none", label= "\$N_{θ}=8\$")
+semilogy(ites, errors[3, :], "--o", markevery=20, fillstyle="none", label= "\$N_{θ}=8\$")
+semilogy(ites, errors[1, :], "--o", markevery=20, fillstyle="none", label= "\$N_{θ}=32\$")
 xlabel("Iterations")
 ylabel("Relative Frobenius norm error")
 #ylim((0.1,15))
@@ -489,9 +489,8 @@ tight_layout()
 savefig("Darcy-Params.pdf")
 close("all")
 
-
-semilogy(ites, errors[2, :], "--o", fillstyle="none", label= "\$N_{θ}=32\$")
-semilogy(ites, errors[4, :], "--o", fillstyle="none", label= "\$N_{θ}=8\$")
+semilogy(ites, errors[4, :], "--o", markevery=20, fillstyle="none", label= "\$N_{θ}=8\$")
+semilogy(ites, errors[2, :], "--o", markevery=20, fillstyle="none", label= "\$N_{θ}=32\$")
 xlabel("Iterations")
 ylabel("Optimization error")
 #ylim((0.1,15))
