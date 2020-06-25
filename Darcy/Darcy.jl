@@ -129,12 +129,15 @@ function compute_seq_pairs(trunc_KL::Int64)
     seq_pairs = zeros(Int64, trunc_KL, 2)
     trunc_Nx = trunc(Int64, sqrt(2*trunc_KL)) + 1
     
-    seq_pairs = zeros(Int64, (trunc_Nx+1)^2, 2)
-    seq_pairs_mag = zeros(Int64, (trunc_Nx+1)^2)
+    seq_pairs = zeros(Int64, (trunc_Nx+1)^2 - 1, 2)
+    seq_pairs_mag = zeros(Int64, (trunc_Nx+1)^2 - 1)
     
     seq_pairs_i = 0
     for i = 0:trunc_Nx
         for j = 0:trunc_Nx
+            if (i == 0 && j ==0)
+                continue
+            end
             seq_pairs_i += 1
             seq_pairs[seq_pairs_i, :] .= i, j
             seq_pairs_mag[seq_pairs_i] = i^2 + j^2
@@ -142,7 +145,6 @@ function compute_seq_pairs(trunc_KL::Int64)
     end
     
     seq_pairs = seq_pairs[sortperm(seq_pairs_mag), :]
-    
     return seq_pairs[1:trunc_KL, :]
 end
 
@@ -162,7 +164,16 @@ function generate_θ_KL(N::Int64, xx::Array{Float64,1}, trunc_KL::Int64, α::Flo
     λ = zeros(Float64, trunc_KL)
     
     for i = 1:trunc_KL
-        φ[i, :, :] = cos.(pi * (seq_pairs[i, 1]*X + seq_pairs[i, 2]*Y))
+        if (seq_pairs[i, 1] == 0 && seq_pairs[i, 2] == 0)
+            φ[i, :, :] .= 1.0
+        elseif (seq_pairs[i, 1] == 0)
+            φ[i, :, :] = sqrt(2)*cos.(pi * (seq_pairs[i, 2]*Y))
+        elseif (seq_pairs[i, 2] == 0)
+            φ[i, :, :] = sqrt(2)*cos.(pi * (seq_pairs[i, 1]*X))
+        else
+            φ[i, :, :] = 2*cos.(pi * (seq_pairs[i, 1]*X)) .*  cos.(pi * (seq_pairs[i, 2]*Y))
+        end
+
         λ[i] = (pi^2*(seq_pairs[i, 1]^2 + seq_pairs[i, 2]^2) + τ^2)^(-α)
     end
     
@@ -432,7 +443,7 @@ function plot_KI_error(ukiobj::UKIObj, filename::String)
     end
     
     xlabel("Iterations")
-    legend()
+    legend(loc=3)
     grid("on")
     tight_layout()
     savefig(filename)
