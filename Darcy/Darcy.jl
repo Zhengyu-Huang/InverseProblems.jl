@@ -415,15 +415,15 @@ function plot_KI_error(ukiobj::UKIObj, filename::String)
         end
     end
     ites = Array(LinRange(1, N_ite, N_ite))
-    errorbar(ites, θ_bar_arr[1,:], yerr=3.0*θθ_cov_arr[1,:], errorevery = 20, fmt="--o",fillstyle="none", label=L"\theta^0")
+    errorbar(ites, θ_bar_arr[1,:], yerr=3.0*θθ_cov_arr[1,:], errorevery = 20, fmt="--o",fillstyle="none", label=L"\theta_{(0)}")
 
-    errorbar(ites.+2, θ_bar_arr[2,:], yerr=3.0*θθ_cov_arr[2,:], errorevery = 20,fmt="--o",fillstyle="none", label=L"\theta^1")
+    errorbar(ites.+2, θ_bar_arr[2,:], yerr=3.0*θθ_cov_arr[2,:], errorevery = 20,fmt="--o",fillstyle="none", label=L"\theta_{(1)}")
  
-    errorbar(ites.-2, θ_bar_arr[3,:], yerr=3.0*θθ_cov_arr[3,:], errorevery = 20,fmt="--o",fillstyle="none", label=L"\theta^2")
+    errorbar(ites.-2, θ_bar_arr[3,:], yerr=3.0*θθ_cov_arr[3,:], errorevery = 20,fmt="--o",fillstyle="none", label=L"\theta_{(2)}")
 
-    errorbar(ites.+4, θ_bar_arr[4,:], yerr=3.0*θθ_cov_arr[4,:], errorevery = 20,fmt="--o",fillstyle="none", label=L"\theta^3")
+    errorbar(ites.+4, θ_bar_arr[4,:], yerr=3.0*θθ_cov_arr[4,:], errorevery = 20,fmt="--o",fillstyle="none", label=L"\theta_{(3)}")
 
-    errorbar(ites.-4, θ_bar_arr[5,:], yerr=3.0*θθ_cov_arr[5,:], errorevery = 20,fmt="--o",fillstyle="none", label=L"\theta^4")
+    errorbar(ites.-4, θ_bar_arr[5,:], yerr=3.0*θθ_cov_arr[5,:], errorevery = 20,fmt="--o",fillstyle="none", label=L"\theta_{(4)}")
     
     
     ites = Array(LinRange(1, N_ite+10, N_ite+10))
