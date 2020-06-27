@@ -396,8 +396,14 @@ function Darcy_Test(darcy::Param_Darcy, N_θ::Int64= 16, N_ite::Int64 = 100, noi
     t_mean = compute_obs(darcy, h_2d)
     if noise
         Random.seed!(123);
-        noise = rand(Uniform(-0.01,0.01), length(t_mean))
-        t_mean .*= (1.0 .+ noise)
+        #noise = rand(Uniform(-0.01,0.01), length(t_mean))
+        #t_mean .*= (1.0 .+ noise)
+	for i = 1:length(t_mean)
+            noise = rand(Normal(0, 0.01*t_mean[i]))
+            @info t_mean[i],  noise
+            t_mean[i] += noise
+        end
+
     end
     
     
