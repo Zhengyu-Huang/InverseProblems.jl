@@ -41,7 +41,7 @@ function θ_bar_trans(θ_bar_raw_arr::Array{Float64, 2})
     return θ_bar_arr
   end
 
-function visualize(uki::UKIObj{Float64}, θ_ref::Array{Float64, 1}, file_name::String)
+function visualize(uki, θ_ref::Array{Float64, 1}, file_name::String)
   
     θ_bar_raw_arr = hcat(uki.θ_bar...)
     θ_bar_arr = θ_bar_trans(θ_bar_raw_arr)
