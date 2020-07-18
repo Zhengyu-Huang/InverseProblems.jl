@@ -23,7 +23,7 @@ mutable struct Spectral_Mesh
     alpha_x::Array{ComplexF64, 2}
     alpha_y::Array{ComplexF64, 2}
     
-    laplacian_eigs::Array{ComplexF64, 2}
+    laplacian_eigs::Array{Float64, 2}
 
     
     
@@ -138,14 +138,24 @@ function Trans_Grid_To_Spectral!(mesh::Spectral_Mesh, u::Array{Float64,2}, u_hat
     P(x, y) = 1/(nx⋅ny) ∑_{kx, ky}  F[kx,ky]  e^{i (2π/Lx kx x + 2π/Ly ky y)}
     
     F[kx, ky] = (nx⋅ny)/(Lx⋅Ly) ∫ P(x,y)  e^{-i (2π/Lx kx x + 2π/Ly ky y)}
-    = (nx⋅ny)/(Lx⋅Ly) ∑ P[jx,jy]  e^{-i (2π kx jx/nx + 2π ky jy/ny)} ΔxΔy
-    = ∑ P[jx,jy]  e^{-i (2π kx jx/nx + 2π ky jy/ny)}
+              = (nx⋅ny)/(Lx⋅Ly) ∑ P[jx,jy]  e^{-i (2π kx jx/nx + 2π ky jy/ny)} ΔxΔy
+              = ∑ P[jx,jy]  e^{-i (2π kx jx/nx + 2π ky jy/ny)}
     
     @test
     u = [1 2 3 4; 1.1 2.2 1.3 2.4; 2.1 3.2 4.1 1.2]
-    u_hat = fft(u)
-    u2 = ifft(u_hat)
-    @info u - u2
+    nx, ny = size(u)
+    u_hat = zeros(ComplexF64, nx, ny)
+    for jx = 0:nx-1
+        for jy = 0:ny-1
+            for kx = 0:nx-1
+                for ky = 0:ny-1
+                    u_hat[jx+1, jy+1] += u[kx+1,ky+1] *  exp(-(2π*kx*jx/nx + 2.0*π*ky*jy/ny)*im)
+                end
+            end
+        end
+    end
+    u_hat2 = fft(u)
+    @info u_hat - u_hat2
     """
     
     
@@ -231,8 +241,8 @@ function UV_Grid_Init(nx::Int64, ny::Int64, Lx::Float64, Ly::Float64, kxx::Array
             alpha_y[i, j] = -(2*pi/Lx * kx)/mag * im
         end
     end
-    alpha_x[1,1] = 1.0
-    alpha_y[1,1] = 1.0
+    alpha_x[1,1] = 0.0
+    alpha_y[1,1] = 0.0
     
     return alpha_x, alpha_y
     
@@ -265,7 +275,7 @@ function Vor_From_UV_Grid!(mesh::Spectral_Mesh, u_hat::Array{ComplexF64,2}, v_ha
     Trans_Spectral_To_Grid!(mesh, ω_hat, ω)    
 end
 
-function Apply_Gradient(mesh::Spectral_Mesh, ω_hat::Array{ComplexF64,2}, ω_x::Array{Float64,2}, ω_y::Array{Float64,2})
+function Apply_Gradient!(mesh::Spectral_Mesh, ω_hat::Array{ComplexF64,2}, ω_x::Array{Float64,2}, ω_y::Array{Float64,2})
     """
     ωx = ifft(ωx_hat)
     ωy = ifft(ωy_hat)
@@ -297,22 +307,9 @@ function Add_Horizontal_Advection!(mesh::Spectral_Mesh, ω_hat::Array{ComplexF64
     Trans_Spectral_To_Grid!(mesh, u_hat, u)
     Trans_Spectral_To_Grid!(mesh, v_hat, v)
 
-    Apply_Gradient(mesh, ω_hat, ω_x, ω_y)
+    Apply_Gradient!(mesh, ω_hat, ω_x, ω_y)
     
     δω_hat .-= mesh.alias_filter .* fft(u.*ω_x + v.*ω_y)
     
 end
 
-
-if abspath(PROGRAM_FILE) == @__FILE__
-    # TODO: cosθ is poorly represented on spherical harmonic basis         
-    test_derivative("rigid_rotation")
-    test_derivative("random_1")
-    test_derivative("random_2")
-    test_derivative("mix")
-    
-    test_advection("rigid_rotation")
-    test_advection("random_1")
-    test_advection("random_2")
-    test_advection("mix")
-end

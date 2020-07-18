@@ -135,6 +135,7 @@ function Semi_Implicit_Residual!(self::SpectralNS_Solver, ω_hat::Array{ComplexF
     δω_hat .+= self.ν * Δω_hat
 
     δω_hat ./= (1.0 .- 0.5*self.ν*Δt * mesh.laplacian_eigs)
+
 end
 
 
@@ -144,6 +145,20 @@ function Solve!(self::SpectralNS_Solver, Δt::Float64)
     ω_hat .+= Δt*δω_hat
 end
 
+
+function Visual!(self::SpectralNS_Solver)
+
+    ω_hat, u_hat, v_hat = self.ω_hat, self.u_hat, self.v_hat
+    ω, u, v = self.ω, self.u, self.v
+
+    Trans_Spectral_To_Grid!(mesh, ω_hat, ω)
+    UV_Spectral_From_Vor!(mesh, ω_hat, u_hat, v_hat)
+    Trans_Spectral_To_Grid!(mesh, u_hat, u)
+    Trans_Spectral_To_Grid!(mesh, v_hat, v)
+
+    return ω, u, v
+    
+end
 
 
 
