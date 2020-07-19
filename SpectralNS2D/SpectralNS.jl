@@ -58,6 +58,8 @@ function SpectralNS_Solver(mesh::Spectral_Mesh, ν::Float64, f::Array{Float64, 2
     SpectralNS_Solver(mesh, ν, f, curl_f_hat, ω_hat, u_hat, v_hat, ω, u, v, Δω_hat, δω_hat, k1, k2, k3, k4)
 end
 
+
+
 #initialize with vorticity field
 function SpectralNS_Solver(mesh::Spectral_Mesh, ν::Float64, f::Array{Float64, 2}, ω0::Array{Float64, 2})    
     nx, ny = mesh.nx, mesh.ny
@@ -69,8 +71,6 @@ function SpectralNS_Solver(mesh::Spectral_Mesh, ν::Float64, f::Array{Float64, 2
     ω .= ω0
     ω_hat = zeros(ComplexF64, nx, ny)
     Trans_Grid_To_Spectral!(mesh, ω, ω_hat)
-
-    
 
     u_hat = zeros(ComplexF64, nx, ny)
     v_hat = zeros(ComplexF64, nx, ny)
@@ -90,6 +90,19 @@ function SpectralNS_Solver(mesh::Spectral_Mesh, ν::Float64, f::Array{Float64, 2
     k4 = zeros(ComplexF64, nx, ny)
 
     SpectralNS_Solver(mesh, ν, f, curl_f_hat, ω_hat, u_hat, v_hat, ω, u, v, Δω_hat, δω_hat, k1, k2, k3, k4)
+end
+
+function Stable_Δt(mesh::Spectral_Mesh, ν::Float64, u::Array{Float64,2}, v::Array{Float64,2})
+    Δx, Δy = mesh.Δx, mesh.Δy
+    Δ = min(Δx, Δy)
+    u_max, v_max = maximum(abs.(u)), maximum(abs.(v))
+
+
+    Δt = min(Δx/u_max, Δy/v_max, Δ^2/(2*ν))
+
+    @info "maximum stable Δt = ", Δt
+
+    return Δt
 end
 
 
@@ -169,9 +182,9 @@ function Solve!(self::SpectralNS_Solver, Δt::Float64, method::String)
     elseif method == "RK4"
         k1, k2, k3, k4 = self.k1, self.k2, self.k3, self.k4 
         Explicit_Residual!(self, ω_hat,  k1)
-        Explicit_Residual!(self, ω_hat + k1/2.0, k2)
-        Explicit_Residual!(self, ω_hat + k2/2.0, k3)
-        Explicit_Residual!(self, ω_hat + k3, k4)
+        Explicit_Residual!(self, ω_hat + Δt/2.0*k1, k2)
+        Explicit_Residual!(self, ω_hat + Δt/2.0*k2, k3)
+        Explicit_Residual!(self, ω_hat + Δt*k3, k4)
         
         ω_hat .+= Δt/6.0*(k1 + 2*k2 + 2*k3 + k4)
     end

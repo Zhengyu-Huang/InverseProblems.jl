@@ -1,6 +1,9 @@
 include("SpectralNS.jl")
 using LinearAlgebra
 
+"""
+This is a Taylor Green Vortex example
+"""
 function TGV_Sol(xx, yy, ν, t)
     """
     x, y ∈ [0,2π]×[0,2π]
@@ -25,11 +28,11 @@ end
 
 
 
-ν=1.0e-2;   # viscosity
+ν=1.0e-1;   # viscosity
 nx=128;     # resolution in x
 ny=128;     # resolution in y
-Δt=5.0e-2;    # time step
-T=1.0;  # final time
+Δt=5.0e-3;    # time step
+T=1.0;      # final time
 method="Crank-Nicolson" # RK4 or Crank-Nicolson
 
 
@@ -50,6 +53,8 @@ f = zeros(Float64, nx, ny)
 
 
 solver = SpectralNS_Solver(mesh, ν, f, ω0)   
+Δt_max = Stable_Δt(mesh, ν, solver.u, solver.v)
+
 nt = Int64(T/Δt)
 for i = 1:nt
     Solve!(solver, Δt, method)
