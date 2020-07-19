@@ -1,5 +1,5 @@
 include("SpectralNS.jl")
-
+using LinearAlgebra
 
 function TGV_Sol(xx, yy, ν, t)
     """
@@ -24,18 +24,14 @@ function TGV_Sol(xx, yy, ν, t)
 end
 
 
-# ν=1.0e-3;   # viscosity
-# nx=128;     # resolution in x
-# ny=128;     # resolution in y
-# Δt=1.0e-1;    # time step
-# T=1000.0;  # final time
-
 
 ν=1.0e-2;   # viscosity
-nx=8;     # resolution in x
-ny=8;     # resolution in y
-Δt=1.0;    # time step
-T=10.0;  # final time
+nx=128;     # resolution in x
+ny=128;     # resolution in y
+Δt=5.0e-2;    # time step
+T=1.0;  # final time
+method="Crank-Nicolson" # RK4 or Crank-Nicolson
+
 
 Lx, Ly = 2*pi, 2*pi
 
@@ -46,8 +42,7 @@ mesh = Spectral_Mesh(nx, ny, Lx, Ly)
 for i = 1:nx
     for j = 1:ny
         x, y = xx[i], yy[j]
-        #ω0[i,j] = -2*cos(x)*cos(y)
-        ω0[i,j] = exp(-((i*Δx-pi).^2+(j*Δy-pi+pi/4).^2)/(0.2))+exp(-((i*Δx-pi).^2+(j*Δy-pi-pi/4).^2)/(0.2))-0.5*exp(-((i*Δx-pi-pi/4).^2+(j*Δy-pi-pi/4).^2)/(0.4));
+        ω0[i,j] = -2*cos(x)*cos(y)
     end
 end
 
@@ -57,17 +52,17 @@ f = zeros(Float64, nx, ny)
 solver = SpectralNS_Solver(mesh, ν, f, ω0)   
 nt = Int64(T/Δt)
 for i = 1:nt
-    Solve!(solver, Δt)
+    Solve!(solver, Δt, method)
 end
 
 Update_Grid_Vars!(solver)
 
 
-# ω_sol, u_sol, v_sol = TGV_Sol(xx, yy, ν, T)
+ω_sol, u_sol, v_sol = TGV_Sol(xx, yy, ν, T)
 
-# @info "\n||e_ω||_2/||ω||_2 =", norm(solver.ω - ω_sol)/norm(ω_sol), "\n||e_u||_2/||u||_2 =", norm(solver.u - u_sol)/norm(u_sol), "\n||v_ω||_2/||v||_2 =", norm(solver.v - v_sol)/norm(v_sol)
+@info "\n||e_ω||_2/||ω||_2 =", norm(solver.ω - ω_sol)/norm(ω_sol), "\n||e_u||_2/||u||_2 =", norm(solver.u - u_sol)/norm(u_sol), "\n||v_ω||_2/||v||_2 =", norm(solver.v - v_sol)/norm(v_sol)
 
 
 Visual(mesh, solver.u, "u", "u.png")
-Visual(mesh, solver.u, "v", "v.png")
+Visual(mesh, solver.v, "v", "v.png")
 Visual(mesh, solver.ω, "ω", "vor.png")

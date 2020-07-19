@@ -82,11 +82,11 @@ function Spectral_Init(nx::Int64, ny::Int64)
     kxx = mod.((1:nx) .- ceil(Int64, nx/2+1),nx) .- floor(Int64, nx/2)
     kyy = mod.((1:ny) .- ceil(Int64, ny/2+1),ny) .- floor(Int64, ny/2)
 
-    alias_filter = ones(Float64, nx, ny)
+    alias_filter = zeros(Float64, nx, ny)
     for i = 1:nx
         for j = 1:ny
-            if kxx[i] >= 2*nx/3  || kyy[j] > 2*ny/3 
-                alias_filter[i, j] = 0.0
+            if (abs(kxx[i]) < nx/3  && abs(kyy[j]) < ny/3) 
+                alias_filter[i, j] = 1.0
             end
         end
     end
@@ -160,7 +160,7 @@ function Trans_Grid_To_Spectral!(mesh::Spectral_Mesh, u::Array{Float64,2}, u_hat
     """
     
     
-    u_hat .= fft(u)
+    u_hat .= mesh.alias_filter.* fft(u)
     
     
 end
@@ -293,7 +293,7 @@ function Apply_Gradient!(mesh::Spectral_Mesh, ω_hat::Array{ComplexF64,2}, ω_x:
 end
 
 
-function Add_Horizontal_Advection!(mesh::Spectral_Mesh, ω_hat::Array{ComplexF64,2}, δω_hat::Array{ComplexF64, 2})
+function Compute_Horizontal_Advection!(mesh::Spectral_Mesh, ω_hat::Array{ComplexF64,2}, δω_hat::Array{ComplexF64, 2})
     
     """
     δω_hat -= hat { (U⋅∇)ω }
@@ -309,7 +309,7 @@ function Add_Horizontal_Advection!(mesh::Spectral_Mesh, ω_hat::Array{ComplexF64
 
     Apply_Gradient!(mesh, ω_hat, ω_x, ω_y)
     
-    δω_hat .-= mesh.alias_filter .* fft(u.*ω_x + v.*ω_y)
+    Trans_Grid_To_Spectral!(mesh, u.*ω_x + v.*ω_y,  δω_hat)
     
 end
 

@@ -18,6 +18,11 @@ mutable struct SpectralNS_Solver
 
     Δω_hat::Array{ComplexF64, 2}
     δω_hat::Array{ComplexF64, 2}
+
+    k1::Array{ComplexF64, 2}
+    k2::Array{ComplexF64, 2}
+    k3::Array{ComplexF64, 2}
+    k4::Array{ComplexF64, 2}
 end
 
 
@@ -45,7 +50,12 @@ function SpectralNS_Solver(mesh::Spectral_Mesh, ν::Float64, f::Array{Float64, 2
     δω_hat = zeros(ComplexF64, nx, ny)
     Δω_hat = zeros(ComplexF64, nx, ny)
 
-    SpectralNS_Solver(mesh, ν, f, curl_f_hat, ω_hat, u_hat, v_hat, ω, u, v, Δω_hat, δω_hat)
+    k1 = zeros(ComplexF64, nx, ny)
+    k2 = zeros(ComplexF64, nx, ny)
+    k3 = zeros(ComplexF64, nx, ny)
+    k4 = zeros(ComplexF64, nx, ny)
+
+    SpectralNS_Solver(mesh, ν, f, curl_f_hat, ω_hat, u_hat, v_hat, ω, u, v, Δω_hat, δω_hat, k1, k2, k3, k4)
 end
 
 #initialize with vorticity field
@@ -74,7 +84,12 @@ function SpectralNS_Solver(mesh::Spectral_Mesh, ν::Float64, f::Array{Float64, 2
     δω_hat = zeros(ComplexF64, nx, ny)
     Δω_hat = zeros(ComplexF64, nx, ny)
 
-    SpectralNS_Solver(mesh, ν, f, curl_f_hat, ω_hat, u_hat, v_hat, ω, u, v, Δω_hat, δω_hat)
+    k1 = zeros(ComplexF64, nx, ny)
+    k2 = zeros(ComplexF64, nx, ny)
+    k3 = zeros(ComplexF64, nx, ny)
+    k4 = zeros(ComplexF64, nx, ny)
+
+    SpectralNS_Solver(mesh, ν, f, curl_f_hat, ω_hat, u_hat, v_hat, ω, u, v, Δω_hat, δω_hat, k1, k2, k3, k4)
 end
 
 
@@ -92,8 +107,10 @@ function Explicit_Residual!(self::SpectralNS_Solver, ω_hat::Array{ComplexF64, 2
     # ∂ω_hat/∂t = -FFT[(U⋅∇)ω] + ν(- ((2πkx/Lx)² + (2πky/Ly)²) )ω_hat  + curl_f_hat
     
     mesh = self.mesh
-    δω_hat .= self.curl_f_hat
-    Add_Horizontal_Advection!(mesh, ω_hat, δω_hat)
+    
+    Compute_Horizontal_Advection!(mesh, ω_hat, δω_hat)
+
+    δω_hat .= self.curl_f_hat - δω_hat
 
     Δω_hat = self.Δω_hat
 
@@ -127,9 +144,13 @@ function Semi_Implicit_Residual!(self::SpectralNS_Solver, ω_hat::Array{ComplexF
     # [1 + νΔt(((2πkx/Lx)² + (2πky/Ly)²))/2] (ω_hat(n+1)-ω_hat(n))/Δt = FFT[(U⋅∇)ω] + ν(-((2πkx/Lx)² + (2πky/Ly)²))ω_hat(n)  + curl_f_hat
 
     mesh = self.mesh
-    δω_hat .= self.curl_f_hat
-    Add_Horizontal_Advection!(mesh, ω_hat, δω_hat)
+    
+    Compute_Horizontal_Advection!(mesh, ω_hat, δω_hat)
+
+    δω_hat .= self.curl_f_hat - δω_hat
+
     Δω_hat = self.Δω_hat
+    
     Apply_Laplacian!(mesh, ω_hat, Δω_hat)
 
     δω_hat .+= self.ν * Δω_hat
@@ -139,10 +160,21 @@ function Semi_Implicit_Residual!(self::SpectralNS_Solver, ω_hat::Array{ComplexF
 end
 
 
-function Solve!(self::SpectralNS_Solver, Δt::Float64)
+function Solve!(self::SpectralNS_Solver, Δt::Float64, method::String)
     ω_hat, δω_hat = self.ω_hat, self.δω_hat
-    Semi_Implicit_Residual!(self, ω_hat, Δt, δω_hat)
-    ω_hat .+= Δt*δω_hat
+
+    if method == "Crank-Nicolson"
+        Semi_Implicit_Residual!(self, ω_hat, Δt, δω_hat)
+        ω_hat .+= Δt*δω_hat
+    elseif method == "RK4"
+        k1, k2, k3, k4 = self.k1, self.k2, self.k3, self.k4 
+        Explicit_Residual!(self, ω_hat,  k1)
+        Explicit_Residual!(self, ω_hat + k1/2.0, k2)
+        Explicit_Residual!(self, ω_hat + k2/2.0, k3)
+        Explicit_Residual!(self, ω_hat + k3, k4)
+        
+        ω_hat .+= Δt/6.0*(k1 + 2*k2 + 2*k3 + k4)
+    end
 end
 
 
