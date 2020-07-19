@@ -1,4 +1,5 @@
 using FFTW
+using PyPlot
 
 mutable struct Spectral_Mesh
     nx::Int64
@@ -257,10 +258,9 @@ We have
 u_hat =  (i 2π/Ly ky) /|k| ω_hat
 v_hat = -(i 2π/Lx kx) /|k| ω_hat
 """
-function UV_Spectral_From_Vor!(mesh::Spectral_Mesh, ω_hat::Array{ComplexF64,2}, u_hat::Array{ComplexF64,2}, v::Array{ComplexF64,2})
+function UV_Spectral_From_Vor!(mesh::Spectral_Mesh, ω_hat::Array{ComplexF64,2}, u_hat::Array{ComplexF64,2}, v_hat::Array{ComplexF64,2})
     
     alpha_x, alpha_y = mesh.alpha_x, mesh.alpha_y
-    u_hat, v_hat = mesh.u_hat, mesh.v_hat
     
     u_hat .= alpha_x .* ω_hat
     v_hat .= alpha_y .* ω_hat
@@ -311,5 +311,26 @@ function Add_Horizontal_Advection!(mesh::Spectral_Mesh, ω_hat::Array{ComplexF64
     
     δω_hat .-= mesh.alias_filter .* fft(u.*ω_x + v.*ω_y)
     
+end
+
+
+function Visual(mesh::Spectral_Mesh, u::Array{Float64,2}, var_name::String, save_file_name::String="None")
+
+        nx, ny = mesh.nx, mesh.ny
+        xx, yy = mesh.xx, mesh.yy
+        X,Y = repeat(xx, 1, ny), repeat(yy, 1, nx)'
+        
+        
+        pcolormesh(X, Y, u, shading= "gouraud", cmap="viridis")
+        xlabel("X")
+        ylabel("Y")
+        colorbar()
+    
+        
+        if save_file_name != "None"
+            savefig(save_file_name)
+            close("all")
+        end
+
 end
 

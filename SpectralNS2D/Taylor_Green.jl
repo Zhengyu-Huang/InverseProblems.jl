@@ -1,7 +1,7 @@
 include("SpectralNS.jl")
 
 
-function TGV(xx, yy, ν, t)
+function TGV_Sol(xx, yy, ν, t)
     """
     x, y ∈ [0,2π]×[0,2π]
     """
@@ -24,7 +24,14 @@ function TGV(xx, yy, ν, t)
 end
 
 
-ν=1.0e-1;   # viscosity
+# ν=1.0e-3;   # viscosity
+# nx=128;     # resolution in x
+# ny=128;     # resolution in y
+# Δt=1.0e-1;    # time step
+# T=1000.0;  # final time
+
+
+ν=1.0e-2;   # viscosity
 nx=8;     # resolution in x
 ny=8;     # resolution in y
 Δt=1.0;    # time step
@@ -52,3 +59,15 @@ nt = Int64(T/Δt)
 for i = 1:nt
     Solve!(solver, Δt)
 end
+
+Update_Grid_Vars!(solver)
+
+
+# ω_sol, u_sol, v_sol = TGV_Sol(xx, yy, ν, T)
+
+# @info "\n||e_ω||_2/||ω||_2 =", norm(solver.ω - ω_sol)/norm(ω_sol), "\n||e_u||_2/||u||_2 =", norm(solver.u - u_sol)/norm(u_sol), "\n||v_ω||_2/||v||_2 =", norm(solver.v - v_sol)/norm(v_sol)
+
+
+Visual(mesh, solver.u, "u", "u.png")
+Visual(mesh, solver.u, "v", "v.png")
+Visual(mesh, solver.ω, "ω", "vor.png")

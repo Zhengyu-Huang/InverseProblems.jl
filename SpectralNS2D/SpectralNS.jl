@@ -146,7 +146,7 @@ function Solve!(self::SpectralNS_Solver, Δt::Float64)
 end
 
 
-function Visual!(self::SpectralNS_Solver)
+function Update_Grid_Vars!(self::SpectralNS_Solver)
 
     ω_hat, u_hat, v_hat = self.ω_hat, self.u_hat, self.v_hat
     ω, u, v = self.ω, self.u, self.v
@@ -159,6 +159,8 @@ function Visual!(self::SpectralNS_Solver)
     return ω, u, v
     
 end
+
+
 
 
 
