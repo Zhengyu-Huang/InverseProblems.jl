@@ -199,6 +199,8 @@ function Update_Grid_Vars!(self::SpectralNS_Solver)
     ω_hat, u_hat, v_hat = self.ω_hat, self.u_hat, self.v_hat
     ω, u, v = self.ω, self.u, self.v
 
+    mesh = self.mesh
+
     Trans_Spectral_To_Grid!(mesh, ω_hat, ω)
     UV_Spectral_From_Vor!(mesh, ω_hat, u_hat, v_hat)
     Trans_Spectral_To_Grid!(mesh, u_hat, u)
