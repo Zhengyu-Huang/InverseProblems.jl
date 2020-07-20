@@ -213,15 +213,19 @@ function Apply_Gradient_Init(nx::Int64, ny::Int64, Lx::Float64, Ly::Float64, kxx
 end
 
 
-function Apply_Curl!(mesh::Spectral_Mesh, f::Array{Float64,2}, curl_f_hat::Array{ComplexF64,2}) 
+function Apply_Curl!(mesh::Spectral_Mesh, fx::Array{Float64,2}, fy::Array{Float64,2}, curl_f_hat::Array{ComplexF64,2}) 
     """
-    ∇×f_hat = ∂f/∂x_hat - ∂f/∂y_hat
+    (∇×f)_hat = ∂fy/∂x_hat - ∂fx/∂y_hat
     """
+
     d_x, d_y = mesh.d_x, mesh.d_y
-    
-    Trans_Grid_To_Spectral!(mesh, f, curl_f_hat)
-    
-    curl_f_hat .*= (d_x - d_y)
+    fx_hat, fy_hat = mesh.u_hat, mesh.v_hat
+
+    Trans_Grid_To_Spectral!(mesh, fx, fx_hat)  
+    Trans_Grid_To_Spectral!(mesh, fy, fy_hat)
+
+    curl_f_hat .= d_x.*fy_hat - d_y.*fx_hat
+
 end
 
 

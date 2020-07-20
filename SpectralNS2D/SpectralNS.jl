@@ -5,7 +5,8 @@ mutable struct SpectralNS_Solver
 
     ν::Float64
 
-    f::Array{Float64, 2}
+    fx::Array{Float64, 2}
+    fy::Array{Float64, 2}
     curl_f_hat::Array{ComplexF64, 2}
 
     ω_hat::Array{ComplexF64, 2}
@@ -26,12 +27,14 @@ mutable struct SpectralNS_Solver
 end
 
 
-#initialize with velocity field todo check compressibility 
-function SpectralNS_Solver(mesh::Spectral_Mesh, ν::Float64, f::Array{Float64, 2}, u0::Array{Float64, 2}, v0::Array{Float64, 2})    
+# initialize with velocity field todo check compressibility 
+# fx = f[:,:,1]; fy = f[:,:,2]
+function SpectralNS_Solver(mesh::Spectral_Mesh, ν::Float64, fx::Array{Float64, 2}, fy::Array{Float64, 2}, 
+                           u0::Array{Float64, 2}, v0::Array{Float64, 2})    
     nx, ny = mesh.nx, mesh.ny
 
     curl_f_hat = zeros(ComplexF64, nx, ny)
-    Apply_Curl!(mesh, f, curl_f_hat) 
+    Apply_Curl!(mesh, fx, fy, curl_f_hat) 
 
     u .= u0
     v .= v0
@@ -55,17 +58,17 @@ function SpectralNS_Solver(mesh::Spectral_Mesh, ν::Float64, f::Array{Float64, 2
     k3 = zeros(ComplexF64, nx, ny)
     k4 = zeros(ComplexF64, nx, ny)
 
-    SpectralNS_Solver(mesh, ν, f, curl_f_hat, ω_hat, u_hat, v_hat, ω, u, v, Δω_hat, δω_hat, k1, k2, k3, k4)
+    SpectralNS_Solver(mesh, ν, fx, fy, curl_f_hat, ω_hat, u_hat, v_hat, ω, u, v, Δω_hat, δω_hat, k1, k2, k3, k4)
 end
 
 
 
 #initialize with vorticity field
-function SpectralNS_Solver(mesh::Spectral_Mesh, ν::Float64, f::Array{Float64, 2}, ω0::Array{Float64, 2})    
+function SpectralNS_Solver(mesh::Spectral_Mesh, ν::Float64, fx::Array{Float64, 2}, fy::Array{Float64, 2}, ω0::Array{Float64, 2})    
     nx, ny = mesh.nx, mesh.ny
 
     curl_f_hat = zeros(ComplexF64, nx, ny)
-    Apply_Curl!(mesh, f, curl_f_hat) 
+    Apply_Curl!(mesh, fx, fy, curl_f_hat) 
 
     ω = zeros(Float64, nx, ny)
     ω .= ω0
@@ -89,7 +92,7 @@ function SpectralNS_Solver(mesh::Spectral_Mesh, ν::Float64, f::Array{Float64, 2
     k3 = zeros(ComplexF64, nx, ny)
     k4 = zeros(ComplexF64, nx, ny)
 
-    SpectralNS_Solver(mesh, ν, f, curl_f_hat, ω_hat, u_hat, v_hat, ω, u, v, Δω_hat, δω_hat, k1, k2, k3, k4)
+    SpectralNS_Solver(mesh, ν, fx, fy, curl_f_hat, ω_hat, u_hat, v_hat, ω, u, v, Δω_hat, δω_hat, k1, k2, k3, k4)
 end
 
 function Stable_Δt(mesh::Spectral_Mesh, ν::Float64, u::Array{Float64,2}, v::Array{Float64,2})

@@ -34,9 +34,10 @@ ny=128;     # resolution in y
 Δt=5.0e-3;    # time step
 T=1.0;      # final time
 method="Crank-Nicolson" # RK4 or Crank-Nicolson
-
-
 Lx, Ly = 2*pi, 2*pi
+
+
+
 
 mesh = Spectral_Mesh(nx, ny, Lx, Ly)
 
@@ -49,10 +50,10 @@ for i = 1:nx
     end
 end
 
-f = zeros(Float64, nx, ny)
+fx = zeros(Float64, nx, ny)
+fy = zeros(Float64, nx, ny)
 
-
-solver = SpectralNS_Solver(mesh, ν, f, ω0)   
+solver = SpectralNS_Solver(mesh, ν, fx, fy, ω0)   
 Δt_max = Stable_Δt(mesh, ν, solver.u, solver.v)
 
 nt = Int64(T/Δt)
