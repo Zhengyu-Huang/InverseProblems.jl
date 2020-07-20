@@ -9,6 +9,11 @@ mutable struct SpectralNS_Solver
     fy::Array{Float64, 2}
     curl_f_hat::Array{ComplexF64, 2}
 
+    ub::Float64
+    vb::Float64
+    # Since the streamfunction is assumed to be periodic 
+    # U = curl ψ  + Ub = [∂ψ/∂y + ub, -∂ψ/∂x + vb]
+
     ω_hat::Array{ComplexF64, 2}
     u_hat::Array{ComplexF64, 2}
     v_hat::Array{ComplexF64, 2}
@@ -44,6 +49,8 @@ function SpectralNS_Solver(mesh::Spectral_Mesh, ν::Float64, fx::Array{Float64, 
     Trans_Grid_To_Spectral!(mesh, u, u_hat)
     Trans_Grid_To_Spectral!(mesh, v, v_hat)
 
+    ub, vb = nx*ny*u_hat[1,1], nx*ny*v_hat[1,1]
+
 
 
     ω_hat = zeros(ComplexF64, nx, ny)
@@ -58,13 +65,13 @@ function SpectralNS_Solver(mesh::Spectral_Mesh, ν::Float64, fx::Array{Float64, 
     k3 = zeros(ComplexF64, nx, ny)
     k4 = zeros(ComplexF64, nx, ny)
 
-    SpectralNS_Solver(mesh, ν, fx, fy, curl_f_hat, ω_hat, u_hat, v_hat, ω, u, v, Δω_hat, δω_hat, k1, k2, k3, k4)
+    SpectralNS_Solver(mesh, ν, fx, fy, curl_f_hat, ub, vb, ω_hat, u_hat, v_hat, ω, u, v, Δω_hat, δω_hat, k1, k2, k3, k4)
 end
 
 
 
 #initialize with vorticity field
-function SpectralNS_Solver(mesh::Spectral_Mesh, ν::Float64, fx::Array{Float64, 2}, fy::Array{Float64, 2}, ω0::Array{Float64, 2})    
+function SpectralNS_Solver(mesh::Spectral_Mesh, ν::Float64, fx::Array{Float64, 2}, fy::Array{Float64, 2}, ω0::Array{Float64, 2}, ub::Float64, vb::Float64)    
     nx, ny = mesh.nx, mesh.ny
 
     curl_f_hat = zeros(ComplexF64, nx, ny)
@@ -77,7 +84,7 @@ function SpectralNS_Solver(mesh::Spectral_Mesh, ν::Float64, fx::Array{Float64, 
 
     u_hat = zeros(ComplexF64, nx, ny)
     v_hat = zeros(ComplexF64, nx, ny)
-    UV_Spectral_From_Vor!(mesh, ω_hat, u_hat, v_hat)
+    UV_Spectral_From_Vor!(mesh, ω_hat, u_hat, v_hat, ub, vb)
 
     u = zeros(Float64, nx, ny)
     v = zeros(Float64, nx, ny)
@@ -92,7 +99,7 @@ function SpectralNS_Solver(mesh::Spectral_Mesh, ν::Float64, fx::Array{Float64, 
     k3 = zeros(ComplexF64, nx, ny)
     k4 = zeros(ComplexF64, nx, ny)
 
-    SpectralNS_Solver(mesh, ν, fx, fy, curl_f_hat, ω_hat, u_hat, v_hat, ω, u, v, Δω_hat, δω_hat, k1, k2, k3, k4)
+    SpectralNS_Solver(mesh, ν, fx, fy, curl_f_hat, ub, vb, ω_hat, u_hat, v_hat, ω, u, v, Δω_hat, δω_hat, k1, k2, k3, k4)
 end
 
 function Stable_Δt(mesh::Spectral_Mesh, ν::Float64, u::Array{Float64,2}, v::Array{Float64,2})
@@ -123,8 +130,8 @@ function Explicit_Residual!(self::SpectralNS_Solver, ω_hat::Array{ComplexF64, 2
     # ∂ω_hat/∂t = -FFT[(U⋅∇)ω] + ν(- ((2πkx/Lx)² + (2πky/Ly)²) )ω_hat  + curl_f_hat
     
     mesh = self.mesh
-    
-    Compute_Horizontal_Advection!(mesh, ω_hat, δω_hat)
+    ub, vb = self.ub, self.vb
+    Compute_Horizontal_Advection!(mesh, ω_hat, δω_hat, ub, vb)
 
     δω_hat .= self.curl_f_hat - δω_hat
 
@@ -160,8 +167,8 @@ function Semi_Implicit_Residual!(self::SpectralNS_Solver, ω_hat::Array{ComplexF
     # [1 + νΔt(((2πkx/Lx)² + (2πky/Ly)²))/2] (ω_hat(n+1)-ω_hat(n))/Δt = FFT[(U⋅∇)ω] + ν(-((2πkx/Lx)² + (2πky/Ly)²))ω_hat(n)  + curl_f_hat
 
     mesh = self.mesh
-    
-    Compute_Horizontal_Advection!(mesh, ω_hat, δω_hat)
+    ub, vb = self.ub, self.vb
+    Compute_Horizontal_Advection!(mesh, ω_hat, δω_hat, ub, vb)
 
     δω_hat .= self.curl_f_hat - δω_hat
 
@@ -198,11 +205,12 @@ function Update_Grid_Vars!(self::SpectralNS_Solver)
 
     ω_hat, u_hat, v_hat = self.ω_hat, self.u_hat, self.v_hat
     ω, u, v = self.ω, self.u, self.v
+    ub, vb = self.ub, self.vb
 
     mesh = self.mesh
 
     Trans_Spectral_To_Grid!(mesh, ω_hat, ω)
-    UV_Spectral_From_Vor!(mesh, ω_hat, u_hat, v_hat)
+    UV_Spectral_From_Vor!(mesh, ω_hat, u_hat, v_hat, ub, vb)
     Trans_Spectral_To_Grid!(mesh, u_hat, u)
     Trans_Spectral_To_Grid!(mesh, v_hat, v)
 

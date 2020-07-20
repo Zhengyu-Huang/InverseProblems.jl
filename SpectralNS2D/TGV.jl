@@ -53,7 +53,9 @@ end
 fx = zeros(Float64, nx, ny)
 fy = zeros(Float64, nx, ny)
 
-solver = SpectralNS_Solver(mesh, ν, fx, fy, ω0)   
+#Since TGV has zero-mean velocity fields, ub, vb = 0.0, 0.0 
+ub, vb = 0.0, 0.0 
+solver = SpectralNS_Solver(mesh, ν, fx, fy, ω0, ub, vb)   
 Δt_max = Stable_Δt(mesh, ν, solver.u, solver.v)
 
 nt = Int64(T/Δt)

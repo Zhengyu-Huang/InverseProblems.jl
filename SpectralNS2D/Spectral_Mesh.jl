@@ -262,12 +262,15 @@ We have
 u_hat =  (i 2π/Ly ky) /|k| ω_hat
 v_hat = -(i 2π/Lx kx) /|k| ω_hat
 """
-function UV_Spectral_From_Vor!(mesh::Spectral_Mesh, ω_hat::Array{ComplexF64,2}, u_hat::Array{ComplexF64,2}, v_hat::Array{ComplexF64,2})
-    
+function UV_Spectral_From_Vor!(mesh::Spectral_Mesh, ω_hat::Array{ComplexF64,2}, u_hat::Array{ComplexF64,2}, v_hat::Array{ComplexF64,2}, ub::Float64, vb::Float64)
+    nx, ny = mesh.nx, mesh.ny
     alpha_x, alpha_y = mesh.alpha_x, mesh.alpha_y
     
     u_hat .= alpha_x .* ω_hat
     v_hat .= alpha_y .* ω_hat
+
+    u_hat[1,1] = ub/(nx*ny)
+    v_hat[1,1] = vb/(nx*ny)
     
 end
 
@@ -297,7 +300,7 @@ function Apply_Gradient!(mesh::Spectral_Mesh, ω_hat::Array{ComplexF64,2}, ω_x:
 end
 
 
-function Compute_Horizontal_Advection!(mesh::Spectral_Mesh, ω_hat::Array{ComplexF64,2}, δω_hat::Array{ComplexF64, 2})
+function Compute_Horizontal_Advection!(mesh::Spectral_Mesh, ω_hat::Array{ComplexF64,2}, δω_hat::Array{ComplexF64, 2}, ub::Float64, vb::Float64)
     
     """
     δω_hat -= hat { (U⋅∇)ω }
@@ -306,7 +309,7 @@ function Compute_Horizontal_Advection!(mesh::Spectral_Mesh, ω_hat::Array{Comple
     u, v = mesh.u, mesh.v
     u_hat, v_hat = mesh.u_hat, mesh.v_hat
     ω_x, ω_y = mesh.ω_x, mesh.ω_y
-    UV_Spectral_From_Vor!(mesh, ω_hat, u_hat, v_hat)
+    UV_Spectral_From_Vor!(mesh, ω_hat, u_hat, v_hat, ub, vb)
 
     Trans_Spectral_To_Grid!(mesh, u_hat, u)
     Trans_Spectral_To_Grid!(mesh, v_hat, v)
