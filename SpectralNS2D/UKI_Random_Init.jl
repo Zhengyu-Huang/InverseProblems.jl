@@ -60,7 +60,7 @@ function UKI(phys_params::Params, seq_pairs::Array{Int64,2},
 
     ω0 = Initial_ω0_KL(mesh, params_i, seq_pairs)
     
-    @info "F error of logκ :", norm(ω0_ref - ω0), " / ",  norm(ω0_ref)
+    @info "F error of ω0 :", norm(ω0_ref - ω0), " / ",  norm(ω0_ref)
     
     
     update_ensemble!(ukiobj, ens_func) 
