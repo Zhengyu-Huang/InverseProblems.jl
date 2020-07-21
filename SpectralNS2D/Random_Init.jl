@@ -229,10 +229,11 @@ function Generate_Data(params::Params)
     
     d_x = Array(1:Δd_x:nx)
     d_y = Array(1:Δd_y:ny)
-    d_t = Array(0:Δd_t:nt)
+    d_t = Array(Δd_t:Δd_t:nt)
     
     data = zeros(Float64, size(d_x,1), size(d_y,1), size(d_t,1))
-    data[:,:,1] = ω0[d_x, d_y]
+    
+    #data[:,:,1] = ω0[d_x, d_y]
     
     Visual_Obs(mesh, ω0, Δd_x, Δd_y, "ω", "vor.0.png")
     
@@ -241,7 +242,7 @@ function Generate_Data(params::Params)
         if i%Δd_t == 0
             Update_Grid_Vars!(solver)
             Visual_Obs(mesh, solver.ω, Δd_x, Δd_y, "ω", "vor."*string(i)*".png")
-            data[:, :, Int64(i/Δd_t)+1] = solver.ω[d_x, d_y]
+            data[:, :, Int64(i/Δd_t)] = solver.ω[d_x, d_y]
         end
     end
     
@@ -341,15 +342,15 @@ function RandomInit_Main(θ::Array{Float64,1}, seq_pairs::Array{Int64,2}, params
     
     d_x = Array(1:Δd_x:nx)
     d_y = Array(1:Δd_y:ny)
-    d_t = Array(0:Δd_t:nt)
+    d_t = Array(Δd_t:Δd_t:nt)
     
     data = zeros(Float64, size(d_x,1), size(d_y,1), size(d_t,1))
-    data[:,:,1] = ω0[d_x, d_y]
+    # data[:,:,1] = ω0[d_x, d_y]
     
     for i = 1:nt
         Solve!(solver, Δt, method)
         if i%Δd_t == 0
-            data[:, :, Int64(i/Δd_t)+1] = solver.ω[d_x, d_y]
+            data[:, :, Int64(i/Δd_t)] = solver.ω[d_x, d_y]
         end
     end
     
@@ -369,7 +370,7 @@ function Params()
     #observation
     Δd_x, Δd_y, Δd_t = 32, 32, 400
     
-    n_data = (div(nx-1,Δd_x)+1)*(div(ny-1,Δd_y)+1)*(div(nt, Δd_t)+1)
+    n_data = (div(nx-1,Δd_x)+1)*(div(ny-1,Δd_y)+1)*(div(nt, Δd_t))
     #parameter standard deviation
     σ = 2*pi^2
     Params(ν, ub, vb, nx, ny, Lx, Ly, method, nt, T, Δd_x, Δd_y, Δd_t, n_data, σ)
