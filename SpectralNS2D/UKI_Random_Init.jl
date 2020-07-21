@@ -11,7 +11,7 @@ include("../UKI.jl")
 
 function Run_Random_Init(phys_params::Params, seq_pairs::Array{Int64,2}, θ::Array{Float64,1})
 
-  data = RandomInit_Main(θ, seq_paris, phys_params)
+  data = RandomInit_Main(θ, seq_pairs, phys_params)
   
   return data[:]
 end
@@ -22,7 +22,7 @@ function Ensemble_Random_Init(phys_params::Params, seq_pairs::Array{Int64,2}, pa
   
   N_ens,  N_θ = size(params_i)
   
-  g_ens = zeros(Float64, N_ens,  N_data)
+  g_ens = zeros(Float64, N_ens,  n_data)
   
   Threads.@threads for i = 1:N_ens 
     # g: N_ens x N_data
@@ -82,10 +82,16 @@ t_cov = Array(Diagonal(fill(1.0, phys_params.n_data)))
 
 # initial prior distribution is 
 na = 20
+seq_pairs = Compute_Seq_Pairs(na)
+
+nx, ny, Δd_x, Δd_y = phys_params.nx, phys_params.ny, phys_params.Δd_x, phys_params.Δd_y
+    
+ndata0 = (div(nx-1,Δd_x)+1)*(div(ny-1,Δd_y)+1)
+θ0_bar = Construct_θ0(phys_params, ω0, div(ndata0,2), seq_pairs)
+
 θ0_bar = zeros(Float64, 2*na)                                 # mean 
 θθ0_cov = Array(Diagonal(fill(1.0, 2*na)))           # standard deviation
 
-seq_pairs = Compute_Seq_Pairs(na)
 N_iter = 50 
 
 ukiobj = UKI(phys_params, seq_pairs,

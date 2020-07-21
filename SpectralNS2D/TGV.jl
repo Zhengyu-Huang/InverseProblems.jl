@@ -21,6 +21,8 @@ function TGV_Sol(xx, yy, ν, ub, vb, t)
             
             u[i,j] = ub  - cos(x - ub*t)*sin(y - vb*t)*F
             v[i,j] = vb  + sin(x - ub*t)*cos(y - vb*t)*F
+
+            #todo check pressure
             p[i,j] =      -(cos(2*x - 2*ub*t) + cos(2*y - 2*vb*t))*F^2/4
 
             ω[i,j] =     2*cos(x - ub*t)*cos(y - vb*t)*F

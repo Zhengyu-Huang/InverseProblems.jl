@@ -26,16 +26,16 @@ end
 
 function Params()
     ν = 1.0e-2   # viscosity
-    nx, ny = 64, 64   # resolution in x
+    nx, ny = 128, 128   # resolution in x
     # resolution in y
     Lx, Ly = 2*pi, 2*pi
     method="Crank-Nicolson" # RK4 or Crank-Nicolson
     nt = 500;    # time step
     T = 0.5;      # final time
     #observation
-    Δd_x, Δd_y, Δd_t = 4, 4, 100
+    Δd_x, Δd_y, Δd_t = 32, 32, 100
     
-    n_data = (div(nx-1,Δd_x)+1)*(div(ny-1,Δd_y)+1)*(div(nt, Δd_t))
+    n_data = (div(nx-1,Δd_x)+1)*(div(ny-1,Δd_y)+1)*(div(nt, Δd_t)+1)
     #parameter standard deviation
     σ = 2*pi^2
     Params(ν, nx, ny, Lx, Ly, method, nt, T, Δd_x, Δd_y, Δd_t, n_data, σ)
@@ -59,11 +59,16 @@ function Force(mesh::Spectral_Mesh)
     return fx, fy
 end
 
+# For fourier modes, consider the zero-mean real field
+# u = ∑ f_k e^{ik⋅x}, we have  f_{k} = conj(f_{-k})
+# we can also use cos(k⋅x)/2π^2 and sin(k⋅x)/2π^2 as basis (L2 norm is 1)
+# with (kx + ky > 0 || (kx + ky == 0 && kx > 0)) 
 function Mode_Helper(kx, ky)
     return (kx + ky > 0 || (kx + ky == 0 && kx > 0)) 
 end
 
 
+# Generate random numbers and initialize ω0 with all fourier modes
 function Initial_ω0_KL(mesh::Spectral_Mesh, params::Params)
     # consider C = -Δ^{-1}
     # C u = λ u  => -u = λ Δ u
@@ -72,7 +77,7 @@ function Initial_ω0_KL(mesh::Spectral_Mesh, params::Params)
     # ω = ∑ ak cos(k⋅x)/2π^2|k|^2 + ∑ bk sin(k⋅x)/2π^2|k|^2,    &  kx + ky > 0 or (kx + ky = 0 and kx > 0) 
     #   = ∑ (ak/(4π^2|k|^2) - i bk/(4π^2|k|^2) )e^{ik⋅x} + (ak/(4π^2|k|^2) + i bk/(4π^2|k|^2) )e^{-ik⋅x}
     
-    # Initialize with all fourier modes
+    
     
     nx, ny = mesh.nx, mesh.ny
     kxx, kyy = mesh.kxx, mesh.kyy
@@ -127,7 +132,12 @@ end
 
 
 
-
+# For fourier modes, consider the zero-mean real field
+# u = ∑ f_k e^{ik⋅x}, we have  f_{k} = conj(f_{-k})
+# we can also use cos(k⋅x)/2π^2 and sin(k⋅x)/2π^2 as basis (L2 norm is 1)
+# with (kx + ky > 0 || (kx + ky == 0 && kx > 0)) 
+# And these fourier modes are sorted by 1/|k|^2 and the first trunc_KL modes 
+# are computed in terms of (kx, ky) pair
 function Compute_Seq_Pairs(trunc_KL::Int64)
     seq_pairs = zeros(Int64, trunc_KL, 2)
     trunc_Nx = trunc(Int64, sqrt(2*trunc_KL)) + 1
@@ -151,6 +161,12 @@ function Compute_Seq_Pairs(trunc_KL::Int64)
     return seq_pairs[1:trunc_KL, :]
 end
 
+
+
+# we can also use cos(k⋅x)/2π^2 and sin(k⋅x)/2π^2 as basis (L2 norm is 1) for zero-mean real fields
+# with (kx + ky > 0 || (kx + ky == 0 && kx > 0)) 
+# θ = [ak;bk]
+# ω0 = ∑_k ak cos(k⋅x)/2π^2|k|^2 + bk sin(k⋅x)/2π^2|k|^2
 function Initial_ω0_KL(mesh::Spectral_Mesh, θ::Array{Float64,1}, seq_pairs::Array{Int64,2})
     # consider C = -Δ^{-1}
     # C u = λ u  => -u = λ Δ u
@@ -159,7 +175,7 @@ function Initial_ω0_KL(mesh::Spectral_Mesh, θ::Array{Float64,1}, seq_pairs::Ar
     # ω = ∑ ak cos(k⋅x)/2π^2|k|^2 + ∑ bk sin(k⋅x)/2π^2|k|^2,    &  kx + ky > 0 or (kx + ky = 0 and kx > 0) 
     #   = ∑ (ak/(4π^2|k|^2) - i bk/(4π^2|k|^2) )e^{ik⋅x} + (ak/(4π^2|k|^2) + i bk/(4π^2|k|^2) )e^{-ik⋅x}
     
-    # Initialize with first trunc_KL fourier modes
+    
     
     nx, ny = mesh.nx, mesh.ny
     kxx, kyy = mesh.kxx, mesh.kyy
@@ -197,7 +213,7 @@ function Initial_ω0_KL(mesh::Spectral_Mesh, θ::Array{Float64,1}, seq_pairs::Ar
     #     kx, ky = seq_pairs[i,:]
     #     ak, bk = abk[i,:]
     #     @info kx, ky, nx, ny
-
+    
     #     @assert((abs(kx) < nx/3 && abs(ky) < ny/3) && (kx + ky > 0 || (kx + ky == 0 && kx > 0))) 
     #     ω0_test .+= (ak * cos.(kx*X + ky*Y) + bk * sin.(kx*X + ky*Y))/(2*pi^2*(kx^2 + ky^2))
     # end
@@ -209,6 +225,9 @@ function Initial_ω0_KL(mesh::Spectral_Mesh, θ::Array{Float64,1}, seq_pairs::Ar
 end
 
 
+# generate truth (all Fourier modes) and observations
+# observation are at frame 0, Δd_t, 2Δd_t, ... nt
+# with sparse points at Array(1:Δd_x:nx) × Array(1:Δd_y:ny)
 function Generate_Data(params::Params)
     
     
@@ -221,52 +240,44 @@ function Generate_Data(params::Params)
     
     
     mesh = Spectral_Mesh(nx, ny, Lx, Ly)
-    
-    
     ω0 = Initial_ω0_KL(mesh, params)
-    
-    
     fx,fy = Force(mesh)
     
-    
-    solver = SpectralNS_Solver(mesh, ν, fx, fy, ω0)  
-    Visual(mesh, ω0, "ω", "vor0.png")
-    Visual(mesh, solver.u, "u", "u0.png")
-    Visual(mesh, solver.v, "v", "v0.png")
+    solver = SpectralNS_Solver(mesh, ν, fx, fy, ω0, 0.0, 0.0)  
     Δt_max = Stable_Δt(mesh, ν, solver.u, solver.v)
     
     Δt = T/nt
-    
     # initialize observation 
     
     d_x = Array(1:Δd_x:nx)
     d_y = Array(1:Δd_y:ny)
-    d_t = Array(Δd_t:Δd_t:nt)
+    d_t = Array(0:Δd_t:nt)
     
     data = zeros(Float64, size(d_x,1), size(d_y,1), size(d_t,1))
+    data[:,:,1] = ω0[d_x, d_y]
     
-    
+    Visual_Obs(mesh, ω0, Δd_x, Δd_y, "ω", "vor.0.png")
     
     for i = 1:nt
         Solve!(solver, Δt, method)
         if i%Δd_t == 0
             Update_Grid_Vars!(solver)
-            Visual(mesh, solver.ω, "ω", "vor."*string(i)*".png")
-            data[:, :, Int64(i/Δd_t)] = solver.ω[d_x, d_y]
+            Visual_Obs(mesh, solver.ω, Δd_x, Δd_y, "ω", "vor."*string(i)*".png")
+            data[:, :, Int64(i/Δd_t)+1] = solver.ω[d_x, d_y]
         end
     end
     
     return ω0, data
-    
 end
 
 
-# extract the first nθ0 dominant modes from ω0
+# project  ω0 on the first nθ0 dominant modes
+# namely, ∑ ak cos(k⋅x) + bk sin(k⋅x) with least square fitting
 function Construct_θ0(params::Params, ω0::Array{Float64, 2}, nθ0::Int64, seq_pairs::Array{Int64,2})
     @assert(nθ0%2 == 0)
     nθ = 2*size(seq_pairs,1)
     abk0 = zeros(Float64, Int64(nθ/2), 2)
-
+    
     ν = params.ν
     nx, ny = params.nx, params.ny
     Lx, Ly = params.Lx, params.Ly
@@ -276,14 +287,13 @@ function Construct_θ0(params::Params, ω0::Array{Float64, 2}, nθ0::Int64, seq_
     
     
     mesh = Spectral_Mesh(nx, ny, Lx, Ly)
- 
+    
     Δt = T/nt
     
     # initialize observation 
     
     d_x = Array(1:Δd_x:nx)
     d_y = Array(1:Δd_y:ny)
-    d_t = Array(Δd_t:Δd_t:nt)
     
     data0 = ω0[d_x, d_y]
     
@@ -301,29 +311,35 @@ function Construct_θ0(params::Params, ω0::Array{Float64, 2}, nθ0::Int64, seq_
         end
     end
     X, Y = X[d_x, d_y], Y[d_x, d_y]
+    
     for i = 1:Int64(nθ0/2)
         kx, ky = seq_pairs[i,:]
         
+        
         A[:,i]              = (cos.(kx*X + ky*Y)/(2*pi^2*(kx^2 + ky^2)))[:]
         A[:,i+Int64(nθ0/2)] = (sin.(kx*X + ky*Y)/(2*pi^2*(kx^2 + ky^2)))[:]
+        
     end
     x = A\data0[:]
-
-
+    
+    
+    
     abk0[1:Int64(nθ0/2), :] = reshape(x, Int64(nθ0/2), 2)
     θ0 = abk0[:]
-
+    
     ω0_fit = Initial_ω0_KL(mesh, θ0, seq_pairs)
-    Visual(mesh, ω0, "ω", "vor0.png")
-    Visual(mesh, ω0_fit, "ω", "vor0_fit.png")
-
+    
+    Visual(mesh, ω0_fit, "ω", "vor0.fitted.png")
+    
     return θ0
     
 end
 
+
+
 function RandomInit_Main(θ::Array{Float64,1}, seq_pairs::Array{Int64,2}, params::Params)
     # θ = [ak; bk] and abk = [ak, bk], we have θ = abk[:] and abk = reshape(θ, nθ/2, 2)
-
+    
     ν = params.ν
     nx, ny = params.nx, params.ny
     Lx, Ly = params.Lx, params.Ly
@@ -338,25 +354,23 @@ function RandomInit_Main(θ::Array{Float64,1}, seq_pairs::Array{Int64,2}, params
     fx,fy = Force(mesh)
     
     
-    solver = SpectralNS_Solver(mesh, ν, fx, fy, ω0)  
-    
+    solver = SpectralNS_Solver(mesh, ν, fx, fy, ω0, 0.0, 0.0)  
     Δt_max = Stable_Δt(mesh, ν, solver.u, solver.v)
     
     Δt = T/nt
-    
     # initialize observation 
+    
     d_x = Array(1:Δd_x:nx)
     d_y = Array(1:Δd_y:ny)
-    d_t = Array(Δd_t:Δd_t:nt)
+    d_t = Array(0:Δd_t:nt)
     
     data = zeros(Float64, size(d_x,1), size(d_y,1), size(d_t,1))
-    
+    data[:,:,1] = ω0[d_x, d_y]
     
     for i = 1:nt
         Solve!(solver, Δt, method)
         if i%Δd_t == 0
-            Update_Grid_Vars!(solver)
-            data[:, :, Int64(i/Δd_t)] = solver.ω[d_x, d_y]
+            data[:, :, Int64(i/Δd_t)+1] = solver.ω[d_x, d_y]
         end
     end
     
@@ -364,20 +378,16 @@ function RandomInit_Main(θ::Array{Float64,1}, seq_pairs::Array{Int64,2}, params
 end
 
 
-phys_params = Params()
+if abspath(PROGRAM_FILE) == @__FILE__
+    phys_params = Params()
+    # data
+    ω0, t_mean =  Generate_Data(phys_params)
+    # learn 100 modes
+    na = 50        
+    seq_pairs = Compute_Seq_Pairs(na)
 
-# data
-ω0, t_mean =  Generate_Data(phys_params)
-# t_cov = Array(Diagonal(fill(1.0, phys_params.n_data))) 
-
-
-na = 100
-θ0_bar = rand(Normal(0, phys_params.σ), 2*na)         
-seq_pairs = Compute_Seq_Pairs(na)
-
-
-θ0 = Construct_θ0(phys_params, ω0, 16, seq_pairs)
-
-
-
-#RandomInit_Main(θ0_bar, seq_pairs, phys_params)
+    nx, ny, Δd_x, Δd_y = phys_params.nx, phys_params.ny, phys_params.Δd_x, phys_params.Δd_y
+    
+    ndata0 = (div(nx-1,Δd_x)+1)*(div(ny-1,Δd_y)+1)
+    θ0 = Construct_θ0(phys_params, ω0, div(ndata0,2), seq_pairs)
+end

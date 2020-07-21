@@ -328,7 +328,7 @@ function Visual(mesh::Spectral_Mesh, u::Array{Float64,2}, var_name::String, save
         X,Y = repeat(xx, 1, ny), repeat(yy, 1, nx)'
         
         
-        pcolormesh(X, Y, u, shading= "gouraud", cmap="viridis")
+        pcolormesh(X, Y, u, shading= "gouraud", cmap="jet")
         xlabel("X")
         ylabel("Y")
         colorbar()
@@ -338,6 +338,35 @@ function Visual(mesh::Spectral_Mesh, u::Array{Float64,2}, var_name::String, save
             savefig(save_file_name)
             close("all")
         end
+
+end
+
+
+function Visual_Obs(mesh::Spectral_Mesh, u::Array{Float64,2}, Δd_x::Int64,  Δd_y::Int64, var_name::String, save_file_name::String="None")
+
+    nx, ny = mesh.nx, mesh.ny
+    xx, yy = mesh.xx, mesh.yy
+    X,Y = repeat(xx, 1, ny), repeat(yy, 1, nx)'
+    
+
+    d_x = Array(1:Δd_x:nx)
+    d_y = Array(1:Δd_y:ny)
+    x_obs, y_obs = X[d_x,d_y][:], Y[d_x,d_y][:] 
+    
+
+    pcolormesh(X, Y, u, shading= "gouraud", cmap="jet")
+    colorbar()
+    scatter(x_obs, y_obs, color="black")
+
+    xlabel("X")
+    ylabel("Y")
+    
+
+    
+    if save_file_name != "None"
+        savefig(save_file_name)
+        close("all")
+    end
 
 end
 
