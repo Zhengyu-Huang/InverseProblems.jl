@@ -197,8 +197,8 @@ function update_ensemble!(uki::UKIObj{FT}, ens_func::Function) where {FT}
     α_reg = uki.α_reg
     
 
-    θ_p_bar  = alpha*θ_bar + (1-α_reg)*uki.θ_bar[1]
-    θθ_p_cov = alpha^2*θθ_cov + (2-α_reg^2)*uki.θθ_cov[1]
+    θ_p_bar  = α_reg*θ_bar + (1-α_reg)*uki.θ_bar[1]
+    θθ_p_cov = α_reg^2*θθ_cov + (2-α_reg^2)*uki.θθ_cov[1]
     
 
 

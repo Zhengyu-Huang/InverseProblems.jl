@@ -36,8 +36,8 @@ end
 function UKI(phys_params::Params, seq_pairs::Array{Int64,2},
   t_mean::Array{Float64,1}, t_cov::Array{Float64,2}, 
   θ_bar::Array{Float64,1}, θθ_cov::Array{Float64,2}, 
-  ω0_ref::Array{Float64,2},
-  N_iter::Int64 = 100)
+  α_reg::Float64, 
+  ω0_ref::Array{Float64,2}, N_iter::Int64 = 100)
 
 
   mesh = Spectral_Mesh(phys_params.nx, phys_params.ny, phys_params.Lx, phys_params.Ly)
@@ -50,7 +50,8 @@ function UKI(phys_params::Params, seq_pairs::Array{Int64,2},
   θ_bar, 
   θθ_cov,
   t_mean, # observation
-  t_cov)
+  t_cov,
+  α_reg)
   
   
   for i in 1:N_iter
@@ -87,9 +88,9 @@ seq_pairs = Compute_Seq_Pairs(na)
 nx, ny, Δd_x, Δd_y = phys_params.nx, phys_params.ny, phys_params.Δd_x, phys_params.Δd_y
     
 ndata0 = (div(nx-1,Δd_x)+1)*(div(ny-1,Δd_y)+1)
-θ0_bar = Construct_θ0(phys_params, ω0, div(ndata0,2), seq_pairs)
 
-θ0_bar = zeros(Float64, 2*na)                                 # mean 
+@info div(ndata0,2)
+θ0_bar = Construct_θ0(phys_params, ω0, div(ndata0,2), seq_pairs)
 θθ0_cov = Array(Diagonal(fill(1.0, 2*na)))           # standard deviation
 
 N_iter = 50 
@@ -98,8 +99,9 @@ N_iter = 50
 ukiobj = UKI(phys_params, seq_pairs,
 t_mean, t_cov, 
 θ0_bar, θθ0_cov, 
+α_reg,
 ω0,
-N_iter, α_reg)
+N_iter)
 
 
 

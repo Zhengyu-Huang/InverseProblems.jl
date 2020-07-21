@@ -267,7 +267,7 @@ function Generate_Data(params::Params)
         end
     end
     
-    return ω0, data
+    return ω0, data[:]
 end
 
 
