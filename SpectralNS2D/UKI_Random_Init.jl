@@ -7,7 +7,7 @@ using LinearAlgebra
 
 include("../Plot.jl")
 include("Random_Init.jl")
-include("../UKI.jl")
+include("../RUKI.jl")
 
 function Run_Random_Init(phys_params::Params, seq_pairs::Array{Int64,2}, θ::Array{Float64,1})
 
@@ -94,11 +94,12 @@ ndata0 = (div(nx-1,Δd_x)+1)*(div(ny-1,Δd_y)+1)
 
 N_iter = 50 
 
+α_reg = 0.5
 ukiobj = UKI(phys_params, seq_pairs,
 t_mean, t_cov, 
 θ0_bar, θθ0_cov, 
 ω0,
-N_iter)
+N_iter, α_reg)
 
 
 

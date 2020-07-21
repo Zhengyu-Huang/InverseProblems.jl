@@ -33,6 +33,8 @@ struct UKIObj{FT<:AbstractFloat, IT<:Int}
      sample_weights::Array{FT}
      μ_weights::Array{FT} 
      cov_weights::Array{FT} 
+     "regularization parameter"
+     α_reg::Float64
 end
 
 
@@ -42,7 +44,8 @@ function UKIObj(parameter_names::Vector{String},
                 θ0_bar::Array{FT}, 
                 θθ0_cov::Array{FT, 2},
                 g_t::Vector{FT}, # observation
-                obs_cov::Array{FT, 2}) where {FT<:AbstractFloat}
+                obs_cov::Array{FT, 2},
+                α_reg::Float64) where {FT<:AbstractFloat}
 
     # ensemble size
     N_θ = size(θ0_bar,1)
@@ -86,7 +89,7 @@ function UKIObj(parameter_names::Vector{String},
     #error(">_<")
 
     UKIObj{FT,IT}(parameter_names, θ_bar, θθ_cov, g_t, obs_cov, g_bar, N_ens, N_θ, N_g, 
-                  sample_weights, μ_weights, cov_weights)
+                  sample_weights, μ_weights, cov_weights, α_reg)
 
 end
 
@@ -191,11 +194,11 @@ function update_ensemble!(uki::UKIObj{FT}, ens_func::Function) where {FT}
     ############# Prediction 
     # Generate sigma points, and time step update 
     
-    alpha = 0.5
+    α_reg = uki.α_reg
     
 
-    θ_p_bar  = alpha*θ_bar + (1-alpha)*uki.θ_bar[1]
-    θθ_p_cov = alpha^2*θθ_cov + (2-alpha^2)*uki.θθ_cov[1]
+    θ_p_bar  = alpha*θ_bar + (1-α_reg)*uki.θ_bar[1]
+    θθ_p_cov = alpha^2*θθ_cov + (2-α_reg^2)*uki.θθ_cov[1]
     
 
 
