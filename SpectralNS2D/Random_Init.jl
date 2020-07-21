@@ -186,14 +186,16 @@ function Initial_ω0_KL(mesh::Spectral_Mesh, θ::Array{Float64,1}, seq_pairs::Ar
     trunc_KL = size(abk,1)
     for i = 1:trunc_KL
         kx, ky = seq_pairs[i,:]
-        ak, bk = abk[i,:]
-        ix = (kx >= 0 ? kx + 1 : nx + kx + 1) 
-        iy = (ky >= 0 ? ky + 1 : ny + ky + 1) 
+        if Mode_Helper(kx, ky)
+            ak, bk = abk[i,:]
+            ix = (kx >= 0 ? kx + 1 : nx + kx + 1) 
+            iy = (ky >= 0 ? ky + 1 : ny + ky + 1) 
         
-        ω0_hat[ix, iy] = (ak - bk*im)/(4*pi^2*(kx^2+ky^2))
+            ω0_hat[ix, iy] = (ak - bk*im)/(4*pi^2*(kx^2+ky^2))
         
-        # 1 => 1, i => n-i+2
-        ω0_hat[(ix==1 ? 1 : nx-ix+2), (iy==1 ? 1 : ny-iy+2)] = (ak + bk*im)/(4*pi^2*(kx^2+ky^2))
+            # 1 => 1, i => n-i+2
+            ω0_hat[(ix==1 ? 1 : nx-ix+2), (iy==1 ? 1 : ny-iy+2)] = (ak + bk*im)/(4*pi^2*(kx^2+ky^2))
+        end
     end
     ω0_hat .*= mesh.alias_filter
     Trans_Spectral_To_Grid!(mesh, nx*ny * ω0_hat, ω0)

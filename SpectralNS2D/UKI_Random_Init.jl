@@ -95,7 +95,7 @@ ndata0 = (div(nx-1,Δd_x)+1)*(div(ny-1,Δd_y)+1)
 
 N_iter = 50 
 
-α_reg = 0.5
+α_reg = 1.0
 ukiobj = UKI(phys_params, seq_pairs,
 t_mean, t_cov, 
 θ0_bar, θθ0_cov, 
