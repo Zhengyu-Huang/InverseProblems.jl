@@ -360,7 +360,7 @@ function Params()
     ν = 1.0e-2   # viscosity
     nx, ny = 128, 128  # resolution in x
 
-    ub, vb = pi, pi
+    ub, vb = 1.0, 1.0
     # resolution in y
     Lx, Ly = 2*pi, 2*pi
     method="Crank-Nicolson" # RK4 or Crank-Nicolson

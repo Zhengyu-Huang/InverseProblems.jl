@@ -87,11 +87,12 @@ seq_pairs = Compute_Seq_Pairs(na)
 
 nx, ny, Δd_x, Δd_y = phys_params.nx, phys_params.ny, phys_params.Δd_x, phys_params.Δd_y
     
-ndata0 = (div(nx-1,Δd_x)+1)*(div(ny-1,Δd_y)+1)
+ndata0 = min((div(nx-1,Δd_x)+1)*(div(ny-1,Δd_y)+1), 2*na)
 
 @info div(ndata0,2)
 θ0_bar = Construct_θ0(phys_params, ω0, div(ndata0,2), seq_pairs)
-θθ0_cov = Array(Diagonal(fill(1.0, 2*na)))           # standard deviation
+θ0_bar .= 0.0
+θθ0_cov = Array(Diagonal(fill(100.0, 2*na)))           # standard deviation
 
 ####
 
