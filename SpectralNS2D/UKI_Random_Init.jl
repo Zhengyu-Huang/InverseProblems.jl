@@ -93,6 +93,13 @@ ndata0 = (div(nx-1,Δd_x)+1)*(div(ny-1,Δd_y)+1)
 θ0_bar = Construct_θ0(phys_params, ω0, div(ndata0,2), seq_pairs)
 θθ0_cov = Array(Diagonal(fill(1.0, 2*na)))           # standard deviation
 
+####
+
+
+####
+
+
+
 N_iter = 50 
 
 α_reg = 1.0
