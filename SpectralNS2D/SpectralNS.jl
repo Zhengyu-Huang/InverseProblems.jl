@@ -41,6 +41,8 @@ function SpectralNS_Solver(mesh::Spectral_Mesh, ν::Float64, fx::Array{Float64, 
     curl_f_hat = zeros(ComplexF64, nx, ny)
     Apply_Curl!(mesh, fx, fy, curl_f_hat) 
 
+    u = zeros(Float64, nx, ny)
+    v = zeros(Float64, nx, ny)
     u .= u0
     v .= v0
 
@@ -49,12 +51,10 @@ function SpectralNS_Solver(mesh::Spectral_Mesh, ν::Float64, fx::Array{Float64, 
     Trans_Grid_To_Spectral!(mesh, u, u_hat)
     Trans_Grid_To_Spectral!(mesh, v, v_hat)
 
-    ub, vb = nx*ny*u_hat[1,1], nx*ny*v_hat[1,1]
-
-
+    ub, vb = u_hat[1,1]/(nx*ny), v_hat[1,1]/(nx*ny)
 
     ω_hat = zeros(ComplexF64, nx, ny)
-    ω .= zeros(Float64, nx, ny)
+    ω = zeros(Float64, nx, ny)
     Vor_From_UV_Spectral!(mesh, u_hat, v_hat, ω_hat, ω)
     
     δω_hat = zeros(ComplexF64, nx, ny)

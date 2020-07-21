@@ -269,13 +269,13 @@ function UV_Spectral_From_Vor!(mesh::Spectral_Mesh, ω_hat::Array{ComplexF64,2},
     u_hat .= alpha_x .* ω_hat
     v_hat .= alpha_y .* ω_hat
 
-    u_hat[1,1] = ub/(nx*ny)
-    v_hat[1,1] = vb/(nx*ny)
+    u_hat[1,1] = ub * (nx*ny)
+    v_hat[1,1] = vb * (nx*ny)
     
 end
 
 
-function Vor_From_UV_Grid!(mesh::Spectral_Mesh, u_hat::Array{ComplexF64,2}, v_hat::Array{ComplexF64,2},ω_hat::Array{ComplexF64,2}, ω::Array{Float64,2}, )
+function Vor_From_UV_Spectral!(mesh::Spectral_Mesh, u_hat::Array{ComplexF64,2}, v_hat::Array{ComplexF64,2},ω_hat::Array{ComplexF64,2}, ω::Array{Float64,2}, )
     d_x, d_y = mesh.d_x, mesh.d_y
     ω_hat .= d_x.*v_hat - d_y.*u_hat
     
