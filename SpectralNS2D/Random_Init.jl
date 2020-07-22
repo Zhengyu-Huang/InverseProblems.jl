@@ -219,6 +219,32 @@ function Generate_Data(params::Params)
     
     mesh = Spectral_Mesh(nx, ny, Lx, Ly)
     ω0 = Initial_ω0_KL(mesh, params)
+
+    data = Foward_Helper(params, ω0, "vor.")
+
+    return ω0, data
+    
+end
+
+
+
+# generate truth (all Fourier modes) and observations
+# observation are at frame 0, Δd_t, 2Δd_t, ... nt
+# with sparse points at Array(1:Δd_x:nx) × Array(1:Δd_y:ny)
+function Foward_Helper(params::Params, ω0::Array{Float64,2}, save_file_name::String="None")
+    
+    
+    ν = params.ν
+    ub, vb = params.ub, params.vb
+    nx, ny = params.nx, params.ny
+    Lx, Ly = params.Lx, params.Ly
+    nt, T = params.nt, params.T
+    method = params.method 
+    Δd_x, Δd_y, Δd_t = params.Δd_x, params.Δd_y, params.Δd_t
+    
+    
+    mesh = Spectral_Mesh(nx, ny, Lx, Ly)
+
     fx,fy = Force(mesh)
     
     solver = SpectralNS_Solver(mesh, ν, fx, fy, ω0, ub, vb)  
@@ -234,19 +260,22 @@ function Generate_Data(params::Params)
     data = zeros(Float64, size(d_x,1), size(d_y,1), size(d_t,1))
     
     #data[:,:,1] = ω0[d_x, d_y]
-    
-    Visual_Obs(mesh, ω0, Δd_x, Δd_y, "ω", "vor.0.png")
-    
+    if save_file_name != "None"
+        Visual_Obs(mesh, ω0, Δd_x, Δd_y, "ω", save_file_name*"0.png")
+    end
+
     for i = 1:nt
         Solve!(solver, Δt, method)
         if i%Δd_t == 0
             Update_Grid_Vars!(solver)
-            Visual_Obs(mesh, solver.ω, Δd_x, Δd_y, "ω", "vor."*string(i)*".png")
+            if save_file_name != "None"
+                Visual_Obs(mesh, solver.ω, Δd_x, Δd_y, "ω", save_file_name*string(i)*".png")
+            end
             data[:, :, Int64(i/Δd_t)] = solver.ω[d_x, d_y]
         end
     end
     
-    return ω0, data[:]
+    return data[:]
 end
 
 
@@ -330,30 +359,10 @@ function RandomInit_Main(θ::Array{Float64,1}, seq_pairs::Array{Int64,2}, params
     
     @assert(2size(seq_pairs,1) == size(θ,1))
     mesh = Spectral_Mesh(nx, ny, Lx, Ly)
-    ω0 = Initial_ω0_KL(mesh, θ, seq_pairs)        
-    fx,fy = Force(mesh)
-    
-    
-    solver = SpectralNS_Solver(mesh, ν, fx, fy, ω0, ub, vb)  
-    Δt_max = Stable_Δt(mesh, ν, solver.u, solver.v)
-    
-    Δt = T/nt
-    # initialize observation 
-    
-    d_x = Array(1:Δd_x:nx)
-    d_y = Array(1:Δd_y:ny)
-    d_t = Array(Δd_t:Δd_t:nt)
-    
-    data = zeros(Float64, size(d_x,1), size(d_y,1), size(d_t,1))
-    # data[:,:,1] = ω0[d_x, d_y]
-    
-    for i = 1:nt
-        Solve!(solver, Δt, method)
-        if i%Δd_t == 0
-            data[:, :, Int64(i/Δd_t)] = solver.ω[d_x, d_y]
-        end
-    end
-    
+    ω0 = Initial_ω0_KL(mesh, θ, seq_pairs)   
+
+    data = Foward_Helper(params, ω0)
+
     return data
 end
 

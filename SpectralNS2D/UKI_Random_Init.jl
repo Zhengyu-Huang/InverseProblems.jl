@@ -9,11 +9,13 @@ include("../Plot.jl")
 include("Random_Init.jl")
 include("../RUKI.jl")
 
-function Run_Random_Init(phys_params::Params, seq_pairs::Array{Int64,2}, θ::Array{Float64,1})
+function Foward(phys_params::Params, seq_pairs::Array{Int64,2}, θ::Array{Float64,1})
 
-  data = RandomInit_Main(θ, seq_pairs, phys_params)
   
-  return data[:]
+  
+  return RandomInit_Main(θ, seq_pairs, phys_params)
+
+
 end
 
 
@@ -26,7 +28,7 @@ function Ensemble_Random_Init(phys_params::Params, seq_pairs::Array{Int64,2}, pa
   
   Threads.@threads for i = 1:N_ens 
     # g: N_ens x N_data
-    g_ens[i, :] .= Run_Random_Init(phys_params, seq_pairs, params_i[i, :])
+    g_ens[i, :] .= Foward(phys_params, seq_pairs, params_i[i, :])
   end
   
   return g_ens
@@ -59,6 +61,8 @@ function UKI(phys_params::Params, seq_pairs::Array{Int64,2},
     params_i = deepcopy(ukiobj.θ_bar[end])
 
     ω0 = Initial_ω0_KL(mesh, params_i, seq_pairs)
+    # visulize
+    Foward_Helper(phys_params, ω0, "vor-"*str(i)*".")
     
     @info "F error of ω0 :", norm(ω0_ref - ω0), " / ",  norm(ω0_ref)
     
@@ -66,6 +70,7 @@ function UKI(phys_params::Params, seq_pairs::Array{Int64,2},
     update_ensemble!(ukiobj, ens_func) 
     
     @info "F error of data_mismatch :", (ukiobj.g_bar[end] - ukiobj.g_t)'*(ukiobj.obs_cov\(ukiobj.g_bar[end] - ukiobj.g_t))
+    
     
     
   end
