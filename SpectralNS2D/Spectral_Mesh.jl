@@ -321,14 +321,15 @@ function Compute_Horizontal_Advection!(mesh::Spectral_Mesh, ω_hat::Array{Comple
 end
 
 
-function Visual(mesh::Spectral_Mesh, u::Array{Float64,2}, var_name::String, save_file_name::String="None")
+function Visual(mesh::Spectral_Mesh, u::Array{Float64,2}, var_name::String,
+        save_file_name::String="None", vmin=nothing, vmax=nothing)
 
         nx, ny = mesh.nx, mesh.ny
         xx, yy = mesh.xx, mesh.yy
         X,Y = repeat(xx, 1, ny), repeat(yy, 1, nx)'
         
         
-        pcolormesh(X, Y, u, shading= "gouraud", cmap="jet")
+        pcolormesh(X, Y, u, shading= "gouraud", cmap="jet", vmin=vmin, vmax =vmax)
         xlabel("X")
         ylabel("Y")
         colorbar()
@@ -342,7 +343,8 @@ function Visual(mesh::Spectral_Mesh, u::Array{Float64,2}, var_name::String, save
 end
 
 
-function Visual_Obs(mesh::Spectral_Mesh, u::Array{Float64,2}, Δd_x::Int64,  Δd_y::Int64, var_name::String, save_file_name::String="None")
+function Visual_Obs(mesh::Spectral_Mesh, u::Array{Float64,2}, Δd_x::Int64,  Δd_y::Int64, var_name::String, 
+                     save_file_name::String="None", vmin=nothing, vmax=nothing)
 
     nx, ny = mesh.nx, mesh.ny
     xx, yy = mesh.xx, mesh.yy
@@ -354,7 +356,7 @@ function Visual_Obs(mesh::Spectral_Mesh, u::Array{Float64,2}, Δd_x::Int64,  Δd
     x_obs, y_obs = X[d_x,d_y][:], Y[d_x,d_y][:] 
     
 
-    pcolormesh(X, Y, u, shading= "gouraud", cmap="jet")
+    pcolormesh(X, Y, u, shading= "gouraud", cmap="jet", vmin=vmin, vmax =vmax)
     colorbar()
     scatter(x_obs, y_obs, color="black")
 

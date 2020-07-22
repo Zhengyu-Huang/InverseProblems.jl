@@ -7,8 +7,8 @@ struct Params
     ν::Float64
     ub::Float64
     vb::Float64
-
-
+    
+    
     nx::Int64
     ny::Int64
     Lx::Float64
@@ -165,9 +165,9 @@ function Initial_ω0_KL(mesh::Spectral_Mesh, θ::Array{Float64,1}, seq_pairs::Ar
             ak, bk = abk[i,:]
             ix = (kx >= 0 ? kx + 1 : nx + kx + 1) 
             iy = (ky >= 0 ? ky + 1 : ny + ky + 1) 
-        
+            
             ω0_hat[ix, iy] = (ak - bk*im)/(4*pi^2*(kx^2+ky^2))
-        
+            
             # 1 => 1, i => n-i+2
             ω0_hat[(ix==1 ? 1 : nx-ix+2), (iy==1 ? 1 : ny-iy+2)] = (ak + bk*im)/(4*pi^2*(kx^2+ky^2))
         end
@@ -205,7 +205,8 @@ end
 # generate truth (all Fourier modes) and observations
 # observation are at frame 0, Δd_t, 2Δd_t, ... nt
 # with sparse points at Array(1:Δd_x:nx) × Array(1:Δd_y:ny)
-function Generate_Data(params::Params)
+# add N(0, std=εy) to y,  here ε = noise_level
+function Generate_Data(params::Params, noise_level::Float64 = -1.0)
     
     
     ν = params.ν
@@ -219,9 +220,21 @@ function Generate_Data(params::Params)
     
     mesh = Spectral_Mesh(nx, ny, Lx, Ly)
     ω0 = Initial_ω0_KL(mesh, params)
-
+    
     data = Foward_Helper(params, ω0, "vor.")
+    
+    if noise_level > 0.0
+        Random.seed!(666);
+        for i = 1:length(data)
+            
+            noise = rand(Normal(0, noise_level*abs(data[i])))
+            @info data[i], noise
 
+            data[i] += noise
+        end
+    end
+    
+    
     return ω0, data
     
 end
@@ -244,7 +257,7 @@ function Foward_Helper(params::Params, ω0::Array{Float64,2}, save_file_name::St
     
     
     mesh = Spectral_Mesh(nx, ny, Lx, Ly)
-
+    
     fx,fy = Force(mesh)
     
     solver = SpectralNS_Solver(mesh, ν, fx, fy, ω0, ub, vb)  
@@ -263,7 +276,7 @@ function Foward_Helper(params::Params, ω0::Array{Float64,2}, save_file_name::St
     if save_file_name != "None"
         Visual_Obs(mesh, ω0, Δd_x, Δd_y, "ω", save_file_name*"0.png")
     end
-
+    
     for i = 1:nt
         Solve!(solver, Δt, method)
         if i%Δd_t == 0
@@ -360,24 +373,25 @@ function RandomInit_Main(θ::Array{Float64,1}, seq_pairs::Array{Int64,2}, params
     @assert(2size(seq_pairs,1) == size(θ,1))
     mesh = Spectral_Mesh(nx, ny, Lx, Ly)
     ω0 = Initial_ω0_KL(mesh, θ, seq_pairs)   
-
+    
     data = Foward_Helper(params, ω0)
-
+    
     return data
 end
 
 function Params()
     ν = 1.0e-2   # viscosity
     nx, ny = 128, 128  # resolution in x
-
-    ub, vb = 1.0, 1.0
+    
+    #ub, vb = 1.0, 1.0
+    ub, vb = 2*pi, 2*pi
     # resolution in y
     Lx, Ly = 2*pi, 2*pi
     method="Crank-Nicolson" # RK4 or Crank-Nicolson
-    nt = 2000;    # time step
+    nt = 10000;    # time step
     T = 1.0;      # final time
     #observation
-    Δd_x, Δd_y, Δd_t = 32, 32, 400
+    Δd_x, Δd_y, Δd_t = 32, 32, 2000
     
     n_data = (div(nx-1,Δd_x)+1)*(div(ny-1,Δd_y)+1)*(div(nt, Δd_t))
     #parameter standard deviation
@@ -410,7 +424,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     # learn 100 modes
     na = 50        
     seq_pairs = Compute_Seq_Pairs(na)
-
+    
     nx, ny, Δd_x, Δd_y = phys_params.nx, phys_params.ny, phys_params.Δd_x, phys_params.Δd_y
     
     ndata0 = (div(nx-1,Δd_x)+1)*(div(ny-1,Δd_y)+1)
