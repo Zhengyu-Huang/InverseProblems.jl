@@ -108,15 +108,17 @@ seq_pairs = Compute_Seq_Pairs(na)
 
 
 
-N_iter = 50 
+N_iter = 100 
 
-α_reg = 1.0
+α_reg = 0.5
 ukiobj = UKI(phys_params, seq_pairs,
 t_mean, t_cov, 
 θ0_bar, θθ0_cov, 
 α_reg,
 ω0,
 N_iter)
+
+@save "ukiobj.dat" ukiobj
 
 
 

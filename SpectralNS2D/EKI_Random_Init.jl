@@ -116,9 +116,9 @@ seq_pairs = Compute_Seq_Pairs(na)
 
 
 
-N_iter = 50 
+N_iter = 100 
 
-α_reg = 1.0
+α_reg = 0.5
 N_ens = 10
 ekiobj = EKI(phys_params, seq_pairs,
 N_ens,
@@ -133,7 +133,7 @@ N_iter)
 
 
 
-
+@save "ekiobj.dat" ekiobj
 
 
 

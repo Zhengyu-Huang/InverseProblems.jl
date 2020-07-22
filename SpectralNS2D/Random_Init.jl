@@ -274,7 +274,7 @@ function Foward_Helper(params::Params, ω0::Array{Float64,2}, save_file_name::St
     
     #data[:,:,1] = ω0[d_x, d_y]
     if save_file_name != "None"
-        Visual_Obs(mesh, ω0, Δd_x, Δd_y, "ω", save_file_name*"0.png")
+        Visual(mesh, ω0, "ω", save_file_name*"0.png", -5.0, 5.0)
     end
     
     for i = 1:nt
@@ -282,7 +282,7 @@ function Foward_Helper(params::Params, ω0::Array{Float64,2}, save_file_name::St
         if i%Δd_t == 0
             Update_Grid_Vars!(solver)
             if save_file_name != "None"
-                Visual_Obs(mesh, solver.ω, Δd_x, Δd_y, "ω", save_file_name*string(i)*".png")
+                Visual_Obs(mesh, solver.ω, Δd_x, Δd_y, "ω", save_file_name*string(i)*".png", -5.0, 5.0)
             end
             data[:, :, Int64(i/Δd_t)] = solver.ω[d_x, d_y]
         end
