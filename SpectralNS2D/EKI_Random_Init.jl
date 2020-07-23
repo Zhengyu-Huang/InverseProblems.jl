@@ -7,7 +7,7 @@ using LinearAlgebra
 
 include("../Plot.jl")
 include("Random_Init.jl")
-include("../RUKI.jl")
+include("../REKI.jl")
 
 function Foward(phys_params::Params, seq_pairs::Array{Int64,2}, θ::Array{Float64,1})
 
@@ -35,9 +35,10 @@ function Ensemble_Random_Init(phys_params::Params, seq_pairs::Array{Int64,2}, pa
 end
 
 
-function UKI(phys_params::Params, seq_pairs::Array{Int64,2},
+function EKI(phys_params::Params, seq_pairs::Array{Int64,2},
+  N_ens::Int64,
   t_mean::Array{Float64,1}, t_cov::Array{Float64,2}, 
-  θ_bar::Array{Float64,1}, θθ_cov::Array{Float64,2}, 
+  θ0_bar::Array{Float64,1}, θθ_cov::Array{Float64,2}, 
   α_reg::Float64, 
   ω0_ref::Array{Float64,2}, N_iter::Int64 = 100)
 
@@ -48,8 +49,14 @@ function UKI(phys_params::Params, seq_pairs::Array{Int64,2},
   
   ens_func(θ_ens) = Ensemble_Random_Init(phys_params, seq_pairs, θ_ens)
   
-  ukiobj = UKIObj(parameter_names,
-  θ_bar, 
+  nθ = length(θ0_bar)
+  priors = [Distributions.Normal(θ0_bar[i], sqrt(θθ0_cov[i,i])) for i=1:nθ]
+
+  θ0 = construct_initial_ensemble(N_ens, priors; rng_seed=42)
+
+  ekiobj = EKIObj(parameter_names,
+  θ0,
+  θ0_bar, 
   θθ_cov,
   t_mean, # observation
   t_cov,
@@ -58,24 +65,24 @@ function UKI(phys_params::Params, seq_pairs::Array{Int64,2},
   
   for i in 1:N_iter
     
-    params_i = deepcopy(ukiobj.θ_bar[end])
+    params_i = dropdims(mean(ekiobj.θ[end], dims=1), dims=1) 
 
     ω0 = Initial_ω0_KL(mesh, params_i, seq_pairs)
     # visulize
-    Foward_Helper(phys_params, ω0, "vor-"*string(i)*".")
+    Foward_Helper(phys_params, ω0, "eki.vor-"*string(i)*".")
     
     @info "F error of ω0 :", norm(ω0_ref - ω0), " / ",  norm(ω0_ref)
     
     
-    update_ensemble!(ukiobj, ens_func) 
+    update_ensemble!(ekiobj, ens_func) 
     
-    @info "F error of data_mismatch :", (ukiobj.g_bar[end] - ukiobj.g_t)'*(ukiobj.obs_cov\(ukiobj.g_bar[end] - ukiobj.g_t))
+    @info "F error of data_mismatch :", (ekiobj.g_bar[end] - ekiobj.g_t)'*(ekiobj.obs_cov\(ekiobj.g_bar[end] - ekiobj.g_t))
     
     
     
   end
   
-  return ukiobj
+  return ekiobj
 end
 
 
@@ -85,6 +92,7 @@ phys_params = Params()
 # data
 noise_level = 0.05
 ω0, t_mean =  Generate_Data(phys_params, noise_level )
+
 t_cov = Array(Diagonal(fill(1.0, phys_params.n_data))) 
 
 # initial prior distribution is 
@@ -111,21 +119,21 @@ seq_pairs = Compute_Seq_Pairs(na)
 N_iter = 100 
 
 α_reg = 0.5
-ukiobj = UKI(phys_params, seq_pairs,
+N_ens = 10
+ekiobj = EKI(phys_params, seq_pairs,
+N_ens,
 t_mean, t_cov, 
 θ0_bar, θθ0_cov, 
 α_reg,
 ω0,
 N_iter)
 
-@save "ukiobj.dat" ukiobj
 
 
 
 
 
-
-
+@save "ekiobj.dat" ekiobj
 
 
 
