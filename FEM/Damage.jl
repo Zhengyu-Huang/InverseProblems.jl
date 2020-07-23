@@ -1,5 +1,5 @@
 using NNFEM
-
+using PyPlot
 
 mutable struct Params
     # ns element each block
@@ -118,10 +118,10 @@ function Construct_Mesh(phys_params::Params)
     nnodes = 6*(ns*porder + 1)*(ns*porder + 1) - 5*(ns*porder + 1)
     nodes = zeros(Float64, nnodes, 2)
 
-    Δl = ls/(ns*porder + 1)
+    Δl = ls/(ns*porder)
     in = 1
-    for i = 1:4*ns*porder + 1
-        for j = 1:2*ns*porder + 1
+    for j = 1:2*ns*porder + 1
+        for i = 1:4*ns*porder + 1
     
             x, y = (i-1)*Δl, (j-1)*Δl
             
@@ -130,6 +130,7 @@ function Construct_Mesh(phys_params::Params)
             end
             
             nodes[in, :] .= x, y
+
             in += 1
             
         end
@@ -240,9 +241,85 @@ function Get_Obs(phys_params::Params)
 end
 
 
+function Visual_Block(block::Array{Int64, 2}, state::Array{Float64, 2}, Qoi::Array{Float64, 1}, vmin=nothing, vmax=nothing)
+    nbx, nby = size(block)
+    X = zeros(Float64, nbx, nby)
+    Y = zeros(Float64, nbx, nby)
+    C = zeros(Float64, nbx, nby)
+
+    for i = 1:nbx
+        for j = 1:nby
+            n_id = block[i,j]
+            X[i,j] = state[n_id,1] 
+            Y[i,j] = state[n_id,2] 
+            C[i,j] = Qoi[n_id]
+        end
+    end
+
+    pcolormesh(X, Y, C, cmap="jet", vmin=vmin, vmax=vmax)
+    
+end
+"""
+Block structure mesh visualization
+dx, dy: displacement
+obs_nid: mark observation points
+"""
+function Visual(phys_params::Params,
+    state::Array{Float64, 2}, Qoi::Array{Float64, 1}, save_file_name="None",  obs_nid=nothing, vmin=nothing, vmax=nothing)
+
+    ns, porder = phys_params.ns, phys_params.porder
+    
+    
+    block = zeros(Int64, ns*porder+1, ns*porder+1)
+    for i = 1:ns*porder+1
+        start = 1+(i-1)*(2*ns*porder+2)
+        block[i, :] .= start: start + ns*porder
+    end
+    Visual_Block(block, state, Qoi, vmin, vmax)
+    
+
+    block = zeros(Int64, ns*porder+1, ns*porder+1)
+    for i = 1:ns*porder
+        start = ns*porder+2+(i-1)*(2*ns*porder+2)
+        block[i, :] .= start:start + ns*porder
+    end
+    start = 1 + (2*ns*porder+2)*(ns*porder) + 3*ns*porder
+    block[ns*porder+1, :] .= start: start + ns*porder
+    Visual_Block(block, state, Qoi, vmin, vmax)
+
+
+
+    block = zeros(Int64, ns*porder+1, 4*ns*porder+1)
+    for i = 1:ns*porder+1
+        start = (2*ns*porder+2)*ns*porder +1 + (i-1)*(4*ns*porder+1)
+        block[i, :] .= start : start + 4*ns*porder
+    end
+
+    Visual_Block(block, state, Qoi, vmin, vmax)
+    
+    colorbar()
+    axis("equal")
+
+
+    if obs_nid != nothing
+
+        x_obs, y_obs = state[obs_nid, 1], state[obs_nid, 2]
+
+        scatter(x_obs, y_obs, color="black")
+
+    end
+
+    if save_file_name != "None"
+        savefig(save_file_name)
+        close("all")
+    end
+
+
+end
+
 function Params()
-    ns = 2
-    ns_obs = 3
+    ns = 4
+    ns_obs = 5
     ls = 1.0
     porder = 2
     ngp = 3
@@ -257,7 +334,7 @@ function Params()
     T = 1.0
     NT = 100
 
-    @assert(ns%(ns_obs-1) == 0)
+    @assert((ns*porder) % (ns_obs-1) == 0)
 
     Params(ns, ns_obs, ls, porder, ngp, matlaw, ρ, E, ν, P1, P2, T)
 end
@@ -280,7 +357,11 @@ assembleMassMatrix!(globdat, domain)
 updateStates!(domain, globdat)
 
 
+obs_nid = Get_Obs(phys_params)
+Visual(phys_params, nodes, nodes[:,1], "test.png", obs_nid, -0.2, 4.2)
 
+
+error("stop")
 Δt = T/NT
 
 
