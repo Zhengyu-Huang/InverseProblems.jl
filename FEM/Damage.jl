@@ -1,5 +1,8 @@
-using NNFEM
+using Revise
 using PyPlot
+using NNFEM
+
+options = Options(1)
 
 mutable struct Params
     # ns element each block
@@ -18,6 +21,7 @@ mutable struct Params
     P1::Float64
     P2::Float64
     T::Float64
+    NT::Int64
 end
 
 
@@ -152,7 +156,10 @@ function Construct_Mesh(phys_params::Params)
                 
             elseif i > 3*ns && j <= ns
                 nx = 2*ns*porder+2
-                n = nx*(j-1)*porder + (i-2*ns)*porder
+                n = nx*(j-1)*porder + (i-3*ns-1)*porder + ns*porder+2
+                if j == ns
+                    nx = 4*ns*porder+1
+                end
         
             elseif j > ns
                 nx = 4*ns*porder+1
@@ -168,12 +175,20 @@ function Construct_Mesh(phys_params::Params)
                 #
                 #   1 ---- 2
                 
-                elnodes = [n, n + 1, n + 1 + (nx + 1), n + (nx + 1)]
+                elnodes = [n, n + 1, n + 1 + nx, n + nx]
             elseif porder == 2
                 #   4 --7-- 3
                 #   8   9   6 
                 #   1 --5-- 2
-                elnodes = [n, n + 2, n + 2 + 2*nx,  n + 2*nx, n+1, n + 2 + nx, n + 1 + 2*nx, n + nx, n+1+nx]
+                if i > 3*ns && j == ns
+
+                    nx = [2*ns*porder+2,   4*ns*porder+1]
+                    elnodes = [n, n + 2, n + 2 + nx[1]+nx[2],  n + nx[1]+nx[2], n+1, n + 2 + nx[1], n + 1 + nx[1]+nx[2], n + nx[1], n+1+nx[1]]
+
+                    
+                else
+                    elnodes = [n, n + 2, n + 2 + 2*nx,  n + 2*nx, n+1, n + 2 + nx, n + 1 + 2*nx, n + nx, n+1+nx]
+                end
             else
                 error("polynomial order error, porder= ", porder)
             end
@@ -182,6 +197,8 @@ function Construct_Mesh(phys_params::Params)
             push!(elements,SmallStrainContinuum(coords,elnodes, prop, ngp))
         end
     end
+
+
     
     ################################################################
     # Construct boundary conditions
@@ -194,6 +211,13 @@ function Construct_Mesh(phys_params::Params)
     ft = nothing
     gt = nothing
 
+    EBC[collect(1:2*ns*porder+2), :] .= -1 # fix bottom
+    FBC[collect(nnodes - 4*ns*porder:nnodes), :] .= -2 # force on the top
+
+    F1, F2 = ComputeLoad(4*ls, 4*ns, porder, ngp, "Constant",  [P1, P2])
+    fext[collect(nnodes - 4*ns*porder:nnodes), 1] .= F1
+    fext[collect(nnodes - 4*ns*porder:nnodes), 2] .= F2
+
 
     dof_to_active = findall(FBC[:].==-2)
     if length(dof_to_active) != 0
@@ -202,8 +226,7 @@ function Construct_Mesh(phys_params::Params)
     
     
     
-    EBC[collect(1:2*ns*porder+2), :] .= -1 # fix bottom
-    FBC[collect(nnodes - 4*ns*porder:nnodes), :] .= -2 # force on the top
+    
     
     return nodes, elements, EBC, g, gt, FBC, fext, ft
 
@@ -256,7 +279,7 @@ function Visual_Block(block::Array{Int64, 2}, state::Array{Float64, 2}, Qoi::Arr
         end
     end
 
-    pcolormesh(X, Y, C, cmap="jet", vmin=vmin, vmax=vmax)
+    pcolormesh(X, Y, C, shading ="gouraud", cmap="jet", vmin=vmin, vmax=vmax)
     
 end
 """
@@ -302,11 +325,8 @@ function Visual(phys_params::Params,
 
 
     if obs_nid != nothing
-
         x_obs, y_obs = state[obs_nid, 1], state[obs_nid, 2]
-
         scatter(x_obs, y_obs, color="black")
-
     end
 
     if save_file_name != "None"
@@ -318,25 +338,35 @@ function Visual(phys_params::Params,
 end
 
 function Params()
-    ns = 4
-    ns_obs = 5
-    ls = 1.0
-    porder = 2
+    ns = 10
+    ns_obs = 3
+    ls = 10.0
+    porder = 1
     ngp = 3
 
+    """
+    Concrete 
+    th = 1m
+    ρ  = 2400kg/m^3 = 1kg1/m^3   (2400kg= 1kg1)
+    E  = 60×10^9 Pa = 60×10^9 kg/(m s^2) = 2400 kg/(m s1^2) = 1 kg1/(m s1^2)  (s1=2e-4s)
+    ν  = 0.2
+    ls = 10m     
+    """
     matlaw = "PlaneStress"
     ρ = 1.0
     E = 1.0
-    ν = 0.4
+    ν = 0.2
 
-    P1 = 1.0
-    P2 = 2.0
-    T = 1.0
+    
+
+    P1 = 0.0
+    P2 = 0.1
+    T = 100.0
     NT = 100
 
     @assert((ns*porder) % (ns_obs-1) == 0)
 
-    Params(ns, ns_obs, ls, porder, ngp, matlaw, ρ, E, ν, P1, P2, T)
+    Params(ns, ns_obs, ls, porder, ngp, matlaw, ρ, E, ν, P1, P2, T, NT)
 end
 
 
@@ -358,10 +388,8 @@ updateStates!(domain, globdat)
 
 
 obs_nid = Get_Obs(phys_params)
-Visual(phys_params, nodes, nodes[:,1], "test.png", obs_nid, -0.2, 4.2)
+T, NT = phys_params.T, phys_params.NT
 
-
-error("stop")
 Δt = T/NT
 
 
@@ -390,12 +418,15 @@ if !isdir("$(@__DIR__)/Figs")
     mkdir("$(@__DIR__)/Figs")
 end
 
-# if !isdir("$(@__DIR__)/Data/order$porder")
-#     mkdir("$(@__DIR__)/Data/order$porder")
-# end
-# if !isdir("$(@__DIR__)/Debug/order$porder")
-#     mkdir("$(@__DIR__)/Debug/order$porder")
-# end
+hist_state = domain.history["state"]
+for i = 1:10:NT+1
+    disp = reshape(hist_state[i], size(nodes,1), 2)
+    state = disp + nodes
+
+    disp_mag = sqrt.(disp[:,1].^2 + disp[:,2].^2)
+    vmin, vmax = minimum(disp_mag), maximum(disp_mag)
+    Visual(phys_params, state, disp_mag, "disp."*string(i)*".png", nothing, vmin, vmax)
+end
 
 # close("all")
 # frame = NT
