@@ -1,5 +1,6 @@
 using Revise
 using PyPlot
+using LinearAlgebra
 using NNFEM
 
 options = Options(1)
@@ -459,7 +460,7 @@ function Initialize_E!(domain::Domain, prop::Dict{String, Any})
     E, ν = prop["E"], prop["nu"]
     elements = domain.elements
     ne = length(elements)
-    θ = zeros(Float64, ne)
+    θ_dam = zeros(Float64, ne)
     
     for ie = 1:ne
         elem = elements[ie]
@@ -472,19 +473,19 @@ function Initialize_E!(domain::Domain, prop::Dict{String, Any})
             er = Damage_Ref(x, y)
 
             prop["E"] = E * (1.0 - er)
-            θ[ie] += er
+            θ_dam[ie] += er
             
             mat[ig] = PlaneStress(prop)
         end
 
-        θ[ie] /= ig
+        θ_dam[ie] /= ng
         
     end
 
-    return θ
+    return θ_dam
 end
 
-function Get_Elem_E(domain::Domain, prop::Dict{String, Any})
+function Get_Elem_E(domain::Domain)
     elements = domain.elements
     ne = length(elements)
     E = zeros(Float64, ne)
@@ -515,11 +516,12 @@ function Update_E!(domain::Domain, prop::Dict{String, Any}, θ::Array{Float64, 1
         gnodes = getGaussPoints(elem)
         ng = size(gnodes, 1)
         
-        ω = 1.0/(1.0 + abs(θ[i]))
+        θ_dam = Get_θ_Dam(θ[ie])
         for ig = 1:ng
             x, y = gnodes[ig, :]
 
-            prop["E"] = E * (1.0 - Damage_Ref(x, y))
+            #prop["E"] = E * (1.0 - Damage_Ref(x, y))
+            prop["E"] = E * (1.0 - θ_dam)
             
             mat[ig] = PlaneStress(prop)
         end
@@ -561,8 +563,14 @@ function Params()
     Params(ns, ns_obs, ls, porder, ngp, matlaw, ρ, E, ν, P1, P2, T, NT, ΔNT)
 end
 
+function Get_θ_Dam(θ::Float64)
+    return abs(θ)/(1 + abs(θ))
+end
+function Get_θ_Dam(θ::Array{Float64,1})
+    return abs.(θ)./(1 .+ abs.(θ))
+end  
 
-function Run_Damage(phys_params::Params, θ = nothing, save_disp_name::String = "None", save_θ::String = "None", noise_level::Float64 = -1.0, )
+function Run_Damage(phys_params::Params, θ = nothing, save_disp_name::String = "None", save_E::String = "None", noise_level::Float64 = -1.0, )
     
 
     nodes, elements, prop, EBC, g, gt, FBC, fext, ft = Construct_Mesh(phys_params)
@@ -584,9 +592,10 @@ function Run_Damage(phys_params::Params, θ = nothing, save_disp_name::String = 
     
     
     if θ == nothing
-        θ = Initialize_E!(domain, prop)
+        θ_dam = Initialize_E!(domain, prop)
     else
     ##update E
+        θ_dam = Get_θ_Dam(θ)
         Update_E!(domain, prop, θ)
     end
     
@@ -636,10 +645,10 @@ function Run_Damage(phys_params::Params, θ = nothing, save_disp_name::String = 
 
     
 
-    if save_θ != nothing
-
+    if save_E != nothing
         Qoi = Get_Elem_E(domain)
-        Visual_Elem(phys_params, nodes, Qoi, save_θ*".png",  nothing, 0, phys_params.E)
+        #@info norm((1.0 .- θ_dam)*phys_params.E - Qoi)
+        Visual_Elem(phys_params, nodes, Qoi, save_E*".png",  nothing, 0, phys_params.E)
     end
 
 
@@ -651,10 +660,10 @@ function Run_Damage(phys_params::Params, θ = nothing, save_disp_name::String = 
             data[i] += noise
         end
     end
-    return θ, data
+    return θ_dam, data
   
 end
 
 phys_params = Params()
-Run_Damage(phys_params, nothing, "disp", "YoungsModule", -1.0)
+θ_dam, data = Run_Damage(phys_params, nothing, "disp", "YoungsModule", -1.0)
 

@@ -1,4 +1,4 @@
-using NNGCM
+using NNFEM
 using JLD2
 using Statistics
 using LinearAlgebra
@@ -10,10 +10,10 @@ include("Damage.jl")
 include("../REKI.jl")
 
 function Foward(phys_params::Params, θ::Array{Float64,1})
-
+  
   _, data = Run_Damage(phys_params, θ)
   return data
-
+  
 end
 
 
@@ -39,18 +39,18 @@ function EKI(phys_params::Params,
   θ0_bar::Array{Float64,1}, θθ_cov::Array{Float64,2}, 
   α_reg::Float64, 
   θ_ref::Array{Float64,2}, N_iter::Int64 = 100)
-
-
-
+  
+  
+  
   parameter_names = ["E"]
   
   ens_func(θ_ens) = Ensemble_Random_Init(phys_params, θ_ens)
   
   nθ = length(θ0_bar)
   priors = [Distributions.Normal(θ0_bar[i], sqrt(θθ0_cov[i,i])) for i=1:nθ]
-
+  
   θ0 = construct_initial_ensemble(N_ens, priors; rng_seed=42)
-
+  
   ekiobj = EKIObj(parameter_names,
   θ0,
   θ0_bar, 
@@ -63,20 +63,21 @@ function EKI(phys_params::Params,
   for i in 1:N_iter
     
     params_i = dropdims(mean(ekiobj.θ[end], dims=1), dims=1) 
-
     
-    @info "θ error :", norm(θ_ref - params_i), " / ",  norm(θ_ref)
+    θ_dam = Get_θ_Dam(params_i)
+    
+    @info "θ error :", norm(θ_ref - θ_dam), " / ",  norm(θ_ref)
     
     
     update_ensemble!(ekiobj, ens_func) 
     
     @info "F error of data_mismatch :", (ekiobj.g_bar[end] - ekiobj.g_t)'*(ekiobj.obs_cov\(ekiobj.g_bar[end] - ekiobj.g_t))
     
-        # visulize
-        if i%10 == 0
-          Run_Damage(phys_params, params_i,  "eki.disp", "eki.E")
-          @save "ekiobj.dat" ukiobj
-        end
+    # visulize
+    if i%10 == 0
+      Run_Damage(phys_params, params_i,  "eki.disp", "eki.E")
+      @save "ekiobj.dat" ukiobj
+    end
     
   end
   
@@ -102,7 +103,7 @@ nθ = length(θ_ref)
 N_iter = 100 
 
 α_reg = 0.5
-N_ens = 20
+N_ens = 2
 ekiobj = EKI(phys_params, seq_pairs,
 N_ens,
 t_mean, t_cov, 

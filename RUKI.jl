@@ -6,30 +6,29 @@ using DocStringExtensions
 
 
 """
-    UKIObj{FT<:AbstractFloat, IT<:Int}
-Structure that is used in Ensemble Kalman Inversion (EKI)
-#Fields
-$(DocStringExtensions.FIELDS)
+UKIObj{FT<:AbstractFloat, IT<:Int}
+Struct that is used in Unscented Kalman Inversion (EKI)
 """
 struct UKIObj{FT<:AbstractFloat, IT<:Int}
-    "vector of parameter names"
+    "vector of parameter names (never used)"
      unames::Vector{String}
-    "a vector of arrays of size N_ensemble x N_parameters containing the parameters (in each EKI iteration a new array of parameters is added)"
+    "a vector of arrays of size N_ensemble x N_parameters containing the mean of the parameters (in each UKI iteration a new array of mean is added)"
      θ_bar::Vector{Array{FT}}
-     "a vector of arrays of size N_ensemble x N_parameters containing the parameters (in each EKI iteration a new array of parameters is added)"
+     "a vector of arrays of size N_ensemble x (N_parameters x N_parameters) containing the covariance of the parameters (in each UKI iteration a new array of cov is added)"
      θθ_cov::Vector{Array{FT, 2}}
      "vector of observations (length: N_data); mean of all observation samples"
      g_t::Vector{FT}
-     "covariance of the observational noise, which is assumed to be normally distributed"
+     "covariance of the observational noise"
      obs_cov::Array{FT, 2}
-     "a vector of arrays of size N_ensemble x N_parameters containing the parameters (in each EKI iteration a new array of parameters is added)"
+     "a vector of arrays of size N_ensemble x N_g containing the predicted observation (in each UKI iteration a new array of predicted observation is added)"
      g_bar::Vector{Array{FT}}
      "ensemble size"
      N_ens::IT
-     "g = G(u), z = [u, g]"
+     "parameter size g = G(θ)"
      N_θ::IT
+     "observation size g = G(θ)"
      N_g::IT
-     "weights"
+     "weights in UKI"
      sample_weights::Array{FT}
      μ_weights::Array{FT} 
      cov_weights::Array{FT} 
@@ -39,7 +38,15 @@ end
 
 
 
-# outer constructors
+"""
+UKIObj Constructor 
+parameter_names::Vector{String} : parameter name vector
+θ0_bar::Array{FT} : prior mean
+θθ0_cov::Array{FT, 2} : prior covariance
+g_t::Vector{FT} : observation 
+obs_cov::Array{FT, 2} : observation covariance
+α_reg::Float64 : regularization parameter toward θ0 (0 < α_reg <= 1), default should be 1, without regulariazion
+"""
 function UKIObj(parameter_names::Vector{String},
                 θ0_bar::Array{FT}, 
                 θθ0_cov::Array{FT, 2},
@@ -86,7 +93,6 @@ function UKIObj(parameter_names::Vector{String},
     cov_weights[1] = λ/(N_θ + λ) + 1 - α^2 + β
     cov_weights[2:N_ens] .= 1/(2(N_θ + λ))
 
-    #error(">_<")
 
     UKIObj{FT,IT}(parameter_names, θ_bar, θθ_cov, g_t, obs_cov, g_bar, N_ens, N_θ, N_g, 
                   sample_weights, μ_weights, cov_weights, α_reg)
@@ -95,9 +101,8 @@ end
 
 
 """
-    construct_initial_ensemble(N_ens::IT, priors; rng_seed=42) where {IT<:Int}
-Construct the initial parameters, by sampling N_ens samples from specified
-prior distributions.
+construct_sigma_ensemble
+Construct the sigma ensemble, based on the mean x_bar, and covariance x_cov
 """
 function construct_sigma_ensemble(uki::UKIObj{FT}, x_bar::Array{FT}, x_cov::Array{FT,2}) where {FT<:AbstractFloat}
     N_ens = uki.N_ens
@@ -121,9 +126,7 @@ end
 
 
 """
-    construct_initial_ensemble(N_ens::IT, priors; rng_seed=42) where {IT<:Int}
-Construct the initial parameters, by sampling N_ens samples from specified
-prior distributions.
+construct_mean x_bar from ensemble x
 """
 function construct_mean(uki::UKIObj{FT}, x::Array{FT,2}) where {FT<:AbstractFloat}
     N_ens, N_x = size(x)
@@ -143,9 +146,7 @@ function construct_mean(uki::UKIObj{FT}, x::Array{FT,2}) where {FT<:AbstractFloa
 end
 
 """
-    construct_initial_ensemble(N_ens::IT, priors; rng_seed=42) where {IT<:Int}
-Construct the initial parameters, by sampling N_ens samples from specified
-prior distributions.
+construct_cov xx_cov from ensemble x and mean x_bar
 """
 function construct_cov(uki::UKIObj{FT}, x::Array{FT,2}, x_bar::Array{FT}) where {FT<:AbstractFloat}
     N_ens, N_x = uki.N_ens, size(x_bar,1)
@@ -162,9 +163,7 @@ function construct_cov(uki::UKIObj{FT}, x::Array{FT,2}, x_bar::Array{FT}) where 
 end
 
 """
-    construct_initial_ensemble(N_ens::IT, priors; rng_seed=42) where {IT<:Int}
-Construct the initial parameters, by sampling N_ens samples from specified
-prior distributions.
+construct_cov xy_cov from ensemble x and mean x_bar, ensemble y and mean y_bar
 """
 function construct_cov(uki::UKIObj{FT}, x::Array{FT,2}, x_bar::Array{FT}, y::Array{FT,2}, y_bar::Array{FT}) where {FT<:AbstractFloat}
     N_ens, N_x, N_y = uki.N_ens, size(x_bar,1), size(y_bar,1)
@@ -186,7 +185,12 @@ function reset_θθ0_cov!(uki::UKIObj)
     uki.θθ_cov[1] = copy(uki.θθ_cov[end])
 end
 
-
+"""
+update UKI struct
+ens_func: The function g = G(θ)
+define the function as 
+    ens_func(θ_ens) = MyG(phys_params, θ_ens, other_params)
+"""
 function update_ensemble!(uki::UKIObj{FT}, ens_func::Function) where {FT}
     
     θ_bar  = copy(uki.θ_bar[end])
