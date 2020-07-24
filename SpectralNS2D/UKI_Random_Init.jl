@@ -1,4 +1,3 @@
-using NNGCM
 using JLD2
 using Statistics
 using LinearAlgebra

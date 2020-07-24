@@ -520,7 +520,7 @@ function Update_E!(domain::Domain, prop::Dict{String, Any}, θ::Array{Float64, 1
         θ_dam = Get_θ_Dam(θ[ie])
         for ig = 1:ng
             x, y = gnodes[ig, :]
-
+	    @info θ_dam
             #prop["E"] = E * (1.0 - Damage_Ref(x, y))
             prop["E"] = E * (1.0 - θ_dam)
             
