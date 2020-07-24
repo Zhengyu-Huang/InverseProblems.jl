@@ -68,8 +68,8 @@ function EKI(phys_params::Params, seq_pairs::Array{Int64,2},
     params_i = dropdims(mean(ekiobj.θ[end], dims=1), dims=1) 
 
     ω0 = Initial_ω0_KL(mesh, params_i, seq_pairs)
-    # visulize
-    Foward_Helper(phys_params, ω0, "eki.vor-"*string(i)*".")
+    
+    
     
     @info "F error of ω0 :", norm(ω0_ref - ω0), " / ",  norm(ω0_ref)
     
@@ -78,6 +78,11 @@ function EKI(phys_params::Params, seq_pairs::Array{Int64,2},
     
     @info "F error of data_mismatch :", (ekiobj.g_bar[end] - ekiobj.g_t)'*(ekiobj.obs_cov\(ekiobj.g_bar[end] - ekiobj.g_t))
     
+
+    # visulize
+    if i%10 == 0
+      Foward_Helper(phys_params, ω0, "eki.vor-"*string(i)*".")
+    end
     
     
   end
@@ -119,7 +124,7 @@ seq_pairs = Compute_Seq_Pairs(na)
 N_iter = 100 
 
 α_reg = 0.5
-N_ens = 10
+N_ens = 20
 ekiobj = EKI(phys_params, seq_pairs,
 N_ens,
 t_mean, t_cov, 
