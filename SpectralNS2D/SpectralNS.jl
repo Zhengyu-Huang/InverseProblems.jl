@@ -110,7 +110,7 @@ function Stable_Δt(mesh::Spectral_Mesh, ν::Float64, u::Array{Float64,2}, v::Ar
 
     Δt = min(Δx/u_max, Δy/v_max, Δ^2/(2*ν))
 
-    @info "maximum stable Δt = ", Δt
+    #@info "maximum stable Δt = ", Δt
 
     return Δt
 end

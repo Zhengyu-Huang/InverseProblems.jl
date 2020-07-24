@@ -228,7 +228,6 @@ function Generate_Data(params::Params, noise_level::Float64 = -1.0)
         for i = 1:length(data)
             
             noise = rand(Normal(0, noise_level*abs(data[i])))
-            @info data[i], noise
 
             data[i] += noise
         end
@@ -388,8 +387,8 @@ function Params()
     # resolution in y
     Lx, Ly = 2*pi, 2*pi
     method="Crank-Nicolson" # RK4 or Crank-Nicolson
-    nt = 10000;    # time step
-    T = 1.0;      # final time
+    nt = 4000;    # time step
+    T = 0.5;      # final time
     #observation
     Δd_x, Δd_y, Δd_t = 32, 32, 2000
     

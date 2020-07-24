@@ -72,7 +72,8 @@ function UKI(phys_params::Params, seq_pairs::Array{Int64,2},
     # visulize
     if i%10 == 0
       Foward_Helper(phys_params, ω0, "uki.vor-"*string(i)*".")
-      @save "ukiobj.dat" ukiobj
+      ukiobj_θ_bar, ukiobj_θθ_cov, ukiobj_g_bar = ukiobj.θ_bar, ukiobj.θθ_cov, ukiobj.g_bar
+      @save "ukiobj.dat" ukiobj_θ_bar, ukiobj_θθ_cov, ukiobj_g_bar
     end
     
   end
@@ -110,7 +111,7 @@ seq_pairs = Compute_Seq_Pairs(na)
 
 
 
-N_iter = 100 
+N_iter = 50 
 
 α_reg = 0.5
 ukiobj = UKI(phys_params, seq_pairs,

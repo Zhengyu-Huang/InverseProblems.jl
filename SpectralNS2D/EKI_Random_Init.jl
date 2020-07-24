@@ -81,6 +81,8 @@ function EKI(phys_params::Params, seq_pairs::Array{Int64,2},
     # visulize
     if i%10 == 0
       Foward_Helper(phys_params, ω0, "eki.vor-"*string(i)*".")
+      ekiobj_θ, ekiobj_g_bar = ekiobj.θ, ekiobj.g_bar
+      @save "ekiobj.dat" ekiobj_θ ekiobj_g_bar
     end
     
     
@@ -120,7 +122,7 @@ seq_pairs = Compute_Seq_Pairs(na)
 
 
 
-N_iter = 100 
+N_iter = 50 
 
 α_reg = 0.5
 N_ens = 20
@@ -137,7 +139,7 @@ N_iter)
 
 
 
-@save "ekiobj.dat" ekiobj
+
 
 
 
