@@ -6,7 +6,7 @@ using LinearAlgebra
 
 
 include("../Plot.jl")
-include("Random_Init.jl")
+include("Damage.jl")
 include("../RUKI.jl")
 
 
@@ -38,7 +38,7 @@ function UKI(phys_params::Params,
   t_mean::Array{Float64,1}, t_cov::Array{Float64,2}, 
   θ_bar::Array{Float64,1}, θθ_cov::Array{Float64,2}, 
   α_reg::Float64, 
-  θ_ref::Array{Float64,2}, N_iter::Int64 = 100)
+  θ_dam_ref::Array{Float64,1}, N_iter::Int64 = 100)
 
 
   parameter_names = ["E"]
@@ -59,7 +59,7 @@ function UKI(phys_params::Params,
 
     
 
-    @info "θ error :", norm(θ_ref - params_i), " / ",  norm(θ_ref)
+    @info "θ error :", norm(θ_dam_ref - params_i), " / ",  norm(θ_dam_ref)
     
     update_ensemble!(ukiobj, ens_func) 
     
@@ -83,10 +83,11 @@ phys_params = Params()
 
 # data
 noise_level = 0.05
-θ_ref, data =  Run_Damage(phys_params, nothing,  "None", "None", noise_level)
-t_cov = Array(Diagonal(fill(1.0, phys_params.n_data))) 
+θ_dam_ref, t_mean =  Run_Damage(phys_params, nothing,  "None", "None", noise_level)
 
-nθ = length(θ_ref)
+t_cov = Array(Diagonal(fill(1.0, length(t_mean)))) 
+
+nθ = length(θ_dam_ref)
 θ0_bar = zeros(Float64, nθ)
 θθ0_cov = Array(Diagonal(fill(1.0, nθ)))           # standard deviation
 
@@ -101,7 +102,7 @@ ukiobj = UKI(phys_params,
 t_mean, t_cov, 
 θ0_bar, θθ0_cov, 
 α_reg,
-E_ref,
+θ_dam_ref,
 N_iter)
 
 @save "ukiobj.dat" ukiobj

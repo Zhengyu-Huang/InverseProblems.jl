@@ -24,6 +24,7 @@ mutable struct Params
     T::Float64
     NT::Int64
     ΔNT::Int64
+    n_data::Int64
 end
 
 
@@ -532,6 +533,7 @@ end
 
 function Params()
     ns = 10
+    # ns = 2
     ns_obs = 3
     ls = 100.0
     porder = 1
@@ -557,10 +559,11 @@ function Params()
     T = 100.0
     NT = 100
     ΔNT = 10
+    n_data = (12*ns_obs - 14) * 2*Int64(NT/ΔNT)
     
     @assert((ns*porder) % (ns_obs-1) == 0)
     
-    Params(ns, ns_obs, ls, porder, ngp, matlaw, ρ, E, ν, P1, P2, T, NT, ΔNT)
+    Params(ns, ns_obs, ls, porder, ngp, matlaw, ρ, E, ν, P1, P2, T, NT, ΔNT, n_data)
 end
 
 function Get_θ_Dam(θ::Float64)

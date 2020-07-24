@@ -38,13 +38,13 @@ function EKI(phys_params::Params,
   t_mean::Array{Float64,1}, t_cov::Array{Float64,2}, 
   θ0_bar::Array{Float64,1}, θθ_cov::Array{Float64,2}, 
   α_reg::Float64, 
-  θ_ref::Array{Float64,2}, N_iter::Int64 = 100)
+  θ_dam_ref::Array{Float64,1}, N_iter::Int64 = 100)
   
   
   
   parameter_names = ["E"]
   
-  ens_func(θ_ens) = Ensemble_Random_Init(phys_params, θ_ens)
+  ens_func(θ_ens) = Ensemble(phys_params, θ_ens)
   
   nθ = length(θ0_bar)
   priors = [Distributions.Normal(θ0_bar[i], sqrt(θθ0_cov[i,i])) for i=1:nθ]
@@ -66,7 +66,7 @@ function EKI(phys_params::Params,
     
     θ_dam = Get_θ_Dam(params_i)
     
-    @info "θ error :", norm(θ_ref - θ_dam), " / ",  norm(θ_ref)
+    @info "θ error :", norm(θ_dam_ref - θ_dam), " / ",  norm(θ_dam_ref)
     
     
     update_ensemble!(ekiobj, ens_func) 
@@ -90,10 +90,10 @@ phys_params = Params()
 
 # data
 noise_level = 0.05
-θ_ref, data =  Run_Damage(phys_params, nothing,  "None", "None", noise_level)
-t_cov = Array(Diagonal(fill(1.0, phys_params.n_data))) 
+θ_dam_ref, t_mean =  Run_Damage(phys_params, nothing,  "None", "None", noise_level)
+t_cov = Array(Diagonal(fill(1.0, length(t_mean)))) 
 
-nθ = length(θ_ref)
+nθ = length(θ_dam_ref)
 θ0_bar = zeros(Float64, nθ)
 θθ0_cov = Array(Diagonal(fill(1.0, nθ)))           # standard deviation
 
@@ -104,12 +104,12 @@ N_iter = 100
 
 α_reg = 0.5
 N_ens = 2
-ekiobj = EKI(phys_params, seq_pairs,
+ekiobj = EKI(phys_params,
 N_ens,
 t_mean, t_cov, 
 θ0_bar, θθ0_cov, 
 α_reg,
-ω0,
+θ_dam_ref,
 N_iter)
 
 
