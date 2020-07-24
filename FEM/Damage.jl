@@ -667,6 +667,6 @@ function Run_Damage(phys_params::Params, θ = nothing, save_disp_name::String = 
   
 end
 
-phys_params = Params()
-θ_dam, data = Run_Damage(phys_params, nothing, "disp", "YoungsModule", -1.0)
+# phys_params = Params()
+# θ_dam, data = Run_Damage(phys_params, nothing, "disp", "YoungsModule", -1.0)
 
