@@ -633,7 +633,7 @@ function Run_Damage(phys_params::Params, θ = nothing, save_disp_name::String = 
         disp = reshape(hist_state[i*ΔNT+1], size(nodes,1), 2)
         data[:, 2*i-1:2*i] = disp[obs_nid, :]
 
-        if save_disp_name != nothing
+        if save_disp_name != "None"
             state = disp + nodes
             disp_mag = sqrt.(disp[:,1].^2 + disp[:,2].^2)
             vmin, vmax = minimum(disp_mag), maximum(disp_mag)
@@ -645,7 +645,7 @@ function Run_Damage(phys_params::Params, θ = nothing, save_disp_name::String = 
 
     
 
-    if save_E != nothing
+    if save_E != "None"
         Qoi = Get_Elem_E(domain)
         #@info norm((1.0 .- θ_dam)*phys_params.E - Qoi)
         Visual_Elem(phys_params, nodes, Qoi, save_E*".png",  nothing, 0, phys_params.E)
