@@ -28,6 +28,7 @@ function Ensemble(phys_params::Params,  params_i::Array{Float64, 2})
     # g: N_ens x N_data
     g_ens[i, :] .= Foward(phys_params, params_i[i, :])
   end
+
   
   return g_ens
 end
@@ -76,7 +77,9 @@ function EKI(phys_params::Params,
     # visulize
     if i%10 == 0
       Run_Damage(phys_params, params_i,  "eki.disp", "eki.E")
-      @save "ekiobj.dat" ukiobj
+
+      ekiobj_θ, ekiobj_g_bar = ekiobj.θ, ekiobj.g_bar
+      @save "ekiobj.dat" ekiobj_θ ekiobj_g_bar
     end
     
   end
@@ -100,10 +103,10 @@ nθ = length(θ_dam_ref)
 
 
 
-N_iter = 100 
+N_iter = 50 
 
 α_reg = 0.5
-N_ens = 2
+N_ens = 20
 ekiobj = EKI(phys_params,
 N_ens,
 t_mean, t_cov, 
@@ -113,11 +116,6 @@ t_mean, t_cov,
 N_iter)
 
 
-
-
-
-
-@save "ekiobj.dat" ekiobj
 
 
 

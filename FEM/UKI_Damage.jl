@@ -57,9 +57,9 @@ function UKI(phys_params::Params,
     
     params_i = deepcopy(ukiobj.θ_bar[end])
 
-    
+    θ_dam = Get_θ_Dam(params_i)
 
-    @info "θ error :", norm(θ_dam_ref - params_i), " / ",  norm(θ_dam_ref)
+    @info "θ error :", norm(θ_dam_ref - θ_dam), " / ",  norm(θ_dam_ref)
     
     update_ensemble!(ukiobj, ens_func) 
     
@@ -69,7 +69,9 @@ function UKI(phys_params::Params,
     # visulize
     if i%10 == 0
       Run_Damage(phys_params, params_i,  "uki.disp", "uki.E")
-      @save "ukiobj.dat" ukiobj
+      
+      ukiobj_θ_bar, ukiobj_θθ_cov, ukiobj_g_bar = ukiobj.θ_bar, ukiobj.θθ_cov, ukiobj.g_bar
+      @save "ukiobj.dat" ukiobj_θ_bar ukiobj_θθ_cov ukiobj_g_bar
     end
     
   end
@@ -95,7 +97,7 @@ nθ = length(θ_dam_ref)
 
 
 
-N_iter = 100 
+N_iter = 50 
 
 α_reg = 0.5
 ukiobj = UKI(phys_params,
@@ -104,8 +106,6 @@ t_mean, t_cov,
 α_reg,
 θ_dam_ref,
 N_iter)
-
-@save "ukiobj.dat" ukiobj
 
 
 
