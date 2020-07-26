@@ -59,8 +59,6 @@ function UKI(phys_params::Params,
 
     θ_dam = Get_θ_Dam(params_i)
 
-    @info params_i, θ_dam
-
     @info "θ error :", norm(θ_dam_ref - θ_dam), " / ",  norm(θ_dam_ref)
     
     update_ensemble!(ukiobj, ens_func) 

@@ -1,4 +1,3 @@
-BLAS.set_num_threads(1)
 using Revise
 using PyPlot
 using LinearAlgebra
@@ -63,7 +62,6 @@ function ComputeLoad(L, ne, porder, ngp, type,  args)
     
     # assemble the force
     
-    @show ne
     for e = 1:ne
         if porder == 1
             loc_id = [e, e+1]
@@ -287,26 +285,26 @@ function Visual_Block(block::Array{Int64, 2}, state::Array{Float64, 2}, Qoi::Arr
     
 end
 
-function Visual_Block(block::Array{Int64, 2}, state::Array{Float64, 2}, block_e::Array{Int64, 2}, Qoi::Array{Float64, 1}, vmin=nothing, vmax=nothing)
-    nbx, nby = size(block)
-    X = zeros(Float64, nbx, nby)
-    Y = zeros(Float64, nbx, nby)
-    C = zeros(Float64, nbx-1, nby-1)
+# function Visual_Block(block::Array{Int64, 2}, state::Array{Float64, 2}, block_e::Array{Int64, 2}, Qoi::Array{Float64, 1}, vmin=nothing, vmax=nothing)
+#     nbx, nby = size(block)
+#     X = zeros(Float64, nbx, nby)
+#     Y = zeros(Float64, nbx, nby)
+#     C = zeros(Float64, nbx-1, nby-1)
     
-    for i = 1:nbx
-        for j = 1:nby
-            n_id = block[i,j]
-            X[i,j] = state[n_id,1] 
-            Y[i,j] = state[n_id,2] 
-            if i < nbx && j < nby
-                C[i,j] = Qoi[block_e[i,j]]
-            end
-        end
-    end
+#     for i = 1:nbx
+#         for j = 1:nby
+#             n_id = block[i,j]
+#             X[i,j] = state[n_id,1] 
+#             Y[i,j] = state[n_id,2] 
+#             if i < nbx && j < nby
+#                 C[i,j] = Qoi[block_e[i,j]]
+#             end
+#         end
+#     end
     
-    pcolormesh(X, Y, C, cmap="jet", vmin=vmin, vmax=vmax)
+#     pcolormesh(X, Y, C, cmap="jet", vmin=vmin, vmax=vmax)
     
-end
+# end
 
 """
 Block structure mesh visualization
@@ -361,78 +359,78 @@ function Visual_Node(phys_params::Params,
     end
 end
 
-"""
-Visualize each element averaged quantities
-"""
-function Visual_Elem(phys_params::Params,
-    state::Array{Float64, 2}, Qoi::Array{Float64, 1}, save_file_name="None",  obs_nid=nothing, vmin=nothing, vmax=nothing)
+# """
+# Visualize each element averaged quantities
+# """
+# function Visual_Elem(phys_params::Params,
+#     state::Array{Float64, 2}, Qoi::Array{Float64, 1}, save_file_name="None",  obs_nid=nothing, vmin=nothing, vmax=nothing)
     
-    ns, porder = phys_params.ns, phys_params.porder
-    
-    
-    block = zeros(Int64, ns*porder+1, ns*porder+1)
-    for i = 1:ns*porder+1
-        start = 1+(i-1)*(2*ns*porder+2)
-        block[i, :] .= start: start + ns*porder
-    end
-    block = block[1:porder:end, 1:porder:end]
-    block_e = zeros(Int64, ns, ns)
-    for i = 1:ns
-        start = 1+(i-1)*(2*ns)
-        block_e[i, :] .= start: start + ns-1
-    end
-    
-    Visual_Block(block, state, block_e, Qoi, vmin, vmax)
+#     ns, porder = phys_params.ns, phys_params.porder
     
     
-    block = zeros(Int64, ns*porder+1, ns*porder+1)
-    for i = 1:ns*porder
-        start = ns*porder+2+(i-1)*(2*ns*porder+2)
-        block[i, :] .= start:start + ns*porder
-    end
-    start = 1 + (2*ns*porder+2)*(ns*porder) + 3*ns*porder
-    block[ns*porder+1, :] .= start: start + ns*porder
-    block = block[1:porder:end, 1:porder:end]
+#     block = zeros(Int64, ns*porder+1, ns*porder+1)
+#     for i = 1:ns*porder+1
+#         start = 1+(i-1)*(2*ns*porder+2)
+#         block[i, :] .= start: start + ns*porder
+#     end
+#     block = block[1:porder:end, 1:porder:end]
+#     block_e = zeros(Int64, ns, ns)
+#     for i = 1:ns
+#         start = 1+(i-1)*(2*ns)
+#         block_e[i, :] .= start: start + ns-1
+#     end
     
-    block_e = zeros(Int64, ns, ns)
-    for i = 1:ns
-        start = ns + 1 + (i-1)*(2*ns)
-        block_e[i, :] .= start:start + ns - 1
-    end
-    
-    Visual_Block(block, state, block_e, Qoi, vmin, vmax)
+#     Visual_Block(block, state, block_e, Qoi, vmin, vmax)
     
     
+#     block = zeros(Int64, ns*porder+1, ns*porder+1)
+#     for i = 1:ns*porder
+#         start = ns*porder+2+(i-1)*(2*ns*porder+2)
+#         block[i, :] .= start:start + ns*porder
+#     end
+#     start = 1 + (2*ns*porder+2)*(ns*porder) + 3*ns*porder
+#     block[ns*porder+1, :] .= start: start + ns*porder
+#     block = block[1:porder:end, 1:porder:end]
     
-    block = zeros(Int64, ns*porder+1, 4*ns*porder+1)
-    for i = 1:ns*porder+1
-        start = (2*ns*porder+2)*ns*porder +1 + (i-1)*(4*ns*porder+1)
-        block[i, :] .= start : start + 4*ns*porder
-    end
-    block = block[1:porder:end, 1:porder:end]
+#     block_e = zeros(Int64, ns, ns)
+#     for i = 1:ns
+#         start = ns + 1 + (i-1)*(2*ns)
+#         block_e[i, :] .= start:start + ns - 1
+#     end
     
-    block_e = zeros(Int64, ns, 4*ns)
-    for i = 1:ns
-        start = 2*ns*ns+1 + (i-1)*4*ns
-        block_e[i, :] .= start : start + 4*ns-1
-    end
-    
-    Visual_Block(block, state, block_e, Qoi, vmin, vmax)
-    
-    colorbar()
-    axis("equal")
+#     Visual_Block(block, state, block_e, Qoi, vmin, vmax)
     
     
-    if obs_nid != nothing
-        x_obs, y_obs = state[obs_nid, 1], state[obs_nid, 2]
-        scatter(x_obs, y_obs, color="black")
-    end
     
-    if save_file_name != "None"
-        savefig(save_file_name)
-        close("all")
-    end
-end
+#     block = zeros(Int64, ns*porder+1, 4*ns*porder+1)
+#     for i = 1:ns*porder+1
+#         start = (2*ns*porder+2)*ns*porder +1 + (i-1)*(4*ns*porder+1)
+#         block[i, :] .= start : start + 4*ns*porder
+#     end
+#     block = block[1:porder:end, 1:porder:end]
+    
+#     block_e = zeros(Int64, ns, 4*ns)
+#     for i = 1:ns
+#         start = 2*ns*ns+1 + (i-1)*4*ns
+#         block_e[i, :] .= start : start + 4*ns-1
+#     end
+    
+#     Visual_Block(block, state, block_e, Qoi, vmin, vmax)
+    
+#     colorbar()
+#     axis("equal")
+    
+    
+#     if obs_nid != nothing
+#         x_obs, y_obs = state[obs_nid, 1], state[obs_nid, 2]
+#         scatter(x_obs, y_obs, color="black")
+#     end
+    
+#     if save_file_name != "None"
+#         savefig(save_file_name)
+#         close("all")
+#     end
+# end
 
 
 
@@ -455,85 +453,64 @@ function Damage_Ref(x::Float64, y::Float64)
         disp = [x; y] - μ[i,:]
         er += A[i]*exp(-0.5*(disp'*(Σ[i,:,:]\disp)))
     end
-    return min(er, 1.0)
+    # todo check 
+    return min(er, 0.9)
 end
 
 function Initialize_E!(domain::Domain, prop::Dict{String, Any})
     E, ν = prop["E"], prop["nu"]
     elements = domain.elements
     ne = length(elements)
-    θ_dam = zeros(Float64, ne)
+
+    nodes = domain.nodes
+    nnodes = domain.nnodes
+    θ_dam = zeros(Float64, nnodes)
     
     for ie = 1:ne
+
+        # update each Gaussian points
         elem = elements[ie]
         mat = elem.mat
         gnodes = getGaussPoints(elem)
         ng = size(gnodes, 1)
-        
         for ig = 1:ng
             x, y = gnodes[ig, :]
-            er = Damage_Ref(x, y)
-
-            prop["E"] = E * (1.0 - er)
-            θ_dam[ie] += er
-            
+            prop["E"] = E * (1.0 - Damage_Ref(x, y))
             mat[ig] = PlaneStress(prop)
         end
 
-        θ_dam[ie] /= ng
+
+        # update θ_dam at each node 
+        elnodes = elem.elnodes
+        for el in elnodes
+            θ_dam[el] = Damage_Ref(nodes[el, 1], nodes[el, 2])
+        end
         
     end
 
     return θ_dam
 end
 
-function Get_Elem_E(domain::Domain)
-    elements = domain.elements
-    ne = length(elements)
-    E = zeros(Float64, ne)
+# function Get_Elem_E(domain::Domain)
+#     elements = domain.elements
+#     ne = length(elements)
+#     E = zeros(Float64, ne)
     
-    for ie = 1:ne
-        elem = elements[ie]
-        mat = elem.mat
+#     for ie = 1:ne
+#         elem = elements[ie]
+#         mat = elem.mat
         
-        ng = length(mat)
-        for ig = 1:ng
-            E[ie] += mat[ig].E
-        end
-        E[ie] /= ng  
-    end
+#         ng = length(mat)
+#         for ig = 1:ng
+#             E[ie] += mat[ig].E
+#         end
+#         E[ie] /= ng  
+#     end
     
 
-    return E
-end
+#     return E
+# end
 
-function Update_E!(domain::Domain, prop::Dict{String, Any}, θ::Array{Float64, 1})
-
-    E, ν = prop["E"], prop["nu"]
-    elements = domain.elements
-    ne = length(elements)
-    for ie = 1:ne
-        elem = elements[ie]
-        mat = elem.mat
-        gnodes = getGaussPoints(elem)
-        ng = size(gnodes, 1)
-        
-        θ_dam = Get_θ_Dam(θ[ie])
-        for ig = 1:ng
-            x, y = gnodes[ig, :]
-            #prop["E"] = E * (1.0 - Damage_Ref(x, y))
-            prop["E"] = E * (1.0 - θ_dam)
-            
-            mat[ig] = PlaneStress(prop)
-        end
-        
-    end
-
-end
-
-# """
-# nodal based update length(θ) = nnodes
-# """
 # function Update_E!(domain::Domain, prop::Dict{String, Any}, θ::Array{Float64, 1})
 
 #     E, ν = prop["E"], prop["nu"]
@@ -558,13 +535,39 @@ end
 
 # end
 
+"""
+nodal based update length(θ) = nnodes
+"""
+function Update_E!(domain::Domain, prop::Dict{String, Any}, θ_dam::Array{Float64, 1})
+
+    E, ν = prop["E"], prop["nu"]
+    elements = domain.elements
+    ne = length(elements)
+    for ie = 1:ne
+        elem = elements[ie]
+        mat = elem.mat
+        gnodes = getGaussPoints(elem)
+        ng = size(gnodes, 1)
+        elnodes = elem.elnodes
+        hs = elem.hs
+
+        for ig = 1:ng
+            θ_intep = θ_dam[elnodes]' * hs[ig]
+            prop["E"] = E * (1.0 - θ_intep)
+            mat[ig] = PlaneStress(prop)
+        end
+        
+    end
+
+end
+
 function Params()
     ns = 4
     # ns = 2
     ns_obs = 3
     ls = 100.0
     porder = 2
-    ngp = 2
+    ngp = 3
     
     """
     Concrete 
@@ -625,15 +628,15 @@ function Run_Damage(phys_params::Params, θ = nothing, save_disp_name::String = 
     assembleMassMatrix!(globdat, domain)
     updateStates!(domain, globdat)
     
-    
-    
+        
     
     if θ == nothing
         θ_dam = Initialize_E!(domain, prop)
     else
     ##update E
+        @assert(length(θ) == domain.nnodes)
         θ_dam = Get_θ_Dam(θ)
-        Update_E!(domain, prop, θ)
+        Update_E!(domain, prop, θ_dam)
     end
     
     
@@ -683,9 +686,8 @@ function Run_Damage(phys_params::Params, θ = nothing, save_disp_name::String = 
     
 
     if save_E != "None"
-        Qoi = Get_Elem_E(domain)
         #@info norm((1.0 .- θ_dam)*phys_params.E - Qoi)
-        Visual_Elem(phys_params, nodes, Qoi, save_E*".png",  nothing, 0, phys_params.E)
+        Visual_Node(phys_params, nodes, phys_params.E*(1.0 .- θ_dam), save_E*".png",  nothing, 0, phys_params.E)
     end
 
 
@@ -701,6 +703,6 @@ function Run_Damage(phys_params::Params, θ = nothing, save_disp_name::String = 
   
 end
 
-# phys_params = Params()
-# θ_dam, data = Run_Damage(phys_params, nothing, "disp", "YoungsModule", -1.0)
+#phys_params = Params()
+#θ_dam, data = Run_Damage(phys_params, nothing, "disp", "YoungsModule", -1.0)
 
