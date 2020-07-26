@@ -601,10 +601,25 @@ function Get_θ_Dam(θ::Float64)
     c = 9.0
     return a*(1-exp(-θ))/(1+c*exp(-θ))
 end
+
+function Get_θ(θ_dam::Float64)
+    a = 0.9 
+    c = 9.0
+    return -log((a-θ_dam)/(θ_dam*c + a))
+end
+
 function Get_θ_Dam(θ::Array{Float64,1})
     θ_trans = similar(θ)
     for i = 1:length(θ)
         θ_trans[i] = Get_θ_Dam(θ[i])
+    end
+    return θ_trans
+end 
+
+function Get_θ(θ_dam::Array{Float64,1})
+    θ_trans = similar(θ_dam)
+    for i = 1:length(θ_dam)
+        θ_trans[i] = Get_θ(θ_dam[i])
     end
     return θ_trans
 end 
@@ -703,6 +718,7 @@ function Run_Damage(phys_params::Params, θ = nothing, save_disp_name::String = 
   
 end
 
-#phys_params = Params()
-#θ_dam, data = Run_Damage(phys_params, nothing, "disp", "YoungsModule", -1.0)
+# phys_params = Params()
+# θ_dam, data = Run_Damage(phys_params, nothing, "disp", "YoungsModule", -1.0)
+# θ_dam2, data2 = Run_Damage(phys_params, Get_θ(θ_dam), "disp", "YoungsModule", -1.0)
 
