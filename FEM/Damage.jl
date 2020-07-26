@@ -531,12 +531,39 @@ function Update_E!(domain::Domain, prop::Dict{String, Any}, θ::Array{Float64, 1
 
 end
 
+# """
+# nodal based update length(θ) = nnodes
+# """
+# function Update_E!(domain::Domain, prop::Dict{String, Any}, θ::Array{Float64, 1})
+
+#     E, ν = prop["E"], prop["nu"]
+#     elements = domain.elements
+#     ne = length(elements)
+#     for ie = 1:ne
+#         elem = elements[ie]
+#         mat = elem.mat
+#         gnodes = getGaussPoints(elem)
+#         ng = size(gnodes, 1)
+        
+#         θ_dam = Get_θ_Dam(θ[ie])
+#         for ig = 1:ng
+#             x, y = gnodes[ig, :]
+#             #prop["E"] = E * (1.0 - Damage_Ref(x, y))
+#             prop["E"] = E * (1.0 - θ_dam)
+            
+#             mat[ig] = PlaneStress(prop)
+#         end
+        
+#     end
+
+# end
+
 function Params()
-    ns = 10
+    ns = 4
     # ns = 2
     ns_obs = 3
     ls = 100.0
-    porder = 1
+    porder = 2
     ngp = 2
     
     """
@@ -567,11 +594,18 @@ function Params()
 end
 
 function Get_θ_Dam(θ::Float64)
-    return abs(θ)/(1 + abs(θ))
+    a = 0.9 
+    c = 9.0
+    return a*(1-exp(-θ))/(1+c*exp(-θ))
 end
 function Get_θ_Dam(θ::Array{Float64,1})
-    return abs.(θ)./(1 .+ abs.(θ))
-end  
+    θ_trans = similar(θ)
+    for i = 1:length(θ)
+        θ_trans[i] = Get_θ_Dam(θ[i])
+    end
+    return θ_trans
+end 
+
 
 function Run_Damage(phys_params::Params, θ = nothing, save_disp_name::String = "None", save_E::String = "None", noise_level::Float64 = -1.0, )
     
