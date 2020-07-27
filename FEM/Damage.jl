@@ -562,11 +562,11 @@ function Update_E!(domain::Domain, prop::Dict{String, Any}, θ_dam::Array{Float6
 end
 
 function Params()
-    ns = 4
+    ns = 2
     # ns = 2
     ns_obs = 3
     ls = 100.0
-    porder = 2
+    porder = 1
     ngp = 3
     
     """
