@@ -92,10 +92,10 @@ phys_params = Params(ns, ns_obs, porder, problem, ns_c, porder_c)
 # data
 noise_level = -1.0
 θ_dam_ref, t_mean =  Run_Damage(phys_params, "Analytic", nothing,  "Figs/disp", "Figs/E", noise_level)
-@info "norm t_mean 1", norm(t_mean)
+
 
 _, t_mean =  Run_Damage(phys_params, "Piecewise", Get_θ(θ_dam_ref),  "disp", "E", noise_level)
-@info "norm t_mean ", norm(t_mean)
+
 
 
 t_cov = Array(Diagonal(fill(0.01, length(t_mean)))) 
@@ -106,7 +106,7 @@ nθ = size(phys_params.domain_c.nodes, 1)
 θ0_bar = zeros(Float64, nθ)
 θθ0_cov = Array(Diagonal(fill(1.0, nθ)))           # standard deviation
 
-@info "nθ ", nθ
+
 
 
 
