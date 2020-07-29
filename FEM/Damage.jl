@@ -67,7 +67,7 @@ end
 
 
 
-mutable struct Params
+struct Params
     
     # ns element each block
     ns::Int64
@@ -225,7 +225,7 @@ function Construct_Mesh(ns::Int64, porder::Int64, ls::Float64, ngp::Int64, prop:
     
     F1, F2 = ComputeLoad(4*ls, 4*ns, porder, ngp, "Constant",  [P1, P2])
     fext[collect(nnodes - 4*ns*porder:nnodes), 1] .= F1
-    fext[collect(nnodes - 4*ns*porder:nnodes), 2] .= F2
+    fext[collect(nnodes - 4*ns*porder:nnodes), 2] .= -F2
     
     if problem == "Dynamic"
         FBC[collect(nnodes - 4*ns*porder:nnodes), :] .= -2 # force on the top
@@ -240,7 +240,7 @@ function Construct_Mesh(ns::Int64, porder::Int64, ls::Float64, ngp::Int64, prop:
     end
     
     
-    return nodes, elements, prop, EBC, g, gt, FBC, fext, ft
+    return nodes, elements, EBC, g, gt, FBC, fext, ft
     
 end
 
@@ -375,7 +375,8 @@ function Damage_Ref(x::Float64, y::Float64)
     return min(er, 0.9)
 end
 
-function Initialize_E!(domain::Domain, prop::Dict{String, Any})
+function Initialize_E!(domain::Domain, prop_ref::Dict{String, Any})
+    prop = copy(prop_ref)
     E, ν = prop["E"], prop["nu"]
     elements = domain.elements
     ne = length(elements)
@@ -413,8 +414,9 @@ end
 """
 nodal based update length(θ) = nnodes
 """
-function Update_E!(domain::Domain, prop::Dict{String, Any}, θ_dam::Array{Float64, 1})
-
+function Update_E!(domain::Domain, prop_ref::Dict{String, Any}, θ_dam::Array{Float64, 1})
+    @show "before ", prop_ref
+    prop = copy(prop_ref)
     E, ν = prop["E"], prop["nu"]
     elements = domain.elements
     ne = length(elements)
@@ -433,6 +435,9 @@ function Update_E!(domain::Domain, prop::Dict{String, Any}, θ_dam::Array{Float6
         end
         
     end
+
+    @show prop
+    @show prop_ref
 
 end
 
@@ -470,12 +475,12 @@ function Get_θ(θ_dam::Array{Float64,1})
 end 
 
 
-function Run_Damage(phys_params::Params, θ_type::String, θ_c = nothing, save_disp_name::String = "None", save_E::String = "None", noise_level::Float64 = -1.0, )
+function Run_Damage(phys_params::Params, θ_type::String, θ = nothing, save_disp_name::String = "None", save_E::String = "None", noise_level::Float64 = -1.0, )
     
     ns, porder, ls, ngp, prop, P1, P2, problem, T = phys_params.ns, phys_params.porder, phys_params.ls, phys_params.ngp, 
                                                     phys_params.prop, phys_params.P1, phys_params.P2, phys_params.problem, phys_params.T
 
-    nodes, elements, prop, EBC, g, gt, FBC, fext, ft = Construct_Mesh(ns, porder, ls, ngp, prop, P1, P2, problem, T)
+    nodes, elements, EBC, g, gt, FBC, fext, ft = Construct_Mesh(ns, porder, ls, ngp, prop, P1, P2, problem, T)
     
     ndofs = 2
     domain = Domain(nodes, elements, ndofs, EBC, g, FBC, fext)
@@ -496,11 +501,16 @@ function Run_Damage(phys_params::Params, θ_type::String, θ_c = nothing, save_d
 
     elseif θ_type == "Piecewise"
 
-        θ_c_dam = Get_θ_Dam(θ_c)
-        θ_dam = Interp_θ(phys_params.domain_c, phys_params.interp_e, phys_params.interp_sdata, θ_c_dam)
-        Update_E!(domain, prop, θ_dam)
+        θ_dam = Get_θ_Dam_From_Raw(phys_params.domain_c, phys_params.interp_e, phys_params.interp_sdata, θ)
 
+        # θ_dam = Get_θ_Dam(θ_c)
+
+
+        Update_E!(domain, prop, θ_dam)
+    else
+        error("θ_type ", θ_type, " has not implemented yet")
     end
+
     
     obs_nid = Get_Obs(phys_params)
     
@@ -554,6 +564,8 @@ function Run_Damage(phys_params::Params, θ_type::String, θ_c = nothing, save_d
         
         disp = reshape(hist_state[end], size(nodes,1), 2)
         data .= disp[obs_nid, :]
+
+        @show norm(disp), norm(data)
         
         if save_disp_name != "None"
             state = disp + nodes
@@ -565,7 +577,6 @@ function Run_Damage(phys_params::Params, θ_type::String, θ_c = nothing, save_d
     else
         error("phys_params.problem ", phys_params.problem, " has not implemented yet")
     end
-
 
     
 
@@ -619,7 +630,7 @@ function Params(ns::Int64, ns_obs::Int64, porder::Int64, problem::String, ns_c::
 
     
     P1 = 2.0
-    P2 = -20.0
+    P2 = 20.0
 
 
     T, NT, ΔNT= 0.0, 0, 0
@@ -630,11 +641,11 @@ function Params(ns::Int64, ns_obs::Int64, porder::Int64, problem::String, ns_c::
     end
 
 
-    nodes, elements, prop, EBC, g, gt, FBC, fext, ft = Construct_Mesh(ns, porder, ls, ngp, prop, P1, P2, "Static")
+    nodes, elements, EBC, g, gt, FBC, fext, ft = Construct_Mesh(ns, porder, ls, ngp, prop, P1, P2, "Static")
     ndofs = 2
     domain = Domain(nodes, elements, ndofs, EBC, g, FBC, fext)
 
-    nodes, elements, prop, EBC, g, gt, FBC, fext, ft = Construct_Mesh(ns_c, porder_c, ls, ngp, prop, P1, P2, "Static")
+    nodes, elements, EBC, g, gt, FBC, fext, ft = Construct_Mesh(ns_c, porder_c, ls, ngp, prop, P1, P2, "Static")
     ndofs = 2
     domain_c = Domain(nodes, elements, ndofs, EBC, g, FBC, fext)
     
@@ -723,7 +734,9 @@ function Params_Interp(ns, porder, ns_c, porder_c)
     return interp_e, sdata
 end
 
-
+"""
+Interpolate from θ_c on coarse grid to θ_f on fine grid
+"""
 function Interp_θ(domain_c::Domain, interp_e::Array{Int64, 2}, interp_sdata::Array{Float64, 2}, θ_c::Array{Float64,1})
     nnodes = size(interp_e, 1)
 
@@ -739,6 +752,13 @@ function Interp_θ(domain_c::Domain, interp_e::Array{Int64, 2}, interp_sdata::Ar
     end
     return θ_f
 end
+
+
+function Get_θ_Dam_From_Raw(domain_c::Domain, interp_e::Array{Int64, 2}, interp_sdata::Array{Float64, 2}, θ::Array{Float64,1})
+    θ_c = Get_θ_Dam(θ)
+    θ_f = Interp_θ(domain_c, interp_e, interp_sdata, θ_c)
+
+end 
 
 function Interp_Test()
     function Quad(nodes::Array{Float64, 2})
@@ -774,5 +794,20 @@ function Damage_Test()
 
 end
 
-Interp_Test()
+
+######################
+
+ns, ns_obs, porder, problem, ns_c, porder_c = 2, 3, 2, "Static", 2, 2
+phys_params = Params(ns, ns_obs, porder, problem, ns_c, porder_c)
+
+@info phys_params.prop
+nθ = size(phys_params.domain_c.nodes, 1)
+    
+θ_c = zeros(Float64, nθ)
+θ_dam, data = Run_Damage(phys_params, "Analytic", nothing, "Figs/disp", "Figs/YoungsModule", -1.0)
+@info phys_params.prop
+θ_dam, data = Run_Damage(phys_params, "Piecewise", θ_c, "Figs/disp", "Figs/YoungsModule", -1.0)
+@info phys_params.prop
+
+#Interp_Test()
 #Damage_Test()

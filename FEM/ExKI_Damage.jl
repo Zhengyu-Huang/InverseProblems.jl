@@ -24,9 +24,12 @@ function Ensemble(phys_params::Params,  params_i::Array{Float64, 2})
   
   g_ens = zeros(Float64, N_ens,  n_data)
   
-  Threads.@threads for i = 1:N_ens 
+  #Threads.@threads for i = 1:N_ens 
+  for i = 1:N_ens 
     # g: N_ens x N_data
     g_ens[i, :] .= Foward(phys_params, params_i[i, :])
+    @show params_i[i, :]
+    error("Stop")
   end
   
   return g_ens
@@ -57,7 +60,9 @@ function ExKI(phys_params::Params,
     
     params_i = deepcopy(exkiobj.θ_bar[end])
 
-    θ_dam = Interp_θ(phys_params.domain_c, phys_params.interp_e, phys_params.interp_sdata, params_i)
+    θ_dam = Get_θ_Dam_From_Raw(phys_params.domain_c, phys_params.interp_e, phys_params.interp_sdata, params_i)
+
+    # θ_dam = Get_θ_Dam(params_i)
 
     @info "θ error :", norm(θ_dam_ref - θ_dam), " / ",  norm(θ_dam_ref)
     
@@ -83,21 +88,27 @@ end
 
 
 ###############################################################################################
-ns, ns_obs, porder, problem, ns_c, porder_c = 4, 3, 2, "Static", 2, 2
+ns, ns_obs, porder, problem, ns_c, porder_c = 2, 3, 2, "Static", 2, 2
 phys_params = Params(ns, ns_obs, porder, problem, ns_c, porder_c)
 
 # data
 noise_level = -1.0
-θ_dam, t_mean =  Run_Damage(phys_params, "Analytical", nothing,  "Figs/disp", "Figs/E", noise_level)
+θ_dam_ref, t_mean =  Run_Damage(phys_params, "Analytic", nothing,  "Figs/disp", "Figs/E", noise_level)
+@info "norm t_mean 1", norm(t_mean)
+
+_, t_mean =  Run_Damage(phys_params, "Piecewise", Get_θ(θ_dam_ref),  "disp", "E", noise_level)
+@info "norm t_mean ", norm(t_mean)
+
 
 t_cov = Array(Diagonal(fill(0.01, length(t_mean)))) 
+
 
 
 nθ = size(phys_params.domain_c.nodes, 1)
 θ0_bar = zeros(Float64, nθ)
 θθ0_cov = Array(Diagonal(fill(1.0, nθ)))           # standard deviation
 
-####
+@info "nθ ", nθ
 
 
 
