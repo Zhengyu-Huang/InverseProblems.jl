@@ -28,8 +28,6 @@ function Ensemble(phys_params::Params,  params_i::Array{Float64, 2})
   for i = 1:N_ens 
     # g: N_ens x N_data
     g_ens[i, :] .= Foward(phys_params, params_i[i, :])
-    @show params_i[i, :]
-    error("Stop")
   end
   
   return g_ens

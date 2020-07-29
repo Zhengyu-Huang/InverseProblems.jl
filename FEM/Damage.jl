@@ -415,7 +415,6 @@ end
 nodal based update length(θ) = nnodes
 """
 function Update_E!(domain::Domain, prop_ref::Dict{String, Any}, θ_dam::Array{Float64, 1})
-    @show "before ", prop_ref
     prop = copy(prop_ref)
     E, ν = prop["E"], prop["nu"]
     elements = domain.elements
@@ -435,9 +434,6 @@ function Update_E!(domain::Domain, prop_ref::Dict{String, Any}, θ_dam::Array{Fl
         end
         
     end
-
-    @show prop
-    @show prop_ref
 
 end
 
@@ -565,7 +561,7 @@ function Run_Damage(phys_params::Params, θ_type::String, θ = nothing, save_dis
         disp = reshape(hist_state[end], size(nodes,1), 2)
         data .= disp[obs_nid, :]
 
-        @show norm(disp), norm(data)
+        # @show norm(disp), norm(data)
         
         if save_disp_name != "None"
             state = disp + nodes
@@ -581,7 +577,6 @@ function Run_Damage(phys_params::Params, θ_type::String, θ = nothing, save_dis
     
 
     if save_E != "None"
-        #@info norm((1.0 .- θ_dam)*phys_params.E - Qoi)
         E = phys_params.prop["E"]
         Visual_Node(phys_params, nodes, E*(1.0 .- θ_dam), save_E*".png",  nothing, 0, E)
     end
@@ -779,7 +774,6 @@ function Interp_Test()
 
     θ_f = Quad(phys_params.domain.nodes)
     θ_c = Quad(phys_params.domain_c.nodes)
-    @info θ_c
     θ_fc = Interp_θ(phys_params.domain_c, phys_params.interp_e, phys_params.interp_sdata, θ_c)
     @info "norm(θ_f - θ_fc)", norm(θ_f - θ_fc)
 
@@ -797,17 +791,15 @@ end
 
 ######################
 
-ns, ns_obs, porder, problem, ns_c, porder_c = 2, 3, 2, "Static", 2, 2
-phys_params = Params(ns, ns_obs, porder, problem, ns_c, porder_c)
+# ns, ns_obs, porder, problem, ns_c, porder_c = 2, 3, 2, "Static", 2, 2
+# phys_params = Params(ns, ns_obs, porder, problem, ns_c, porder_c)
 
-@info phys_params.prop
-nθ = size(phys_params.domain_c.nodes, 1)
+# nθ = size(phys_params.domain_c.nodes, 1)
     
-θ_c = zeros(Float64, nθ)
-θ_dam, data = Run_Damage(phys_params, "Analytic", nothing, "Figs/disp", "Figs/YoungsModule", -1.0)
-@info phys_params.prop
-θ_dam, data = Run_Damage(phys_params, "Piecewise", θ_c, "Figs/disp", "Figs/YoungsModule", -1.0)
-@info phys_params.prop
+# θ_dam, data = Run_Damage(phys_params, "Analytic", nothing, "Figs/disp", "Figs/YoungsModule", -1.0)
+# θ_c = zeros(Float64, nθ)
+# θ_dam, data = Run_Damage(phys_params, "Piecewise", θ_c, "Figs/disp", "Figs/YoungsModule", -1.0)
+
 
 #Interp_Test()
 #Damage_Test()
