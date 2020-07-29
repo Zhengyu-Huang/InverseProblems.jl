@@ -86,16 +86,16 @@ end
 
 
 ###############################################################################################
-ns, ns_obs, porder, problem, ns_c, porder_c = 2, 3, 2, "Static", 2, 2
+ns, ns_obs, porder, problem, ns_c, porder_c = 8, 5, 2, "Static", 2, 2
 phys_params = Params(ns, ns_obs, porder, problem, ns_c, porder_c)
 
 # data
 noise_level = -1.0
-θ_dam_ref, t_mean =  Run_Damage(phys_params, "Analytic", nothing,  "Figs/disp", "Figs/E", noise_level)
+θ_dam_ref, t_mean =  Run_Damage(phys_params, "Analytic", nothing,  "Figs/disp-high", "Figs/E-high", noise_level)
+# θ_dam_ref is a high resolution parameter vector
 
-
-_, t_mean =  Run_Damage(phys_params, "Piecewise", Get_θ(θ_dam_ref),  "disp", "E", noise_level)
-
+θ_dam_ref, t_mean =  Run_Damage(phys_params, "Piecewise", Get_Raw_From_θ_Dam(phys_params.ind_θf_to_θc, θ_dam_ref),  "Figs/disp", "Figs/E", noise_level)
+# θ_dam_ref is a interpolated low resolution parameter vector
 
 
 t_cov = Array(Diagonal(fill(0.01, length(t_mean)))) 

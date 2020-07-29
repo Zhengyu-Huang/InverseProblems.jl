@@ -81,6 +81,7 @@ struct Params
     porder_c::Int64
     interp_e::Array{Int64, 2}  # node id -> coarse scale element id, local node id
     interp_sdata::Array{Float64, 2}
+    ind_θf_to_θc::Array{Int64, 1} 
     domain_c::Domain
     
     # ns_obs observations on each face of the block
@@ -646,10 +647,10 @@ function Params(ns::Int64, ns_obs::Int64, porder::Int64, problem::String, ns_c::
     
     
 
-    interp_e, interp_sdata = Params_Interp(ns, porder, ns_c, porder_c)
+    interp_e, interp_sdata, ind_θf_to_θc = Params_Interp(ns, porder, ns_c, porder_c)
 
     Params(ns, ls, porder, ngp, domain,
-           ns_c, porder_c, interp_e, interp_sdata, domain_c,
+           ns_c, porder_c, interp_e, interp_sdata, ind_θf_to_θc, domain_c,
            ns_obs, n_data,
            prop,
            P1, P2, 
@@ -660,7 +661,9 @@ end
 function Params_Interp(ns, porder, ns_c, porder_c)
 
     nnodes = 6*(ns*porder + 1)*(ns*porder + 1) - 5*(ns*porder + 1)
-    sub_ele = Int64(ns/ns_c)
+    sub_ele = Int64((ns*porder)/(ns_c*porder_c))
+    # coarse element has ele_c segments or ele_c + 1 nodes in each direction
+    ele_c = sub_ele*porder_c
     # mesh node id -> coarse element id, local node id
     interp_e = zeros(Int64, nnodes, 2)
     
@@ -678,33 +681,50 @@ function Params_Interp(ns, porder, ns_c, porder_c)
     end
 
 
+    # indices (the the first node) - 1 for each row
+    # and at each bridge pier there are 2 columns
+    row_incr_c = zeros(Int64, 2*ns_c*porder_c + 1, 2)
+    for i = 1:ns_c*porder_c + 1
+        row_incr_c[i,1] = (i-1)*2*(ns_c*porder_c + 1)
+        row_incr_c[i,2] = (i-1)*2*(ns_c*porder_c + 1) + (ns_c*porder_c + 1)
+    end
+    i = ns_c*porder_c + 1
+    row_incr_c[i,2] = (i-1)*2*(ns_c*porder_c + 1) + 3*ns_c*porder_c
+    for i = ns_c*porder_c + 2: 2*ns_c*porder_c + 1
+        row_incr_c[i,1] = row_incr_c[i-1] + (4*ns_c*porder_c + 1)
+    end
+
+
     """
     nodes from left to right bottom to top
     """
     neles = 6*ns_c*ns_c
     e = 1
+    # loop element id for coarse mesh
     for iy_c = 1:2*ns_c    
         for ix_c = 1:4*ns_c 
             if ix_c > ns_c && ix_c <= 3*ns_c && iy_c <= ns_c
                 continue
             end
 
-            # nodes
-            iy_f =  (iy_c - 1)*sub_ele*porder + 1
+            # node id for fine mesh
+            iy =  (iy_c - 1)*ele_c + 1
 
             if ix_c > 3*ns_c && iy_c <= ns_c
                 i_block = 2
-                ix_f =(ix_c - 3*ns_c - 1)*sub_ele*porder + 1
+                ix =(ix_c - 3*ns_c - 1)*ele_c + 1
             else
                 i_block = 1
-                ix_f =(ix_c - 1)*sub_ele*porder + 1
+                ix =(ix_c - 1)*ele_c + 1
             end
             
-            for sub_iy = 1 : sub_ele*porder + 1
-                for sub_ix = 1:sub_ele*porder + 1
+            # loop coarse mesh element nodes
+            for sub_iy = 1 : ele_c + 1
+                for sub_ix = 1:ele_c + 1
                    
-                    n = ix_f + sub_ix - 1 + row_incr[sub_iy - 1 + iy_f, i_block]
-                    interp_e[n, :] .= e, sub_ix + (sub_iy - 1)*(sub_ele*porder + 1)
+                    n = ix + sub_ix - 1 + row_incr[sub_iy - 1 + iy, i_block]
+                    interp_e[n, :] .= e, sub_ix + (sub_iy - 1)*(ele_c + 1)
+                    #@info "node ", n, e, sub_ix + (sub_iy - 1)*(ele_c + 1), sub_ix, sub_iy
 
                 end
             end
@@ -715,27 +735,60 @@ function Params_Interp(ns, porder, ns_c, porder_c)
 
     # node n is at element e = interp_e[n, 1]
     # x(n) = x[e.elnodes] * sdata[n, :]
-    sdata = zeros(Float64, (sub_ele*porder + 1)^2, (porder_c+1)^2)
-    for sub_iy = 1 : sub_ele*porder + 1
-        for sub_ix = 1:sub_ele*porder + 1
+    sdata = zeros(Float64, (ele_c + 1)^2, (porder_c+1)^2)
+    for sub_iy = 1 : ele_c + 1
+        for sub_ix = 1:ele_c + 1
         
-            n = sub_ix + (sub_iy - 1)*(sub_ele*porder + 1)
-            ξ = 2*[(sub_ix-1)/(sub_ele*porder) ; (sub_iy-1)/(sub_ele*porder)] .- 1.0
+            n = sub_ix + (sub_iy - 1)*(ele_c + 1)
+            ξ = 2*[(sub_ix-1)/(ele_c) ; (sub_iy-1)/(ele_c)] .- 1.0
             sData = (porder_c == 1 ? getShapeQuad4(ξ) : getShapeQuad9(ξ))
             sdata[n, :] = sData[:, 1]
         end
     end
 
-    return interp_e, sdata
+
+    ##########
+    nnodes_c = 6*(ns_c*porder_c + 1)*(ns_c*porder_c + 1) - 5*(ns_c*porder_c + 1)
+    ind_θf_to_θc = zeros(Int64, nnodes_c)
+    for iy_c = 1:2*ns_c*porder_c+1
+        iy = (iy_c-1)*sub_ele + 1
+        for ix_c = 1:4*ns_c*porder_c+1
+            ix  = (ix_c-1)*sub_ele + 1
+
+            if iy_c < ns_c*porder_c+1 && ix_c > ns_c*porder_c+1 && ix_c < 3*ns_c*porder_c+1
+                continue
+            elseif iy_c < ns_c*porder_c+1 && ix_c >= 3*ns_c*porder_c+1
+                ind = row_incr[iy, 2] 
+                ind_c = row_incr_c[iy_c, 2] 
+                
+                n_c = ix_c + ind_c - (3*ns_c*porder_c)
+                n_f = ix + ind - (3*ns*porder)
+            else
+                ind = row_incr[iy, 1]
+                ind_c = row_incr_c[iy_c, 1]
+                n_c = ix_c + ind_c
+                n_f = ix + ind
+            end
+            ind_θf_to_θc[n_c] = n_f
+        end
+    end
+
+    # @info ind_θf_to_θc
+    # @info interp_e
+    # @info sub_ele
+    # error("stop")
+    return interp_e, sdata, ind_θf_to_θc
 end
 
 """
 Interpolate from θ_c on coarse grid to θ_f on fine grid
 """
-function Interp_θ(domain_c::Domain, interp_e::Array{Int64, 2}, interp_sdata::Array{Float64, 2}, θ_c::Array{Float64,1})
+function Interp_θc_to_θf(domain_c::Domain, interp_e::Array{Int64, 2}, interp_sdata::Array{Float64, 2}, θ_c::Array{Float64,1})
     nnodes = size(interp_e, 1)
 
     elem_c = domain_c.elements
+
+    @assert(length(θ_c) == size(domain_c.nodes, 1))
     
     θ_f = zeros(Float64, nnodes)
     for i = 1:nnodes 
@@ -749,10 +802,19 @@ function Interp_θ(domain_c::Domain, interp_e::Array{Int64, 2}, interp_sdata::Ar
 end
 
 
+"""
+Interpolate from θ_c on coarse grid to θ_f on fine grid
+"""
+function Get_Raw_From_θ_Dam(ind_θf_to_θc::Array{Int64, 1},  θ_f::Array{Float64,1})
+    θ_c = θ_f[ind_θf_to_θc]
+    θ = Get_θ(θ_c)
+    return θ
+end
+
+
 function Get_θ_Dam_From_Raw(domain_c::Domain, interp_e::Array{Int64, 2}, interp_sdata::Array{Float64, 2}, θ::Array{Float64,1})
     θ_c = Get_θ_Dam(θ)
-    θ_f = Interp_θ(domain_c, interp_e, interp_sdata, θ_c)
-
+    θ_f = Interp_θc_to_θf(domain_c, interp_e, interp_sdata, θ_c)
 end 
 
 function Interp_Test()
@@ -767,17 +829,19 @@ function Interp_Test()
         return val
     end
 
-    ns, ns_obs, porder, problem, ns_c, porder_c = 4, 2, 2, "Static", 2, 2
+    ns, ns_obs, porder, problem, ns_c, porder_c = 4, 2, 1, "Static", 2, 2
     phys_params = Params(ns, ns_obs, porder, problem, ns_c, porder_c)
 
 
 
     θ_f = Quad(phys_params.domain.nodes)
     θ_c = Quad(phys_params.domain_c.nodes)
-    θ_fc = Interp_θ(phys_params.domain_c, phys_params.interp_e, phys_params.interp_sdata, θ_c)
+    θ_fc = Interp_θc_to_θf(phys_params.domain_c, phys_params.interp_e, phys_params.interp_sdata, θ_c)
+    θ_cf = θ_fc[phys_params.ind_θf_to_θc]
     @info "norm(θ_f - θ_fc)", norm(θ_f - θ_fc)
+    @info "norm(θ_c - θ_cf)", norm(θ_c - θ_cf)
 
-    θ_dam, data = Run_Damage(phys_params, "Piecewise", θ_c, "Figs/disp", "Figs/YoungsModule", -1.0)
+
 end
 
 function Damage_Test()
@@ -791,7 +855,7 @@ end
 
 ######################
 
-# ns, ns_obs, porder, problem, ns_c, porder_c = 2, 3, 2, "Static", 2, 2
+# ns, ns_obs, porder, problem, ns_c, porder_c = 2, 3, 2, "Static", 1, 1
 # phys_params = Params(ns, ns_obs, porder, problem, ns_c, porder_c)
 
 # nθ = size(phys_params.domain_c.nodes, 1)
