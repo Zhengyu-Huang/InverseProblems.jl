@@ -10,9 +10,9 @@ include("Damage.jl")
 include("../RExKI.jl")
 
 
-function Foward(phys_params::Params, θ::Array{Float64,1})
+function Foward(phys_params::Params, θ_c::Array{Float64,1})
 
-  _, data = Run_Damage(phys_params, θ)
+  _, data = Run_Damage(phys_params, "Piecewise", θ_c)
   return data
 end
 
@@ -57,7 +57,7 @@ function ExKI(phys_params::Params,
     
     params_i = deepcopy(exkiobj.θ_bar[end])
 
-    θ_dam = Get_θ_Dam(params_i)
+    θ_dam = Interp_θ(phys_params.domain_c, phys_params.interp_e, phys_params.interp_sdata, params_i)
 
     @info "θ error :", norm(θ_dam_ref - θ_dam), " / ",  norm(θ_dam_ref)
     
@@ -67,11 +67,13 @@ function ExKI(phys_params::Params,
     
 
     # visulize
-    if i%1 == 0
-      Run_Damage(phys_params, params_i,  "exki.disp", "exki.E")
+    if i%10 == 0
+      Run_Damage(phys_params, params_i,  "Figs/exki."*string(i)*".disp", "Figs/exki."*string(i)*".E")
       
       exkiobj_θ_bar, exkiobj_θθ_cov, exkiobj_g_bar = exkiobj.θ_bar, exkiobj.θθ_cov, exkiobj.g_bar
-      @save "exkiobj.dat" exkiobj_θ_bar exkiobj_g_bar
+      exkiobj_θθ_cov = [diag(exkiobj.θθ_cov[i]) for i=1:length(exkiobj.θθ_cov)]
+
+      @save "exkiobj.dat" exkiobj_θ_bar exkiobj_g_bar exkiobj_θθ_cov
     end
     
   end
@@ -81,16 +83,17 @@ end
 
 
 ###############################################################################################
-phys_params = Params()
+ns, ns_obs, porder, problem, ns_c, porder_c = 4, 3, 2, "Static", 2, 2
+phys_params = Params(ns, ns_obs, porder, problem, ns_c, porder_c)
 
 # data
 noise_level = -1.0
-θ_dam_ref, t_mean =  Run_Damage(phys_params, nothing,  "disp", "E", noise_level)
-
+θ_dam, t_mean =  Run_Damage(phys_params, "Analytical", nothing,  "Figs/disp", "Figs/E", noise_level)
 
 t_cov = Array(Diagonal(fill(0.01, length(t_mean)))) 
 
-nθ = length(θ_dam_ref)
+
+nθ = size(phys_params.domain_c.nodes, 1)
 θ0_bar = zeros(Float64, nθ)
 θθ0_cov = Array(Diagonal(fill(1.0, nθ)))           # standard deviation
 
@@ -98,7 +101,7 @@ nθ = length(θ_dam_ref)
 
 
 
-N_iter = 50 
+N_iter = 100 
 
 α_reg = 1.0
 exkiobj = ExKI(phys_params,
