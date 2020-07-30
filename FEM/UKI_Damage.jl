@@ -10,9 +10,9 @@ include("Damage.jl")
 include("../RUKI.jl")
 
 
-function Foward(phys_params::Params, θ::Array{Float64,1})
+function Foward(phys_params::Params, θ_c::Array{Float64,1})
 
-  _, data = Run_Damage(phys_params, θ)
+  _, data = Run_Damage(phys_params, "Piecewise", θ_c)
   return data
 end
 
@@ -57,7 +57,7 @@ function UKI(phys_params::Params,
     
     params_i = deepcopy(ukiobj.θ_bar[end])
 
-    θ_dam = Get_θ_Dam(params_i)
+    θ_dam = Get_θ_Dam_From_Raw(phys_params.domain_c, phys_params.interp_e, phys_params.interp_sdata, params_i)
 
     @info "θ error :", norm(θ_dam_ref - θ_dam), " / ",  norm(θ_dam_ref)
     
@@ -65,13 +65,15 @@ function UKI(phys_params::Params,
     
     @info "data_mismatch :", (ukiobj.g_bar[end] - ukiobj.g_t)'*(ukiobj.obs_cov\(ukiobj.g_bar[end] - ukiobj.g_t))
     
-
+    @info diag(ukiobj.θθ_cov[i])
     # visulize
-    if i%1 == 0
-      Run_Damage(phys_params, params_i,  "uki.disp", "uki.E")
+    if i%10 == 0
+      Run_Damage(phys_params, "Piecewise", params_i,  "Figs/uki."*string(i)*".disp", "Figs/uki."*string(i)*".E")
       
       ukiobj_θ_bar, ukiobj_θθ_cov, ukiobj_g_bar = ukiobj.θ_bar, ukiobj.θθ_cov, ukiobj.g_bar
-      @save "ukiobj.dat" ukiobj_θ_bar ukiobj_g_bar
+      ukiobj_θθ_cov = [diag(ukiobj.θθ_cov[i]) for i=1:length(ukiobj.θθ_cov)]
+
+      @save "ukiobj.dat" ukiobj_θ_bar ukiobj_g_bar ukiobj_θθ_cov
     end
     
   end
@@ -81,24 +83,24 @@ end
 
 
 ###############################################################################################
-phys_params = Params()
+ns, ns_obs, porder, problem, ns_c, porder_c = 8, 5, 2, "Static", 2, 2
+phys_params = Params(ns, ns_obs, porder, problem, ns_c, porder_c)
 
 # data
 noise_level = -1.0
-θ_dam_ref, t_mean =  Run_Damage(phys_params, nothing,  "disp", "E", noise_level)
+θ_dam_ref, t_mean =  Run_Damage(phys_params, "Analytic", nothing,  "Figs/disp-high", "Figs/E-high", noise_level)
+
+t_cov = Array(Diagonal(fill(0.01, length(t_mean)))) 
 
 
-t_cov = Array(Diagonal(fill(1.0, length(t_mean)))) 
-
-nθ = length(θ_dam_ref)
+nθ = size(phys_params.domain_c.nodes, 1)
 θ0_bar = zeros(Float64, nθ)
 θθ0_cov = Array(Diagonal(fill(1.0, nθ)))           # standard deviation
-
 ####
 
 
 
-N_iter = 50 
+N_iter = 100 
 
 α_reg = 1.0
 ukiobj = UKI(phys_params,

@@ -9,13 +9,11 @@ include("../Plot.jl")
 include("Damage.jl")
 include("../REKI.jl")
 
-function Foward(phys_params::Params, θ::Array{Float64,1})
-  
-  _, data = Run_Damage(phys_params, θ)
-  return data
-  
-end
+function Foward(phys_params::Params, θ_c::Array{Float64,1})
 
+  _, data = Run_Damage(phys_params, "Piecewise", θ_c)
+  return data
+end
 
 function Ensemble(phys_params::Params,  params_i::Array{Float64, 2})
   n_data = phys_params.n_data
@@ -65,20 +63,20 @@ function EKI(phys_params::Params,
     
     params_i = dropdims(mean(ekiobj.θ[end], dims=1), dims=1) 
     
-    θ_dam = Get_θ_Dam(params_i)
+    θ_dam = Get_θ_Dam_From_Raw(phys_params.domain_c, phys_params.interp_e, phys_params.interp_sdata, params_i)
     
     @info "θ error :", norm(θ_dam_ref - θ_dam), " / ",  norm(θ_dam_ref)
-    
-    
+        
     update_ensemble!(ekiobj, ens_func) 
     
-    @info "F error of data_mismatch :", (ekiobj.g_bar[end] - ekiobj.g_t)'*(ekiobj.obs_cov\(ekiobj.g_bar[end] - ekiobj.g_t))
+    @info "data_mismatch :", (ekiobj.g_bar[end] - ekiobj.g_t)'*(ekiobj.obs_cov\(ekiobj.g_bar[end] - ekiobj.g_t))
     
     # visulize
     if i%10 == 0
-      Run_Damage(phys_params, params_i,  "eki.disp", "eki.E")
+      Run_Damage(phys_params, "Piecewise", params_i,  "Figs/eki."*string(i)*".disp", "Figs/eki."*string(i)*".E")
 
       ekiobj_θ, ekiobj_g_bar = ekiobj.θ, ekiobj.g_bar
+
       @save "ekiobj.dat" ekiobj_θ ekiobj_g_bar
     end
     
@@ -89,24 +87,27 @@ end
 
 
 ###############################################################################################
-phys_params = Params()
+ns, ns_obs, porder, problem, ns_c, porder_c = 8, 5, 2, "Static", 2, 2
+phys_params = Params(ns, ns_obs, porder, problem, ns_c, porder_c)
 
 # data
-noise_level = 0.05
-θ_dam_ref, t_mean =  Run_Damage(phys_params, nothing,  "None", "None", noise_level)
-t_cov = Array(Diagonal(fill(1.0, length(t_mean)))) 
+noise_level = -1.0
+θ_dam_ref, t_mean =  Run_Damage(phys_params, "Analytic", nothing,  "Figs/disp-high", "Figs/E-high", noise_level)
 
-nθ = length(θ_dam_ref)
+
+t_cov = Array(Diagonal(fill(0.01, length(t_mean)))) 
+
+nθ = size(phys_params.domain_c.nodes, 1)
 θ0_bar = zeros(Float64, nθ)
 θθ0_cov = Array(Diagonal(fill(1.0, nθ)))           # standard deviation
 
 
 
 
-N_iter = 50 
+N_iter = 100 
 
-α_reg = 0.5
-N_ens = 20
+α_reg = 1.0
+N_ens = 251
 ekiobj = EKI(phys_params,
 N_ens,
 t_mean, t_cov, 

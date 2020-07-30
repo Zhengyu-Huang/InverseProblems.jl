@@ -24,8 +24,7 @@ function Ensemble(phys_params::Params,  params_i::Array{Float64, 2})
   
   g_ens = zeros(Float64, N_ens,  n_data)
   
-  #Threads.@threads for i = 1:N_ens 
-  for i = 1:N_ens 
+  Threads.@threads for i = 1:N_ens 
     # g: N_ens x N_data
     g_ens[i, :] .= Foward(phys_params, params_i[i, :])
   end
@@ -60,8 +59,6 @@ function ExKI(phys_params::Params,
 
     θ_dam = Get_θ_Dam_From_Raw(phys_params.domain_c, phys_params.interp_e, phys_params.interp_sdata, params_i)
 
-    # θ_dam = Get_θ_Dam(params_i)
-
     @info "θ error :", norm(θ_dam_ref - θ_dam), " / ",  norm(θ_dam_ref)
     
     update_ensemble!(exkiobj, ens_func) 
@@ -71,7 +68,7 @@ function ExKI(phys_params::Params,
 
     # visulize
     if i%10 == 0
-      Run_Damage(phys_params, params_i,  "Figs/exki."*string(i)*".disp", "Figs/exki."*string(i)*".E")
+      Run_Damage(phys_params, "Piecewise", params_i,  "Figs/exki."*string(i)*".disp", "Figs/exki."*string(i)*".E")
       
       exkiobj_θ_bar, exkiobj_θθ_cov, exkiobj_g_bar = exkiobj.θ_bar, exkiobj.θθ_cov, exkiobj.g_bar
       exkiobj_θθ_cov = [diag(exkiobj.θθ_cov[i]) for i=1:length(exkiobj.θθ_cov)]
@@ -94,7 +91,7 @@ noise_level = -1.0
 θ_dam_ref, t_mean =  Run_Damage(phys_params, "Analytic", nothing,  "Figs/disp-high", "Figs/E-high", noise_level)
 # θ_dam_ref is a high resolution parameter vector
 
-θ_dam_ref, t_mean =  Run_Damage(phys_params, "Piecewise", Get_Raw_From_θ_Dam(phys_params.ind_θf_to_θc, θ_dam_ref),  "Figs/disp", "Figs/E", noise_level)
+#θ_dam_ref, t_mean =  Run_Damage(phys_params, "Piecewise", Get_Raw_From_θ_Dam(phys_params.ind_θf_to_θc, θ_dam_ref),  "Figs/disp", "Figs/E", noise_level)
 # θ_dam_ref is a interpolated low resolution parameter vector
 
 
