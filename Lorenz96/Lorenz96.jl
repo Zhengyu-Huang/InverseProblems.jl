@@ -24,8 +24,10 @@ mutable struct Params
 end
 
 function Params(K::Int64 = 8, J::Int64 = 32, RK_order = 4, T = 100, ΔT = 0.005, Δobs = 1) 
-    F,  h, c, b, d = 10.0, 1.0, 10.0, 10.0, J
-    
+    F,  h, c, b = 20.0, 1.0, 10.0, 10.0
+    # d = b the original Lorenz96, d = J modified Lorenz96 from 
+    # "Earth System Modeling 2.0: A Blueprint for Models That Learn From Observations and Targeted High-Resolution Simulations"
+    d = b
     
     NT = Int64(T/ΔT)
     
@@ -166,16 +168,17 @@ end
 
 function Test_Lorenz96(multiscale::Bool)
     RK_order = 4
-    T,  ΔT = 500.0, 0.005
+    T,  ΔT = 20.0, 0.005
     NT = Int64(T/ΔT)
     tt = Array(LinRange(ΔT, T, NT))
     Δobs = 1
     
-    K, J = 36, 10
+    #K, J = 36, 10
+    K, J = 8, 32
     phys_params = Params(K, J, RK_order, T,  ΔT, Δobs)
     
     if multiscale
-        #Random.seed!(123);
+        Random.seed!(13);
         Q0 = rand(Normal(0, 1), K*(J+1))
         #Q0 = Array(LinRange(1.0, K*(J+1), K*(J+1)))
         data = Run_Lorenz96(phys_params, Q0)
@@ -187,6 +190,22 @@ function Test_Lorenz96(multiscale::Bool)
         figure(2) # hist
         hist(data[:,1:K][:], bins = 1000, density = true, histtype = "step")
         savefig("X_density.png"); close("all")
+
+        figure(3) # modeling term
+        # Xg[k] vs - h*c/d*(sum(Yg[ng+1:J+ng, k]))
+        h, c, d = phys_params.h, phys_params.c, phys_params.d
+        X = (data[:,1:K]')[:]
+        Φ = -h*c/d * sum(reshape(data[:, K+1:end]', J, K*size(data, 1)), dims=1)
+        scatter(X, Φ, s = 0.1, c="grey")
+        xx = Array(LinRange(-10, 15, 1000))
+
+        fwilks = -(0.262 .+ 1.45*xx - 0.0121*xx.^2 - 0.00713*xx.^3 + 0.000296*xx.^4)
+        plot(xx, fwilks, label="Wilks")
+
+        fAMP = -(0.341 .+ 1.3*xx - 0.0136*xx.^2 - 0.00235*xx.^3)
+        plot(xx, fAMP, label="Arnold")
+        legend()
+        savefig("Closure.png"); close("all")
 
 
     else
@@ -201,7 +220,8 @@ function Test_Lorenz96(multiscale::Bool)
 
 
     
-    return data
+    return phys_params, data
 end
 
-data = Test_Lorenz96(true)
+phys_params, data = Test_Lorenz96(true)
+#phys_params, data = Test_Lorenz96(false)
