@@ -13,6 +13,7 @@ mutable struct Params
     ΔT::Float64
     
     Δobs::Int64
+    n_data::Int64
     
     F::Float64
     h::Float64
@@ -30,8 +31,10 @@ function Params(K::Int64 = 8, J::Int64 = 32, RK_order = 4, T = 100, ΔT = 0.005,
     d = b
     
     NT = Int64(T/ΔT)
+
+    n_data = K*Int64(NT/Δobs)
     
-    Params(K, J, RK_order, T, NT, ΔT, Δobs, F, h, c, d, b)
+    Params(K, J, RK_order, T, NT, ΔT, Δobs, n_data, F, h, c, d, b)
 end
 
 function Rk_Update!(t::Float64, Δt::Float64, f::Function, Q::Array{Float64,1}; order::Int64)
@@ -54,7 +57,12 @@ function Rk_Update!(t::Float64, Δt::Float64, f::Function, Q::Array{Float64,1}; 
     end
 end
 
-
+function ΦNN(x::Float64, θ::Array{Float64, 1})
+    n = Int64((length(θ)-1)/3)
+    a, b, c, d = θ[1:n], θ[n+1:2n], θ[2n+1:3n], θ[3n+1]
+    # σ(a x + b) ⋅ c + e
+    return d + c' * tanh.(a*x+b)
+end
 
 """
 Q = [X ; Y(k=1) ; Y(k=2) ... ; Y(k=K)]
@@ -148,23 +156,34 @@ function Run_Lorenz96(phys_params::Params, Q0, θ=nothing, Φ=nothing)
     RK_order = phys_params.RK_order
     NT, Δobs, ΔT = phys_params.NT, phys_params.Δobs, phys_params.ΔT
     Q = copy(Q0)
+
     if θ == nothing
         f = (t, Q) -> Lorenz_96(phys_params, Q)
     else
         f = (t, Q) -> Lorenz_96(phys_params, Q, θ, Φ)
     end
     
-    data = zeros(Float64, Int64(NT/Δobs), size(Q,1))
+    data = zeros(Float64, NT, size(Q,1))
     
     for i = 1:NT
         Rk_Update!(i*ΔT, ΔT, f, Q; order=RK_order)
-        if i%Δobs == 0
-            data[Int64(i/Δobs) , :] .= Q
-        end
+        data[i , :] .= Q
+
     end
-    
     return data
 end
+
+function Compute_Obs(phys_params::Params, data::Array{Float64, 2})
+    NT, Δobs, ΔT = phys_params.NT, phys_params.Δobs, phys_params.ΔT
+    K = phys_params.K
+    obs = data[Δobs:Δobs:NT, 1:K]
+    return obs[:]
+end
+
+
+
+
+
 
 function Test_Lorenz96(multiscale::Bool)
     RK_order = 4
@@ -178,7 +197,7 @@ function Test_Lorenz96(multiscale::Bool)
     phys_params = Params(K, J, RK_order, T,  ΔT, Δobs)
     
     if multiscale
-        Random.seed!(13);
+        Random.seed!(42);
         Q0 = rand(Normal(0, 1), K*(J+1))
         #Q0 = Array(LinRange(1.0, K*(J+1), K*(J+1)))
         data = Run_Lorenz96(phys_params, Q0)
@@ -195,8 +214,8 @@ function Test_Lorenz96(multiscale::Bool)
         # Xg[k] vs - h*c/d*(sum(Yg[ng+1:J+ng, k]))
         h, c, d = phys_params.h, phys_params.c, phys_params.d
         X = (data[:,1:K]')[:]
-        Φ = -h*c/d * sum(reshape(data[:, K+1:end]', J, K*size(data, 1)), dims=1)
-        scatter(X, Φ, s = 0.1, c="grey")
+        Φ_ref = -h*c/d * sum(reshape(data[:, K+1:end]', J, K*size(data, 1)), dims=1)
+        scatter(X, Φ_ref, s = 0.1, c="grey")
         xx = Array(LinRange(-10, 15, 1000))
 
         fwilks = -(0.262 .+ 1.45*xx - 0.0121*xx.^2 - 0.00713*xx.^3 + 0.000296*xx.^4)
@@ -217,11 +236,9 @@ function Test_Lorenz96(multiscale::Bool)
         plot(tt, data[:,1], label = "slow")
         
     end
-
-
     
     return phys_params, data
 end
 
-phys_params, data = Test_Lorenz96(true)
+#phys_params, data = Test_Lorenz96(true)
 #phys_params, data = Test_Lorenz96(false)
