@@ -15,6 +15,7 @@ function Foward(phys_params::Params, Q0::Array{Float64, 1}, θ::Array{Float64, 1
   data = Run_Lorenz96(phys_params, Q0, θ, Φ)
   
   obs = Compute_Obs(phys_params, data)
+
   return obs
   
 end
@@ -45,7 +46,6 @@ function Show_Result(phys_params::Params, data_ref::Array{Float64, 2}, Q0::Array
   
   #K, J = 36, 10
   K, J = phys_params.K, phys_params.J
-  phys_params = Params(K, J, RK_order, T,  ΔT, Δobs)
   
   data = Run_Lorenz96(phys_params, Q0, θ, Φ)
   
@@ -117,6 +117,8 @@ function ExKI(phys_params::Params,
     @info "data_mismatch :", (exkiobj.g_bar[end] - exkiobj.g_t)'*(exkiobj.obs_cov\(exkiobj.g_bar[end] - exkiobj.g_t))
     
     params_i = deepcopy(exkiobj.θ_bar[end])
+
+    @info params_i
     # visulize
     if i%10 == 0
       
@@ -143,7 +145,8 @@ tt = Array(LinRange(ΔT, T, NT))
 Δobs = 200
 
 K, J = 8, 32
-phys_params = Params(K, J, RK_order, T,  ΔT, Δobs)
+obs_type,  kmode = "Statistics", 8
+phys_params = Params(K, J, RK_order, T,  ΔT, obs_type, kmode)
 Random.seed!(42);
 Q0_ref = rand(Normal(0, 1), K*(J+1))
 Q0 = Q0_ref[1:K]
@@ -154,15 +157,15 @@ t_mean =  Compute_Obs(phys_params, data_ref)
 t_cov = Array(Diagonal(fill(1.0, length(t_mean)))) 
 
 
-nθ = 31
-θ0_bar = zeros(Float64, nθ)
+nθ = 6
+θ0_bar = rand(Normal(0, 1), nθ)  #zeros(Float64, nθ)
 θθ0_cov = Array(Diagonal(fill(1.0, nθ)))           # standard deviation
 
+Φ = ΦGP
 
 
 
-
-N_iter = 100 
+N_iter = 1000
 
 α_reg = 1.0
 exkiobj = ExKI(phys_params,
@@ -170,7 +173,7 @@ t_mean, t_cov,
 θ0_bar, θθ0_cov, 
 α_reg,
 N_iter,
-data_ref, Q0, ΦNN)
+data_ref, Q0, Φ)
 
 
 
