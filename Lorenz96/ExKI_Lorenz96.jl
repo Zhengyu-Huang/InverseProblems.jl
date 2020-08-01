@@ -1,4 +1,3 @@
-using NNFEM
 using JLD2
 using Statistics
 using LinearAlgebra
@@ -27,7 +26,6 @@ function Ensemble(phys_params::Params, Q0::Array{Float64, 1}, params_i::Array{Fl
   N_ens,  N_θ = size(params_i)
   
   g_ens = zeros(Float64, N_ens,  n_data)
-
   
   Threads.@threads for i = 1:N_ens 
     # g: N_ens x N_data
@@ -118,7 +116,8 @@ function ExKI(phys_params::Params,
     
     params_i = deepcopy(exkiobj.θ_bar[end])
 
-    @info params_i
+    @info "θ: ", params_i
+    @info "Varθ: ", diag(exkiobj.θθ_cov[end])
     # visulize
     if i%10 == 0
       
@@ -157,15 +156,15 @@ t_mean =  Compute_Obs(phys_params, data_ref)
 t_cov = Array(Diagonal(fill(1.0, length(t_mean)))) 
 
 
-nθ = 6
+nθ = 12
 θ0_bar = rand(Normal(0, 1), nθ)  #zeros(Float64, nθ)
 θθ0_cov = Array(Diagonal(fill(1.0, nθ)))           # standard deviation
 
-Φ = ΦGP
+Φ = ΦQP
 
 
 
-N_iter = 1000
+N_iter = 100
 
 α_reg = 1.0
 exkiobj = ExKI(phys_params,

@@ -1,4 +1,3 @@
-using NNFEM
 using JLD2
 using Statistics
 using LinearAlgebra

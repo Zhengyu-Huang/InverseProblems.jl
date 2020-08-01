@@ -310,7 +310,7 @@ function Compute_Obs(phys_params::Params, data::Array{Float64, 2})
         obs = data[Δobs:Δobs:NT, 1:K][:]
     elseif obs_type == "Statistics"
         # first and second moments of the first k components
-        kmode = 8
+        kmode = obs_p
 
         obs = zeros(Float64, Int64(kmode + kmode*(kmode+1)/2))
         for i = 1:kmode
