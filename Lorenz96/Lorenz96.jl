@@ -15,7 +15,7 @@ mutable struct Params
     
     obs_type::String
     obs_p::Int64
-
+    
     n_data::Int64
     
     F::Float64
@@ -27,14 +27,32 @@ mutable struct Params
     
 end
 
-function Params(K::Int64 = 8, J::Int64 = 32, RK_order = 4, T = 100, ΔT = 0.005, obs_type = "Statistics", obs_p = 1) 
-    F,  h, c, b = 20.0, 1.0, 10.0, 10.0
+function Params(case::String, obs_type = "Statistics", obs_p = 1,  T = 100, ΔT = 0.005, RK_order = 4) 
     # d = b the original Lorenz96, d = J modified Lorenz96 from 
     # "Earth System Modeling 2.0: A Blueprint for Models That Learn From Observations and Targeted High-Resolution Simulations"
-    d = b
+    
+    
+    # F,  h, c, b = 20.0, 1.0, 10.0, 10.0
+    # d = b
+    
+    if case == "ESM2.0"
+        K,  J = 32, 10
+        F,  h, c, b = 10.0, 1.0, 10.0, 10.0
+        d = J
+    elseif case == "Wilks"
+        """
+        SUPERVISED LEARNING FROM NOISY OBSERVATIONS: COMBINING MACHINE-LEARNING TECHNIQUES WITH DATA ASSIMILATION
+        """
+        K,  J = 8, 32
+        F,  h, c, b = 20.0, 1.0, 10.0, 10.0
+        d = b
+    else
+        error("Lorenz96 case ", case, " has not implemented!")
+    end
+    
     
     NT = Int64(T/ΔT)
-
+    
     if obs_type == "Statistics"
         kmode = obs_p
         n_data = kmode + kmode*(kmode + 1)/2
@@ -46,6 +64,12 @@ function Params(K::Int64 = 8, J::Int64 = 32, RK_order = 4, T = 100, ΔT = 0.005,
     end
     
     Params(K, J, RK_order, T, NT, ΔT, obs_type, obs_p, n_data, F, h, c, d, b)
+end
+
+function Reset_Time!(phys_params::Params, T::Float64, ΔT::Float64)
+    phys_params.T = T
+    phys_params.ΔT = ΔT
+    phys_params.NT = Int64(T/ΔT)
 end
 
 function Rk_Update!(t::Float64, Δt::Float64, f::Function, Q::Array{Float64,1}; order::Int64)
@@ -96,19 +120,19 @@ function ΦGP(x::Float64, θ::Array{Float64, 1})
     #=
     x ∈ [-20, 20]
     kernal k(x, x') = exp(- (x - x')^2/(2l^2))
-
+    
     f = θi k(xi, x)
     =#
     x_l, x_h = -20.0, 20.0
-
+    
     nθ = length(θ)
     nm = nθ - 1
     xx = Array(LinRange(x_l, x_h, nm))
-
+    
     l = θ[nm+1]
-
+    
     return θ[1:nm]' * exp.(-(xx .- x).^2/(2l^2))
-
+    
 end
 
 function ΦLP(x::Float64, θ::Array{Float64, 1})
@@ -116,19 +140,19 @@ function ΦLP(x::Float64, θ::Array{Float64, 1})
     x ∈ [x_l, x_h], x_l = -20 x_h = 20, piecewise linear polynomial
     =#
     x_l, x_h = -20.0, 20.0
-
+    
     if x >= x_h 
         return θ[end]
     elseif x <= x_l
         return θ[1]
     end
-
+    
     ne = length(θ) - 1
-
+    
     Δx = (x_h - x_l)/ne
     int_val = ceil(Int64, (x - x_l)/Δx)
     ξ = (x - x_l - Δx*(int_val-1) )/Δx
-
+    
     return (1 - ξ)*θ[int_val] + ξ*θ[int_val+1] 
 end
 
@@ -144,7 +168,7 @@ end
 #         return θ[1]
 #     end
 #     ne = Int64((length(θ)-1)/2)
-    
+
 #     Δx = (x_h - x_l)/ne
 #     int_val = ceil(Int64, (x - x_l)/Δx)
 #     @assert(int_val <= ne)
@@ -176,16 +200,16 @@ function ΦQP(x::Float64, θ::Array{Float64, 1})
     
     Δx = (x_h - x_l)/ne
     int_val = ceil(Int64, (x - x_l)/Δx)
-
+    
     ξ = (x - x_l - Δx*(int_val-1) )/Δx
-
+    
     @assert(ξ>= 0 && ξ <= 1.0)
-
+    
     N1 = (1 - 3ξ^2 + 2ξ^3)  # 0  -> 1  
     N2 = (ξ - 2ξ^2 + ξ^3)   # 0' -> 1
     N3 = (3ξ^2 - 2ξ^3)      # 1  -> 1
     N4 = (-ξ^2 + ξ^3)       # 1' -> 1
-
+    
     return N1*θ[2*int_val-1] + N2*θ[2*int_val] + N3*θ[2*int_val+1] + N4*θ[2*int_val+2]
 end
 
@@ -280,7 +304,7 @@ function Run_Lorenz96(phys_params::Params, Q0, θ=nothing, Φ=nothing)
     RK_order = phys_params.RK_order
     NT, ΔT = phys_params.NT, phys_params.ΔT
     Q = copy(Q0)
-
+    
     if θ == nothing
         f = (t, Q) -> Lorenz_96(phys_params, Q)
     else
@@ -292,7 +316,7 @@ function Run_Lorenz96(phys_params::Params, Q0, θ=nothing, Φ=nothing)
     for i = 1:NT
         Rk_Update!(i*ΔT, ΔT, f, Q; order=RK_order)
         data[i , :] .= Q
-
+        
     end
     return data
 end
@@ -301,17 +325,18 @@ end
 type::String = "Statistics" or "Time-Series"
 =#
 function Compute_Obs(phys_params::Params, data::Array{Float64, 2})
+    
     NT, ΔT = phys_params.NT, phys_params.ΔT
     K = phys_params.K
     obs_type, obs_p = phys_params.obs_type, phys_params.obs_p
-
+    
     if obs_type == "Time-Series"
         Δobs = obs_p
         obs = data[Δobs:Δobs:NT, 1:K][:]
     elseif obs_type == "Statistics"
         # first and second moments of the first k components
         kmode = obs_p
-
+        
         obs = zeros(Float64, Int64(kmode + kmode*(kmode+1)/2))
         for i = 1:kmode
             obs[i] = mean(data[:,i])
@@ -323,43 +348,85 @@ function Compute_Obs(phys_params::Params, data::Array{Float64, 2})
                 obs[id] = mean(data[:,i].*data[:,j])
             end
         end
-
+        
     else
         error("Observation type ", obs_type, " is not recognized")
     end
-
+    
     return obs
+end
+
+
+function Generate_Obs_Data(phys_params::Params, data::Array{Float64, 2}, n_obs_box::Int64)
+    NT, ΔT = phys_params.NT, phys_params.ΔT
+    K = phys_params.K
+    obs_type, obs_p = phys_params.obs_type, phys_params.obs_p
+    
+    if obs_type == "Time-Series"
+        Δobs = obs_p
+        t_mean = data[Δobs:Δobs:NT, 1:K][:]
+        t_cov = Array(Diagonal(0.01*t_mean)) 
+    elseif obs_type == "Statistics"
+        NT = phys_params.NT
+        @assert(NT % n_obs_box == 0)
+        # first and second moments of the first k components
+        kmode = obs_p
+        
+        obs_box = zeros(Float64, Int64(kmode + kmode*(kmode+1)/2), n_obs_box)
+        for n = 1:n_obs_box
+            for i = 1:kmode
+                obs_box[i, n] = mean(data[(n-1)*div(NT, n_obs_box)+1: n*div(NT, n_obs_box), i])
+            end
+            id = kmode
+            for i = 1:kmode
+                for j = 1:i
+                    id += 1
+                    obs_box[id, n] = mean(data[(n-1)*div(NT, n_obs_box)+1: n*div(NT, n_obs_box), i].*data[(n-1)*div(NT, n_obs_box)+1: n*div(NT, n_obs_box), j])
+                end
+            end
+        end
+        
+        t_mean = vec(mean(obs_box, dims=2))
+        t_cov = zeros(Float64, size(t_mean, 1), size(t_mean, 1))
+        for i = 1:n_obs_box
+            t_cov += (obs_box[:,i] - t_mean) *(obs_box[:,i] - t_mean)'
+        end
+        t_cov ./= (n_obs_box - 1)
+        
+        
+    else
+        error("Observation type ", obs_type, " is not recognized")
+    end
+    
+    return t_mean, t_cov
 end
 
 
 
 
 
-
-function Test_Lorenz96(multiscale::Bool)
-    RK_order = 4
-    T,  ΔT = 20.0, 0.005
-    NT = Int64(T/ΔT)
+function Test_Lorenz96(phys_params, multiscale::Bool)
+    T, NT, ΔT = phys_params.T, phys_params.NT, phys_params.ΔT
     tt = Array(LinRange(ΔT, T, NT))
     
-    #K, J = 36, 10
-    K, J = 8, 32
-    phys_params = Params(K, J, RK_order, T,  ΔT)
+    K, J = phys_params.K, phys_params.J
+    
     
     if multiscale
         Random.seed!(42);
-        Q0 = rand(Normal(0, 1), K*(J+1))
+        Q0 = [rand(Normal(0, 1.0), K) ; rand(Normal(0, 0.01), K*J)]
+        
         #Q0 = Array(LinRange(1.0, K*(J+1), K*(J+1)))
         data = Run_Lorenz96(phys_params, Q0)
         figure(1)
         plot(tt, data[:,1], label = "slow")
         plot(tt, data[:,K+1], label = "fast")
         savefig("Sample_Traj.png"); close("all")
-
+        
         figure(2) # hist
-        hist(data[:,1:K][:], bins = 1000, density = true, histtype = "step")
+        hist(data[:,1:K][:], bins = 100, density = true, histtype = "step")
         savefig("X_density.png"); close("all")
-
+        
         figure(3) # modeling term
         # Xg[k] vs - h*c/d*(sum(Yg[ng+1:J+ng, k]))
         h, c, d = phys_params.h, phys_params.c, phys_params.d
@@ -367,16 +434,16 @@ function Test_Lorenz96(multiscale::Bool)
         Φ_ref = -h*c/d * sum(reshape(data[:, K+1:end]', J, K*size(data, 1)), dims=1)
         scatter(X, Φ_ref, s = 0.1, c="grey")
         xx = Array(LinRange(-10, 15, 1000))
-
+        
         fwilks = -(0.262 .+ 1.45*xx - 0.0121*xx.^2 - 0.00713*xx.^3 + 0.000296*xx.^4)
         plot(xx, fwilks, label="Wilks")
-
+        
         fAMP = -(0.341 .+ 1.3*xx - 0.0136*xx.^2 - 0.00235*xx.^3)
         plot(xx, fAMP, label="Arnold")
         legend()
         savefig("Closure.png"); close("all")
-
-
+        
+        
     else
         Random.seed!(123);
         Q0 = rand(Normal(0, 1), K)
@@ -384,11 +451,24 @@ function Test_Lorenz96(multiscale::Bool)
         θ = [0.0]
         data = Run_Lorenz96(phys_params, Q0, θ, Φ)
         plot(tt, data[:,1], label = "slow")
+        savefig("Sample_Traj_Simple.png"); close("all")
+        
+        figure(2) # hist
+        hist(data[:,1:K][:], bins = 100, density = true, histtype = "step")
+        savefig("X_density_Simple.png"); close("all")
         
     end
     
-    return phys_params, data
+    return data
 end
 
-#phys_params, data = Test_Lorenz96(true)
-#phys_params, data = Test_Lorenz96(false)
+if abspath(PROGRAM_FILE) == @__FILE__
+    
+    case = "Wilks"  # Wilks or ESM2.0
+    obs_type, obs_p = "Statistics", 8
+    T, ΔT = 1000, 0.005
+    
+    phys_params = Params(case, obs_type, obs_p,  T, ΔT) 
+    data = Test_Lorenz96(phys_params, true)
+    data = Test_Lorenz96(phys_params, false)
+end

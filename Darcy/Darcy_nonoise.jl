@@ -5,7 +5,7 @@ using Distributions
 using Random
 using SparseArrays
 include("../Plot.jl")
-include("../RUKI.jl")
+include("../UKI.jl")
 include("../EKI.jl")
 
 
@@ -398,9 +398,8 @@ function Darcy_Test(darcy::Param_Darcy, N_θ::Int64= 16, N_ite::Int64 = 100, noi
         Random.seed!(123);
         #noise = rand(Uniform(-0.01,0.01), length(t_mean))
         #t_mean .*= (1.0 .+ noise)
-	noise_mag = 0.01
 	for i = 1:length(t_mean)
-            noise = rand(Normal(0, noise_mag*t_mean[i]))
+            noise = rand(Normal(0, 0.01*t_mean[i]))
             @info t_mean[i],  noise
             t_mean[i] += noise
         end
@@ -458,7 +457,6 @@ function plot_KI_error(ukiobj::UKIObj, filename::String)
     
 end
 
-@info "start"
 N, L = 80, 1.0
 obs_ΔN = 10
 α = 2.0
@@ -469,8 +467,8 @@ darcy = Param_Darcy(N, obs_ΔN, L, KL_trunc, α, τ)
 
 N_ite = 200
 N_θ1, N_θ2 = 32, 8
-ukiobj_1 = Darcy_Test(darcy, N_θ1, N_ite, true) 
-ukiobj_2 = Darcy_Test(darcy, N_θ2, N_ite, true) 
+ukiobj_1 = Darcy_Test(darcy, N_θ1, N_ite, false) 
+ukiobj_2 = Darcy_Test(darcy, N_θ2, N_ite, false) 
 
 # Plot logκ error and Data mismatch
 

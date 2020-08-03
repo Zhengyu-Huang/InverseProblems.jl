@@ -193,7 +193,7 @@ function adjoint_plot()
     filtered_x3_arr = copy(x3_arr)
     filtered_dx3_dr_arr = copy(dx3_dr_arr)
     
-    σr = sqrt(0.2613326654897785)
+    σr = sqrt(0.22714463033782045)
     filter_Δ = Int64(ceil(3*σr/dr))
     for i = 1:N_r
         if (i > filter_Δ && i < N_r - filter_Δ)
@@ -392,8 +392,8 @@ end
 
 # mission is  "adjoint_plt" or "UKI"
 
-mission  =  "UKI"
-# mission = "adjoint_plt"
+# mission  =  "UKI"
+mission = "adjoint_plt"
 
 if mission == "adjoint_plt"
     #adjoint_demo()
@@ -402,7 +402,7 @@ if mission == "adjoint_plt"
 else
     Tobs = 20.0
     Tspinup = 30.0
-    T = Tspinup + 5*Tobs
+    T = Tspinup + 10.0*Tobs
     Δt = 0.01
     
     t_mean, t_cov = Data_Gen(T, Tobs, Tspinup, Δt)

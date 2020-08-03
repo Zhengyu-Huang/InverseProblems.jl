@@ -4,9 +4,7 @@ using LinearAlgebra
 using Distributions
 using Random
 using SparseArrays
-include("../Plot.jl")
-include("../UKI.jl")
-include("../EKI.jl")
+
 
 
 
@@ -18,6 +16,7 @@ mutable struct Param_Darcy
     
     #for observation
     obs_ΔN::Int64
+    n_data::Int64
     
     #for parameterization
     trunc_KL::Int64  # this is for generating the truth
@@ -42,8 +41,8 @@ function Param_Darcy(N::Int64, obs_ΔN::Int64, L::Float64, trunc_KL::Int64, α::
     
     logκ_2d,φ,λ,u = generate_θ_KL(N, xx, trunc_KL, α, τ)
     f_2d = compute_f_2d(N, xx)
-    
-    Param_Darcy(N, L, Δx, xx, obs_ΔN, trunc_KL, α, τ, logκ_2d, φ, λ, u, f_2d)
+    n_data = length(obs_ΔN:obs_ΔN:N-obs_ΔN)^2
+    Param_Darcy(N, L, Δx, xx, obs_ΔN, n_data, trunc_KL, α, τ, logκ_2d, φ, λ, u, f_2d)
 end
 
 function point(darcy::Param_Darcy, ix::Int64, iy::Int64)
@@ -54,13 +53,19 @@ function ind(darcy::Param_Darcy, ix::Int64, iy::Int64)
     return (ix-1) + (iy-2)*(darcy.N - 2)
 end
 
-function plot_field(darcy::Param_Darcy, u_2d::Array{Float64, 2}, filename::String = "None")
+function plot_field(darcy::Param_Darcy, u_2d::Array{Float64, 2}, plot_obs::Bool,  filename::String = "None")
     N = darcy.N
     xx = darcy.xx
     X,Y = repeat(xx, 1, N), repeat(xx, 1, N)'
-    #pcolormesh(X, Y, u_2d, shading= "gouraud", cmap="jet")
     pcolormesh(X, Y, u_2d, cmap="jet")
     colorbar()
+
+    if plot_obs
+        obs_ΔN = darcy.obs_ΔN
+        x_obs, y_obs = X[obs_ΔN:obs_ΔN:N-obs_ΔN,obs_ΔN:obs_ΔN:N-obs_ΔN][:], Y[obs_ΔN:obs_ΔN:N-obs_ΔN,obs_ΔN:obs_ΔN:N-obs_ΔN][:] 
+        scatter(x_obs, y_obs, color="black")
+    end
+
     tight_layout()
     if filename != "None"
         savefig(filename)
@@ -69,26 +74,10 @@ function plot_field(darcy::Param_Darcy, u_2d::Array{Float64, 2}, filename::Strin
 end
 
 
-function plot_obs(darcy::Param_Darcy, u_2d::Array{Float64, 2}, filename::String = "None")
-    N, obs_ΔN = darcy.N, darcy.obs_ΔN
-    
-    xx = darcy.xx
-    X,Y = repeat(xx, 1, N), repeat(xx, 1, N)'
-    
-    x_obs, y_obs = X[obs_ΔN:obs_ΔN:N-obs_ΔN,obs_ΔN:obs_ΔN:N-obs_ΔN][:], Y[obs_ΔN:obs_ΔN:N-obs_ΔN,obs_ΔN:obs_ΔN:N-obs_ΔN][:] 
-    
-    #pcolormesh(X, Y, u_2d, shading= "gouraud", cmap="jet")
-    
-    pcolormesh(X, Y, u_2d, cmap="jet")
-    colorbar()
-    scatter(x_obs, y_obs, color="black")
-    tight_layout()
-    if filename != "None"
-        savefig(filename)
-        close("all")
-    end
-end
-
+#=
+Compute reference logk field, as 
+∑ u[i] * sqrt(λ[i]) * φ[i, :, :]
+=#
 function compute_logκ_2d(darcy::Param_Darcy, u::Array{Float64, 1})
     N, trunc_KL = darcy.N, darcy.trunc_KL
     λ, φ = darcy.λ, darcy.φ
@@ -105,7 +94,9 @@ end
 
 
 
-
+#=
+Initialize forcing term
+=#
 function compute_f_2d(N::Int64, yy::Array{Float64, 1})
     #f_2d = ones(Float64, N, N)
     
@@ -124,7 +115,10 @@ function compute_f_2d(N::Int64, yy::Array{Float64, 1})
     return f_2d
 end
 
-
+#=
+Compute sorted pair (a1, a2), sorted by a1^2 + a2^2
+with a1≥0 and a2≥0 anad a1+a2>0
+=#
 function compute_seq_pairs(trunc_KL::Int64)
     seq_pairs = zeros(Int64, trunc_KL, 2)
     trunc_Nx = trunc(Int64, sqrt(2*trunc_KL)) + 1
@@ -148,12 +142,14 @@ function compute_seq_pairs(trunc_KL::Int64)
     return seq_pairs[1:trunc_KL, :]
 end
 
+#=
+Generate parameters for logk field, including eigenfunctions φ, eigenvalues λ
+and the reference parameters u, and reference field logk_2d field
+=#
 function generate_θ_KL(N::Int64, xx::Array{Float64,1}, trunc_KL::Int64, α::Float64=2.0, τ::Float64=3.0)
     #logκ = ∑ u_l √λ_l φ_l(x)      l ∈ Z^{+}
-    #                                  (0, 0)
     #                                  (0, 1), (1, 0) 
     #                                  (0, 2), (1,  1), (2, 0)  ...
-    
     
     
     X,Y = repeat(xx, 1, N), repeat(xx, 1, N)'
@@ -190,9 +186,11 @@ end
 
 
 
-
-#-∇(κ∇h) = f
-
+#=
+    solve Darcy equation:
+    -∇(κ∇h) = f
+    with Dirichlet boundary condition, h=0 on ∂Ω
+=#
 function solve_GWF(darcy::Param_Darcy, κ_2d::Array{Float64,2})
     Δx, N = darcy.Δx, darcy.N
     
@@ -270,6 +268,7 @@ function solve_GWF(darcy::Param_Darcy, κ_2d::Array{Float64,2})
     
     
     df = sparse(indx, indy, vals, (N-2)^2, (N-2)^2)
+    # Multithread does not support sparse matrix solver
     h = df\(f_2d[2:N-1,2:N-1])[:]
     
     h_2d = zeros(Float64, N, N)
@@ -280,6 +279,9 @@ end
 
 
 
+#=
+Compute observation values
+=#
 function compute_obs(darcy::Param_Darcy, h_2d::Array{Float64, 2})
     N = darcy.N
     obs_ΔN = darcy.obs_ΔN
@@ -295,7 +297,7 @@ end
 function run_Darcy_ensemble(darcy::Param_Darcy, params_i::Array{Float64, 2})
     N_ens,  N_θ = size(params_i)
     
-    g_ens = Vector{Float64}[]
+    g_ens = zeros(Float64, N_ens, darcy.n_data)
     
     for i = 1:N_ens
         
@@ -307,220 +309,21 @@ function run_Darcy_ensemble(darcy::Param_Darcy, params_i::Array{Float64, 2})
         obs = compute_obs(darcy, h_2d)
         
         # g: N_ens x N_data
-        push!(g_ens, obs) 
+        g_ens[i,:] .= obs 
     end
     
-    return hcat(g_ens...)'
-end
-
-
-
-# function Data_Gen(θ, G, Σ_η)
-#     # y = Gθ + η
-#     t_mean, t_cov = G*θ, Σ_η
-
-
-#     @save "t_mean.jld2" t_mean
-#     @save "t_cov.jld2" t_cov
-
-#     return t_mean, t_cov
-
-# end
-
-
-function UKI_Run(t_mean, t_cov, θ_bar, θθ_cov,  darcy::Param_Darcy,  N_iter::Int64 = 100)
-    parameter_names = ["logκ_2d"]
-    
-    ens_func(θ_ens) = run_Darcy_ensemble(darcy, θ_ens)
-    
-    ukiobj = UKIObj(parameter_names,
-    θ_bar, 
-    θθ_cov,
-    t_mean, # observation
-    t_cov)
-    
-    
-    for i in 1:N_iter
-        
-        params_i = deepcopy(ukiobj.θ_bar[end])
-        
-        @info "L₂ error of params_i :", norm(darcy.u_ref[1:length(params_i)] - params_i), " / ",  norm(darcy.u_ref[1:length(params_i)])
-        
-        logκ_2d_i = compute_logκ_2d(darcy, params_i)
-        
-        @info "F error of logκ :", norm(darcy.logκ_2d - logκ_2d_i), " / ",  norm(darcy.logκ_2d )
-        
-        
-        update_ensemble!(ukiobj, ens_func) 
-        
-        @info "F error of data_mismatch :", (ukiobj.g_bar[end] - ukiobj.g_t)'*(ukiobj.obs_cov\(ukiobj.g_bar[end] - ukiobj.g_t))
-        
-        
-    end
-    
-    return ukiobj
-    
-end
-
-
-function EKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov,  darcy, f,  N_ens, N_iter::Int64 = 100)
-    parameter_names = ["logκ_2d"]
-    
-    ens_func(θ_ens) = run_Darcy_ensemble(darcy, f, θ_ens)
-    
-    initial_params = Array(rand(MvNormal(θ0_bar, θθ0_cov), N_ens)')
-    
-    ekiobj = EKIObj(parameter_names,
-    initial_params, 
-    θθ0_cov,
-    t_mean, # observation
-    t_cov)
-    
-    for i = 1:N_iter
-        update_ensemble!(ekiobj, ens_func) 
-    end
-    
-    return ekiobj
-    
+    return g_ens
 end
 
 
 
 
-function Darcy_Test(darcy::Param_Darcy, N_θ::Int64= 16, N_ite::Int64 = 100, noise::Bool=false)
-    @assert(N_θ <= darcy.trunc_KL)
-    
-    κ_2d = exp.(darcy.logκ_2d)
-    h_2d = solve_GWF(darcy, κ_2d)
-    
-    t_mean = compute_obs(darcy, h_2d)
-    if noise
-        Random.seed!(123);
-        #noise = rand(Uniform(-0.01,0.01), length(t_mean))
-        #t_mean .*= (1.0 .+ noise)
-	for i = 1:length(t_mean)
-            noise = rand(Normal(0, 0.01*t_mean[i]))
-            @info t_mean[i],  noise
-            t_mean[i] += noise
-        end
-
-    end
-    
-    
-    t_cov = Array(Diagonal(fill(1.0, length(t_mean))))
-    
-    θ0_bar = zeros(Float64, N_θ)  # mean 
-    
-    θθ0_cov = Array(Diagonal(fill(1.0, N_θ)))
-    
-    ukiobj = UKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov, darcy, N_ite)
-    
-    return ukiobj
-end
 
 
-function plot_KI_error(ukiobj::UKIObj, filename::String)
-    N_θ = 5 #first 2 components
-    θ_bar = ukiobj.θ_bar
-    θθ_cov = ukiobj.θθ_cov
-    θ_bar_arr = hcat(θ_bar...)[:, 1:N_ite]
-    
-    θθ_cov_arr = zeros(Float64, (N_θ, N_ite))
-    for i = 1:N_ite
-        for j = 1:N_θ
-            θθ_cov_arr[j, i] = sqrt(θθ_cov[i][j,j])
-        end
-    end
-    ites = Array(LinRange(1, N_ite, N_ite))
-    errorbar(ites, θ_bar_arr[1,:], yerr=3.0*θθ_cov_arr[1,:], errorevery = 20, markevery=20, fmt="--o",fillstyle="none", label=L"\theta_{(0)}")
-
-    errorbar(ites.+2, θ_bar_arr[2,:], yerr=3.0*θθ_cov_arr[2,:], errorevery = 20,markevery=20, fmt="--o",fillstyle="none", label=L"\theta_{(1)}")
- 
-    errorbar(ites.-2, θ_bar_arr[3,:], yerr=3.0*θθ_cov_arr[3,:], errorevery = 20,markevery=20, fmt="--o",fillstyle="none", label=L"\theta_{(2)}")
-
-    errorbar(ites.+4, θ_bar_arr[4,:], yerr=3.0*θθ_cov_arr[4,:], errorevery = 20,markevery=20, fmt="--o",fillstyle="none", label=L"\theta_{(3)}")
-
-    errorbar(ites.-4, θ_bar_arr[5,:], yerr=3.0*θθ_cov_arr[5,:], errorevery = 20,markevery=20, fmt="--o",fillstyle="none", label=L"\theta_{(4)}")
-    
-    
-    ites = Array(LinRange(1, N_ite+10, N_ite+10))
-    for i = 1:N_θ
-        plot(ites, fill(darcy.u_ref[i], N_ite+10), "--", color="gray")
-    end
-    
-    xlabel("Iterations")
-    legend(loc=3)
-    grid("on")
-    tight_layout()
-    savefig(filename)
-    close("all")
-    
-end
-
-N, L = 80, 1.0
-obs_ΔN = 10
-α = 2.0
-τ = 3.0
-KL_trunc = 256
-darcy = Param_Darcy(N, obs_ΔN, L, KL_trunc, α, τ)
 
 
-N_ite = 200
-N_θ1, N_θ2 = 32, 8
-ukiobj_1 = Darcy_Test(darcy, N_θ1, N_ite, false) 
-ukiobj_2 = Darcy_Test(darcy, N_θ2, N_ite, false) 
-
-# Plot logκ error and Data mismatch
-
-ites = Array(LinRange(1, N_ite, N_ite))
-errors = zeros(Float64, (4, N_ite))
-for i = 1:N_ite
-    
-    errors[1, i] = norm(darcy.logκ_2d - compute_logκ_2d(darcy, ukiobj_1.θ_bar[i]))/norm(darcy.logκ_2d)
-    errors[2, i] = 0.5*(ukiobj_1.g_bar[i] - ukiobj_1.g_t)'*(ukiobj_1.obs_cov\(ukiobj_1.g_bar[i] - ukiobj_1.g_t))
-    
-    errors[3, i] = norm(darcy.logκ_2d - compute_logκ_2d(darcy, ukiobj_2.θ_bar[i]))/norm(darcy.logκ_2d)
-    errors[4, i] = 0.5*(ukiobj_2.g_bar[i] - ukiobj_2.g_t)'*(ukiobj_2.obs_cov\(ukiobj_2.g_bar[i] - ukiobj_2.g_t))
-    
-end
-
-semilogy(ites, errors[3, :], "--o", markevery=20, fillstyle="none", label= "\$N_{θ}=8\$")
-semilogy(ites, errors[1, :], "--o", markevery=20, fillstyle="none", label= "\$N_{θ}=32\$")
-xlabel("Iterations")
-ylabel("Relative Frobenius norm error")
-#ylim((0.1,15))
-grid("on")
-legend()
-tight_layout()
-savefig("Darcy-Params.pdf")
-close("all")
-
-semilogy(ites, errors[4, :], "--o", markevery=20, fillstyle="none", label= "\$N_{θ}=8\$")
-semilogy(ites, errors[2, :], "--o", markevery=20, fillstyle="none", label= "\$N_{θ}=32\$")
-xlabel("Iterations")
-ylabel("Optimization error")
-#ylim((0.1,15))
-grid("on")
-legend()
-tight_layout()
-savefig("Darcy-Data-Mismatch.pdf")
-close("all")
 
 
-κ_2d = exp.(darcy.logκ_2d)
-h_2d = solve_GWF(darcy, κ_2d)
-plot_obs(darcy, h_2d, "Darcy-obs-ref.pdf")
-plot_field(darcy, darcy.logκ_2d, "Darcy-logk-ref.pdf")
-plot_field(darcy, compute_logκ_2d(darcy, ukiobj_1.θ_bar[N_ite]), "Darcy-logk-32.pdf")
-plot_field(darcy, compute_logκ_2d(darcy, ukiobj_2.θ_bar[N_ite]), "Darcy-logk-8.pdf")
-
-
-####################################################################################
-plot_KI_error(ukiobj_1,  "darcy_error_32.pdf")
-plot_KI_error(ukiobj_2,  "darcy_error_8.pdf")
-
-
-@info "finished"
 
 
 

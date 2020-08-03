@@ -517,7 +517,7 @@ end
 
 Tobs = 20.0
 Tspinup = 30.0
-T = Tspinup + 5*Tobs
+T = Tspinup + 10.0*Tobs
 Δt = 0.01
 
 t_mean, t_cov = Data_Gen(T, Tobs, Tspinup, Δt)

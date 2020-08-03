@@ -55,8 +55,8 @@ function Show_Result(phys_params::Params, data_ref::Array{Float64, 2}, Q0::Array
   savefig("Figs/Sample_Traj."*string(ite)*".png"); close("all")
   
   figure(2) # hist
-  hist(data_ref[:,1:K][:], bins = 1000, density = true, histtype = "step", label="Ref")
-  hist(data[:,1:K][:], bins = 1000, density = true, histtype = "step", label="DA")
+  hist(data_ref[:,1:K][:], bins = 100, density = true, histtype = "step", label="Ref")
+  hist(data[:,1:K][:], bins = 100, density = true, histtype = "step", label="DA")
   legend()
   savefig("Figs/X_density."*string(ite)*".png"); close("all")
   
@@ -137,32 +137,32 @@ end
 
 
 ###############################################################################################
-RK_order = 4
-T,  ΔT = 20.0, 0.005
-NT = Int64(T/ΔT)
-tt = Array(LinRange(ΔT, T, NT))
-Δobs = 200
 
-K, J = 8, 32
-obs_type,  kmode = "Statistics", 8
-phys_params = Params(K, J, RK_order, T,  ΔT, obs_type, kmode)
+case = "Wilks"  # Wilks or ESM2.0
+obs_type, obs_p = "Statistics", 8
+T, ΔT = 1000*100, 0.005
+
+phys_params = Params(case, obs_type, obs_p,  T, ΔT) 
+K, J = phys_params.K, phys_params.J 
+NT = phys_params.NT
+
 Random.seed!(42);
-Q0_ref = rand(Normal(0, 1), K*(J+1))
+Q0_ref = [rand(Normal(0, 1.0), K) ; rand(Normal(0, 0.01), K*J)]
 Q0 = Q0_ref[1:K]
 #Q0 = Array(LinRange(1.0, K*(J+1), K*(J+1)))
-data_ref = Run_Lorenz96(phys_params, Q0_ref )
-t_mean =  Compute_Obs(phys_params, data_ref)
+data_ref = Run_Lorenz96(phys_params, Q0_ref)
+t_mean, t_cov =  Generate_Obs_Data(phys_params, data_ref, 100)
+@info diag(t_cov)
+#t_cov = Array(Diagonal(fill(1.0, length(t_mean)))) 
 
-t_cov = Array(Diagonal(fill(1.0, length(t_mean)))) 
-
+Reset_Time!(phys_params, T/100.0, ΔT)
+data_ref = data_ref[1:phys_params.NT, :]
 
 nθ = 12
-θ0_bar = rand(Normal(0, 1), nθ)  #zeros(Float64, nθ)
+θ0_bar = rand(Normal(0, 1), nθ)                    # zeros(Float64, nθ)
 θθ0_cov = Array(Diagonal(fill(1.0, nθ)))           # standard deviation
 
 Φ = ΦQP
-
-
 
 N_iter = 100
 
