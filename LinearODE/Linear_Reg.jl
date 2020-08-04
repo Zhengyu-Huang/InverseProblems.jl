@@ -16,7 +16,7 @@ function run_linear_ensemble(params_i, G, Δobs)
     for i = 1:N_ens
         θ = params_i[i, :]
         # g: N_ens x N_data
-        g_ens[i, :] .= (G*θ)[1:Δobs:end] 
+        g_ens[i, :] .= (G*θ)[1:div(N_θ ,Δobs)]#[1:Δobs:end] 
     end
     
     return g_ens
@@ -105,7 +105,7 @@ function Hilbert_Test(method::String, nθ::Int64 = 10, Δobs::Int64 = 2, N_ite::
     end
     
     θ_ref = fill(1.0, nθ)
-    t_mean = (G*θ_ref)[1:Δobs:end]
+    t_mean = (G*θ_ref)[1:div(nθ,Δobs)]#[1:Δobs:end] 
     
     if noise_level > 0.0
         noise = similar(t_mean)
