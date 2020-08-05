@@ -99,12 +99,6 @@ function ΦNN(x::Float64, θ::Array{Float64, 1})
     return d + c' * tanh.(a*x+b)
 end
 
-function ΦRFF(x::Float64, θ::Array{Float64, 1})
-    #=
-    This method is not stable
-    =#
-    
-end
 
 function Φpoly(x::Float64, θ::Array{Float64, 1})
     #=

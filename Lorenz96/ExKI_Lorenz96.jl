@@ -14,7 +14,7 @@ function Foward(phys_params::Params, Q0::Array{Float64, 1}, θ::Array{Float64, 1
   data = Run_Lorenz96(phys_params, Q0, θ, Φ)
   
   obs = Compute_Obs(phys_params, data)
-
+  
   return obs
   
 end
@@ -51,7 +51,7 @@ function Show_Result(phys_params::Params, data_ref::Array{Float64, 2}, Q0::Array
   plot(tt, data_ref[:,1], label = "Ref")
   plot(tt, data[:,1], label = "DA")
   legend()
-
+  
   savefig("Figs/Sample_Traj."*string(ite)*".png"); close("all")
   
   figure(2) # hist
@@ -73,12 +73,12 @@ function Show_Result(phys_params::Params, data_ref::Array{Float64, 2}, Q0::Array
   
   fAMP = -(0.341 .+ 1.3*xx - 0.0136*xx.^2 - 0.00235*xx.^3)
   plot(xx, fAMP, label="Arnold")
-
+  
   fDA = similar(xx)
   for i = 1:length(xx)
     fDA[i] = Φ(xx[i], θ) 
   end
-
+  
   plot(xx, fDA, label="DA")
   legend()
   savefig("Figs/Closure."*string(ite)*".png"); close("all")
@@ -115,7 +115,7 @@ function ExKI(phys_params::Params,
     @info "data_mismatch :", (exkiobj.g_bar[end] - exkiobj.g_t)'*(exkiobj.obs_cov\(exkiobj.g_bar[end] - exkiobj.g_t))
     
     params_i = deepcopy(exkiobj.θ_bar[end])
-
+    
     @info "θ: ", params_i
     @info "Varθ: ", diag(exkiobj.θθ_cov[end])
     # visulize
@@ -139,8 +139,12 @@ end
 ###############################################################################################
 
 case = "Wilks"  # Wilks or ESM2.0
-obs_type, obs_p = "Statistics", 8
-T, ΔT = 1000*100, 0.005
+obs_type, obs_p = "Statistics", 4
+noise_level = 0.05
+
+
+
+T, ΔT = 1000, 0.005
 
 phys_params = Params(case, obs_type, obs_p,  T, ΔT) 
 K, J = phys_params.K, phys_params.J 
@@ -149,14 +153,23 @@ NT = phys_params.NT
 Random.seed!(42);
 Q0_ref = [rand(Normal(0, 1.0), K) ; rand(Normal(0, 0.01), K*J)]
 Q0 = Q0_ref[1:K]
-#Q0 = Array(LinRange(1.0, K*(J+1), K*(J+1)))
-data_ref = Run_Lorenz96(phys_params, Q0_ref)
-t_mean, t_cov =  Generate_Obs_Data(phys_params, data_ref, 100)
-@info diag(t_cov)
-#t_cov = Array(Diagonal(fill(1.0, length(t_mean)))) 
 
-Reset_Time!(phys_params, T/100.0, ΔT)
-data_ref = data_ref[1:phys_params.NT, :]
+
+data_ref = Run_Lorenz96(phys_params, Q0_ref)
+t_mean =  Compute_Obs(phys_params, data_ref)
+
+if noise_level > 0.0
+  Random.seed!(123);
+  for i = 1:length(t_mean)
+    noise = rand(Normal(0, noise_level*t_mean[i]))
+    t_mean[i] += noise
+  end
+end
+
+
+#t_cov = Array(Diagonal(fill(1.0, length(t_mean)))) 
+t_cov = Array(Diagonal(0.05^2*t_mean.^2))
+
 
 nθ = 12
 θ0_bar = rand(Normal(0, 1), nθ)                    # zeros(Float64, nθ)

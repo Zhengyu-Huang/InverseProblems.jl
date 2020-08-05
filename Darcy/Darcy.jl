@@ -56,6 +56,7 @@ end
 function plot_field(darcy::Param_Darcy, u_2d::Array{Float64, 2}, plot_obs::Bool,  filename::String = "None")
     N = darcy.N
     xx = darcy.xx
+    figure(123)
     X,Y = repeat(xx, 1, N), repeat(xx, 1, N)'
     pcolormesh(X, Y, u_2d, cmap="jet")
     colorbar()
@@ -69,8 +70,16 @@ function plot_field(darcy::Param_Darcy, u_2d::Array{Float64, 2}, plot_obs::Bool,
     tight_layout()
     if filename != "None"
         savefig(filename)
-        close("all")
+        close(123)
     end
+end
+
+function plot_field(darcy::Param_Darcy, u_2d::Array{Float64, 2},  clim, ax)
+    N = darcy.N
+    xx = darcy.xx
+    figure(123)
+    X,Y = repeat(xx, 1, N), repeat(xx, 1, N)'
+    return ax.pcolormesh(X, Y, u_2d, cmap="jet", clim=clim)
 end
 
 

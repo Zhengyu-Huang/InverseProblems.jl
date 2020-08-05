@@ -11,6 +11,7 @@ function EKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov,  darcy, N_ens,  α_reg::Floa
     
     ekiobj = EKIObj(parameter_names,
     initial_params, 
+    θ0_bar,
     θθ0_cov,
     t_mean, # observation
     t_cov,
