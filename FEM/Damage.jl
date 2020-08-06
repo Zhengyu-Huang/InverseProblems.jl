@@ -545,7 +545,7 @@ function Run_Damage(phys_params::Params, θ_type::String, θ = nothing, save_dis
                 state = disp + nodes
                 disp_mag = sqrt.(disp[:,1].^2 + disp[:,2].^2)
                 vmin, vmax = minimum(disp_mag), maximum(disp_mag)
-                Visual_Node(phys_params, state, disp_mag, save_disp_name*string(i*ΔNT)*".png", obs_nid, vmin, vmax)
+                Visual_Node(phys_params, state, disp_mag, save_disp_name*string(i*ΔNT)*".pdf", obs_nid, vmin, vmax)
             end
             
         end
@@ -568,7 +568,7 @@ function Run_Damage(phys_params::Params, θ_type::String, θ = nothing, save_dis
             state = disp + nodes
             disp_mag = sqrt.(disp[:,1].^2 + disp[:,2].^2)
             vmin, vmax = minimum(disp_mag), maximum(disp_mag)
-            Visual_Node(phys_params, state, disp_mag, save_disp_name*".png", obs_nid, vmin, vmax)
+            Visual_Node(phys_params, state, disp_mag, save_disp_name*".pdf", obs_nid, vmin, vmax)
         end
         
     else
@@ -579,7 +579,7 @@ function Run_Damage(phys_params::Params, θ_type::String, θ = nothing, save_dis
 
     if save_E != "None"
         E = phys_params.prop["E"]
-        Visual_Node(phys_params, nodes, E*(1.0 .- θ_dam), save_E*".png",  nothing, 0, E)
+        Visual_Node(phys_params, nodes, E*(1.0 .- θ_dam), save_E*".pdf",  nothing, 0, E)
     end
 
 

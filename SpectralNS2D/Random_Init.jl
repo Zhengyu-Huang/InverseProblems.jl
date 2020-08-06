@@ -143,9 +143,9 @@ end
 # θ = [ak;bk]
 # ω0 = ∑_k ak cos(k⋅x)/2π^2|k|^2 + bk sin(k⋅x)/2π^2|k|^2
 function Initial_ω0_KL(mesh::Spectral_Mesh, θ::Array{Float64,1}, seq_pairs::Array{Int64,2})
-    # consider C = -Δ^{-1}
+    # consider C = -Δ^{-2}
     # C u = λ u  => -u = λ Δ u
-    # u = e^{ik⋅x}, λ Δ u = -λ |k|^2 u = - u => λ = 1/|k|^2
+    # u = e^{ik⋅x}, λ Δ^2 u = -λ |k|^4 u = - u => λ = 1/|k|^4
     # basis are cos(k⋅x)/2π^2 and sin(k⋅x)/2π^2, k!=(0,0), zero mean.
     # ω = ∑ ak cos(k⋅x)/2π^2|k|^2 + ∑ bk sin(k⋅x)/2π^2|k|^2,    &  kx + ky > 0 or (kx + ky = 0 and kx > 0) 
     #   = ∑ (ak/(4π^2|k|^2) - i bk/(4π^2|k|^2) )e^{ik⋅x} + (ak/(4π^2|k|^2) + i bk/(4π^2|k|^2) )e^{-ik⋅x}
@@ -206,7 +206,7 @@ end
 # observation are at frame 0, Δd_t, 2Δd_t, ... nt
 # with sparse points at Array(1:Δd_x:nx) × Array(1:Δd_y:ny)
 # add N(0, std=εy) to y,  here ε = noise_level
-function Generate_Data(params::Params, noise_level::Float64 = -1.0)
+function Generate_Data(params::Params, noise_level::Float64 = -1.0, save_file_name::String = "None")
     
     
     ν = params.ν
@@ -221,7 +221,7 @@ function Generate_Data(params::Params, noise_level::Float64 = -1.0)
     mesh = Spectral_Mesh(nx, ny, Lx, Ly)
     ω0 = Initial_ω0_KL(mesh, params)
     
-    data = Foward_Helper(params, ω0, "vor.")
+    data = Foward_Helper(params, ω0, save_file_name)
     
     if noise_level > 0.0
         Random.seed!(666);
@@ -273,7 +273,7 @@ function Foward_Helper(params::Params, ω0::Array{Float64,2}, save_file_name::St
     
     #data[:,:,1] = ω0[d_x, d_y]
     if save_file_name != "None"
-        Visual(mesh, ω0, "ω", save_file_name*"0.png", -5.0, 5.0)
+        Visual(mesh, ω0, "ω", save_file_name*"0.pdf", -5.0, 5.0)
     end
     
     for i = 1:nt
@@ -281,7 +281,7 @@ function Foward_Helper(params::Params, ω0::Array{Float64,2}, save_file_name::St
         if i%Δd_t == 0
             Update_Grid_Vars!(solver)
             if save_file_name != "None"
-                Visual_Obs(mesh, solver.ω, Δd_x, Δd_y, "ω", save_file_name*string(i)*".png", -5.0, 5.0)
+                Visual_Obs(mesh, solver.ω, Δd_x, Δd_y, "ω", save_file_name*string(i)*".pdf", -5.0, 5.0)
             end
             data[:, :, Int64(i/Δd_t)] = solver.ω[d_x, d_y]
         end
@@ -391,6 +391,7 @@ function Params()
     T = 0.5;      # final time
     #observation
     Δd_x, Δd_y, Δd_t = 32, 32, 2000
+
     
     n_data = (div(nx-1,Δd_x)+1)*(div(ny-1,Δd_y)+1)*(div(nt, Δd_t))
     #parameter standard deviation

@@ -152,7 +152,7 @@ NT = phys_params.NT
 
 Random.seed!(42);
 Q0_ref = [rand(Normal(0, 1.0), K) ; rand(Normal(0, 0.01), K*J)]
-Q0 = Q0_ref[1:K]
+Q0 = rand(Normal(0, 1.0), K)
 
 
 data_ref = Run_Lorenz96(phys_params, Q0_ref)
