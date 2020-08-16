@@ -72,6 +72,8 @@ function Random_Init_Test(method::String,
     errors[2, i] = 0.5*(kiobj.g_bar[i] - kiobj.g_t)'*(kiobj.obs_cov\(kiobj.g_bar[i] - kiobj.g_t))
     
   end
+
+  @show method, α_reg
   
   
   if (!isnothing(ax1)  &&  !isnothing(ax2))
@@ -239,7 +241,6 @@ end
 ###############################################################################################
 
 function Compare()
-  N_θ = 32
   rcParams = PyPlot.PyDict(PyPlot.matplotlib."rcParams")
   mysize = 20
   font0 = Dict(
@@ -260,10 +261,10 @@ function Compare()
   seq_pairs = Compute_Seq_Pairs(na)
   t_cov = Array(Diagonal(fill(1.0, phys_params.n_data))) 
   θ0_bar = zeros(Float64, 2na)
-  θθ0_cov = Array(Diagonal(fill(100.0, 2*na)))           # standard deviation
+  θθ0_cov = Array(Diagonal(fill(1.0, 2*na)))           # standard deviation
   
-  N_iter = 100 
-  N_ens = 500
+  N_iter = 50 
+  N_ens = 201
   
   mesh = Spectral_Mesh(phys_params.nx, phys_params.ny, phys_params.Lx, phys_params.Ly)
   
@@ -300,7 +301,7 @@ function Compare()
     end
     
     
-    α_reg = 0.5
+    α_reg = 0.9
     ω0 = Random_Init_Test("EnKI", phys_params, seq_pairs, t_mean, t_cov, θ0_bar, θθ0_cov, N_ens, α_reg, ω0_ref, N_iter, ax1, ax2)
     if noise_level_per != 0
       ax_id = (noise_level_per == 1 ? 2 : 3 ;)

@@ -48,11 +48,11 @@ function Initial_ω0_KL(mesh::Spectral_Mesh, params::Params)
     # consider C = -Δ^{-1}
     # C u = λ u  => -u = λ Δ u
     # u = e^{ik⋅x}, λ Δ u = -λ |k|^2 u = - u => λ = 1/|k|^2
-    # basis are cos(k⋅x)/2π^2 and sin(k⋅x)/2π^2, k!=(0,0), zero mean.
-    # ω = ∑ ak cos(k⋅x)/2π^2|k|^2 + ∑ bk sin(k⋅x)/2π^2|k|^2,    &  kx + ky > 0 or (kx + ky = 0 and kx > 0) 
-    #   = ∑ (ak/(4π^2|k|^2) - i bk/(4π^2|k|^2) )e^{ik⋅x} + (ak/(4π^2|k|^2) + i bk/(4π^2|k|^2) )e^{-ik⋅x}
+    # basis are cos(k⋅x)/√2π and sin(k⋅x)/√2π, k!=(0,0), zero mean.
+    # ω = ∑ ak cos(k⋅x)/√2π|k|^2 + ∑ bk sin(k⋅x)/√2π|k|^2,    &  kx + ky > 0 or (kx + ky = 0 and kx > 0) 
+    #   = ∑ (ak/(2√2π|k|^2) - i bk/(2√2π|k|^2) )e^{ik⋅x} + (ak/(2√2π|k|^2) + i bk/(2√2π^2|k|^2) )e^{-ik⋅x}
     
-    
+    # the basis is ordered as 0,1,...,nx/2-1, -nx/2, -nx/2+1, ... -1
     
     nx, ny = mesh.nx, mesh.ny
     kxx, kyy = mesh.kxx, mesh.kyy
@@ -67,9 +67,9 @@ function Initial_ω0_KL(mesh::Spectral_Mesh, params::Params)
             kx, ky = kxx[ix], kyy[iy]
             if Mode_Helper(kx, ky)
                 ak, bk = abk[ix, iy, 1], abk[ix, iy, 2]
-                ω0_hat[ix, iy] = (ak - bk*im)/(4*pi^2*(kx^2+ky^2))
-                # 1 => 1, i => n-i+2
-                ω0_hat[(ix==1 ? 1 : nx-ix+2), (iy==1 ? 1 : ny-iy+2)] = (ak + bk*im)/(4*pi^2*(kx^2+ky^2))
+                ω0_hat[ix, iy] = (ak - bk*im)/(2*sqrt(2)*pi*(kx^2+ky^2))
+                # (ix=1 iy=1 => kx=0 ky=0) 1 => 1, i => n-i+2
+                ω0_hat[(ix==1 ? 1 : nx-ix+2), (iy==1 ? 1 : ny-iy+2)] = (ak + bk*im)/(2*sqrt(2)*pi*(kx^2+ky^2))
                 
             end
         end
@@ -93,7 +93,7 @@ function Initial_ω0_KL(mesh::Spectral_Mesh, params::Params)
     #         kx, ky = kxx[ix], kyy[iy]
     #         if (abs(kx) < nx/3 && abs(ky) < ny/3) && (kx + ky > 0 || (kx + ky == 0 && kx > 0)) 
     #             ak, bk = abk[ix, iy, 1], abk[ix, iy, 2]
-    #             ω0_test .+= (ak * cos.(kx*X + ky*Y) + bk * sin.(kx*X + ky*Y))/(2*pi^2*(kx^2 + ky^2))
+    #             ω0_test .+= (ak * cos.(kx*X + ky*Y) + bk * sin.(kx*X + ky*Y))/(sqrt(2)*pi*(kx^2 + ky^2))
     #         end
     #     end
     # end
@@ -166,10 +166,10 @@ function Initial_ω0_KL(mesh::Spectral_Mesh, θ::Array{Float64,1}, seq_pairs::Ar
             ix = (kx >= 0 ? kx + 1 : nx + kx + 1) 
             iy = (ky >= 0 ? ky + 1 : ny + ky + 1) 
             
-            ω0_hat[ix, iy] = (ak - bk*im)/(4*pi^2*(kx^2+ky^2))
+            ω0_hat[ix, iy] = (ak - bk*im)/(2*sqrt(2)*pi*(kx^2+ky^2))
             
             # 1 => 1, i => n-i+2
-            ω0_hat[(ix==1 ? 1 : nx-ix+2), (iy==1 ? 1 : ny-iy+2)] = (ak + bk*im)/(4*pi^2*(kx^2+ky^2))
+            ω0_hat[(ix==1 ? 1 : nx-ix+2), (iy==1 ? 1 : ny-iy+2)] = (ak + bk*im)/(2*sqrt(2)*pi*(kx^2+ky^2))
         end
     end
     ω0_hat .*= mesh.alias_filter
@@ -387,15 +387,15 @@ function Params()
     # resolution in y
     Lx, Ly = 2*pi, 2*pi
     method="Crank-Nicolson" # RK4 or Crank-Nicolson
-    nt = 4000;    # time step
+    nt = 2500;    # time step
     T = 0.5;      # final time
     #observation
-    Δd_x, Δd_y, Δd_t = 32, 32, 2000
+    Δd_x, Δd_y, Δd_t = 32, 32, 1250
 
     
     n_data = (div(nx-1,Δd_x)+1)*(div(ny-1,Δd_y)+1)*(div(nt, Δd_t))
     #parameter standard deviation
-    σ = 2*pi^2
+    σ = sqrt(2)*pi
     Params(ν, ub, vb, nx, ny, Lx, Ly, method, nt, T, Δd_x, Δd_y, Δd_t, n_data, σ)
 end
 

@@ -360,26 +360,26 @@ end
   
   fig, ax = PyPlot.subplots(ncols=3, sharey=true, figsize=(18,6))
   for i = 1:N_iter; errors[i] = 0.5*(ukiobjs[1].g_bar[i] - ukiobjs[1].g_t)'*(ukiobjs[1].obs_cov\(ukiobjs[1].g_bar[i] - ukiobjs[1].g_t)); end
-  ax[1].semilogy(ites, errors, linestyle="--", marker="o", fillstyle="none", markevery=10,  label="0%")
+  ax[1].plot(ites, errors, linestyle="--", marker="o", fillstyle="none", markevery=10,  label="0%")
   for i = 1:N_iter; errors[i] = 0.5*(ukiobjs[2].g_bar[i] - ukiobjs[2].g_t)'*(ukiobjs[2].obs_cov\(ukiobjs[2].g_bar[i] - ukiobjs[2].g_t)); end
-  ax[1].semilogy(ites, errors, linestyle="--", marker="o", fillstyle="none", markevery=10,  label="1%")
+  ax[1].plot(ites, errors, linestyle="--", marker="o", fillstyle="none", markevery=10,  label="1%")
   for i = 1:N_iter; errors[i] = 0.5*(ukiobjs[3].g_bar[i] - ukiobjs[3].g_t)'*(ukiobjs[3].obs_cov\(ukiobjs[3].g_bar[i] - ukiobjs[3].g_t)); end
-  ax[1].semilogy(ites, errors, linestyle="--", marker="o", fillstyle="none", markevery=10,  label="5%")
+  ax[1].plot(ites, errors, linestyle="--", marker="o", fillstyle="none", markevery=10,  label="5%")
 
 
   for i = 1:N_iter; errors[i] = 0.5*(exkiobjs[1].g_bar[i] - exkiobjs[1].g_t)'*(exkiobjs[1].obs_cov\(exkiobjs[1].g_bar[i] - exkiobjs[1].g_t)); end
-  ax[2].semilogy(ites, errors, linestyle="--", marker="o", fillstyle="none", markevery=10,  label="0%")
+  ax[2].plot(ites, errors, linestyle="--", marker="o", fillstyle="none", markevery=10,  label="0%")
   for i = 1:N_iter; errors[i] = 0.5*(exkiobjs[2].g_bar[i] - exkiobjs[2].g_t)'*(exkiobjs[2].obs_cov\(exkiobjs[2].g_bar[i] - exkiobjs[2].g_t)); end
-  ax[2].semilogy(ites, errors, linestyle="--", marker="o", fillstyle="none", markevery=10,  label="1%")
+  ax[2].plot(ites, errors, linestyle="--", marker="o", fillstyle="none", markevery=10,  label="1%")
   for i = 1:N_iter; errors[i] = 0.5*(exkiobjs[3].g_bar[i] - exkiobjs[3].g_t)'*(exkiobjs[3].obs_cov\(exkiobjs[3].g_bar[i] - exkiobjs[3].g_t)); end
-  ax[2].semilogy(ites, errors, linestyle="--", marker="o", fillstyle="none", markevery=10,  label="5%")
+  ax[2].plot(ites, errors, linestyle="--", marker="o", fillstyle="none", markevery=10,  label="5%")
   
   for i = 1:N_iter; errors[i] = 0.5*(rexkiobjs[1].g_bar[i] - rexkiobjs[1].g_t)'*(rexkiobjs[1].obs_cov\(rexkiobjs[1].g_bar[i] - rexkiobjs[1].g_t)); end
-  ax[3].semilogy(ites, errors, linestyle="--", marker="o", fillstyle="none", markevery=10,  label="0%")
+  ax[3].plot(ites, errors, linestyle="--", marker="o", fillstyle="none", markevery=10,  label="0%")
   for i = 1:N_iter; errors[i] = 0.5*(rexkiobjs[2].g_bar[i] - rexkiobjs[2].g_t)'*(rexkiobjs[2].obs_cov\(rexkiobjs[2].g_bar[i] - rexkiobjs[2].g_t)); end
-  ax[3].semilogy(ites, errors, linestyle="--", marker="o", fillstyle="none", markevery=10,  label="1%")
+  ax[3].plot(ites, errors, linestyle="--", marker="o", fillstyle="none", markevery=10,  label="1%")
   for i = 1:N_iter; errors[i] = 0.5*(rexkiobjs[3].g_bar[i] - rexkiobjs[3].g_t)'*(rexkiobjs[3].obs_cov\(rexkiobjs[3].g_bar[i] - rexkiobjs[3].g_t)); end
-  ax[3].semilogy(ites, errors, linestyle="--", marker="o", fillstyle="none", markevery=10,  label="5%")
+  ax[3].plot(ites, errors, linestyle="--", marker="o", fillstyle="none", markevery=10,  label="5%")
   
 
   ax[1].set_xlabel("Iterations")

@@ -168,7 +168,8 @@ end
 
 
 #t_cov = Array(Diagonal(fill(1.0, length(t_mean)))) 
-t_cov = Array(Diagonal(0.05^2*t_mean.^2))
+#t_cov = Array(Diagonal(0.05^2*t_mean.^2))
+t_cov = Array(Diagonal(t_mean.^2))
 
 
 nθ = 12

@@ -64,8 +64,10 @@ function UKI(phys_params::Params,
     update_ensemble!(ukiobj, ens_func) 
     
     @info "data_mismatch :", (ukiobj.g_bar[end] - ukiobj.g_t)'*(ukiobj.obs_cov\(ukiobj.g_bar[end] - ukiobj.g_t))
-    
-    @info diag(ukiobj.θθ_cov[i])
+
+    @show ukiobj.g_bar[end] 
+    @show ukiobj.g_t
+    @show norm(ukiobj.obs_cov)
     # visulize
     if i%10 == 0
       Run_Damage(phys_params, "Piecewise", params_i,  "Figs/uki."*string(i)*".disp", "Figs/uki."*string(i)*".E")

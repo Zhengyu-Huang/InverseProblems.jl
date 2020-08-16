@@ -65,6 +65,9 @@ function ExKI(phys_params::Params,
     
     @info "data_mismatch :", (exkiobj.g_bar[end] - exkiobj.g_t)'*(exkiobj.obs_cov\(exkiobj.g_bar[end] - exkiobj.g_t))
     
+    @show exkiobj.g_bar[end] 
+    @show exkiobj.g_t
+    @show norm(exkiobj.obs_cov)
 
     # visulize
     if i%10 == 0
@@ -87,7 +90,7 @@ ns, ns_obs, porder, problem, ns_c, porder_c = 8, 5, 2, "Static", 2, 2
 phys_params = Params(ns, ns_obs, porder, problem, ns_c, porder_c)
 
 # data
-noise_level = 0.01
+noise_level = 0.05
 θ_dam_ref, t_mean =  Run_Damage(phys_params, "Analytic", nothing,  "Figs/disp-high", "Figs/E-high", noise_level)
 # θ_dam_ref is a high resolution parameter vector
 
@@ -109,7 +112,7 @@ nθ = size(phys_params.domain_c.nodes, 1)
 
 N_iter = 100 
 
-α_reg = 0.5
+α_reg = 0.0
 exkiobj = ExKI(phys_params,
 t_mean, t_cov, 
 θ0_bar, θθ0_cov, 

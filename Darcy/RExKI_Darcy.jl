@@ -180,8 +180,8 @@ darcy = Param_Darcy(N, obs_ΔN, L, KL_trunc, α, τ)
 
 N_ite = 200
 N_θ = 32
-noise_level = 0.01
-α_reg = 1.0
+noise_level = 0.05
+α_reg = 0.0
 exkiobj = Darcy_Test(darcy, N_θ, α_reg, N_ite, noise_level)
 
 

@@ -13,7 +13,7 @@ include("../REKI.jl")
 
 
 function Foward(phys_params::Params, θ_c::Array{Float64,1})
-
+  
   _, data = Run_Damage(phys_params, "Piecewise", θ_c)
   return data
 end
@@ -67,7 +67,7 @@ function Damage_Test(method::String, phys_params::Params,
   ites = Array(LinRange(1, N_iter, N_iter))
   errors = zeros(Float64, (2, N_iter))
   for i = 1:N_iter
-
+    
     θ_dam = Get_θ_Dam_From_Raw(phys_params.domain_c, phys_params.interp_e, phys_params.interp_sdata, θ_bar[i])
     
     
@@ -83,7 +83,7 @@ function Damage_Test(method::String, phys_params::Params,
     ax1.grid(true)
     
     
-    ax2.plot(ites, errors[2, :], linestyle=linestyle, marker = marker,fillstyle="none", markevery=10, label= label)
+    ax2.semilogy(ites, errors[2, :], linestyle=linestyle, marker = marker,fillstyle="none", markevery=10, label= label)
     ax2.set_xlabel("Iterations")
     ax2.set_ylabel("Optimization error")
     ax2.grid(true)
@@ -105,7 +105,7 @@ function ExKI(phys_params::Params,
   parameter_names = ["E"]
   
   ens_func(θ_ens) = Ensemble(phys_params, θ_ens)
-
+  
   
   exkiobj = ExKIObj(parameter_names,
   θ0_bar, 
@@ -280,8 +280,8 @@ function Compare()
   
   ns, ns_obs, porder, problem, ns_c, porder_c = 8, 5, 2, "Static", 2, 2
   phys_params = Params(ns, ns_obs, porder, problem, ns_c, porder_c)
-
- 
+  
+  
   nodes, _, _, _, _, _, _, _ = Construct_Mesh(phys_params.ns, phys_params.porder, phys_params.ls, phys_params.ngp, phys_params.prop, phys_params.P1, phys_params.P2, phys_params.problem, phys_params.T)
   E_max = phys_params.prop["E"]
   
@@ -290,11 +290,12 @@ function Compare()
   θθ0_cov = Array(Diagonal(fill(1.0, nθ)))           # standard deviation
   N_iter = 50
   N_ens = 500
+
   
   θ_dam_ref, t_mean =  Run_Damage(phys_params, "Analytic", nothing,  "Figs/Damage-disp", "Figs/Damage-E")
-    
-
-  fig_logk, ax_logk = PyPlot.subplots(ncols = 4, nrows=3, sharex=true, sharey=true, figsize=(20,12))
+  
+  
+  fig_logk, ax_logk = PyPlot.subplots(ncols = 4, nrows=4, sharex=true, sharey=true, figsize=(32,16))
   for ax in ax_logk ;  ax.set_xticks([]) ; ax.set_yticks([]);  end
   
   
@@ -302,8 +303,8 @@ function Compare()
     
     noise_level = noise_level_per/100.0
     
-  
-    θ_dam_ref, t_mean =  Run_Damage(phys_params, "Analytic")
+    
+    θ_dam_ref, t_mean =  Run_Damage(phys_params, "Analytic", nothing,  "None",  "None", noise_level)
     
     
     t_cov = Array(Diagonal(fill(0.01, length(t_mean)))) 
@@ -318,12 +319,12 @@ function Compare()
     
     θ_bar = Damage_Test("UKI", phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, N_ens, α_reg, θ_dam_ref, N_iter, ax1, ax2)
     if noise_level_per == 0
-      Plot_E_Field(phys_params,nodes, (1.0 .- θ_bar)*E_max,  E_max, ax_logk[4])
+      Plot_E_Field(phys_params,nodes, (1.0 .- θ_bar)*E_max,  E_max, ax_logk[5])
     end
     
     θ_bar = Damage_Test("ExKI", phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, N_ens, α_reg, θ_dam_ref, N_iter, ax1, ax2)
     if noise_level_per == 0
-      Plot_E_Field(phys_params,nodes, (1.0 .- θ_bar)*E_max,  E_max, ax_logk[7])
+      Plot_E_Field(phys_params,nodes, (1.0 .- θ_bar)*E_max,  E_max, ax_logk[9])
     end
     
     
@@ -336,15 +337,38 @@ function Compare()
     
     θ_bar = Damage_Test("UKI", phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, N_ens, α_reg, θ_dam_ref, N_iter, ax1, ax2)
     if noise_level_per != 0
-      ax_id = (noise_level_per == 1 ? 5 : 6 ;)
+      ax_id = (noise_level_per == 1 ? 6 : 7 ;)
       Plot_E_Field(phys_params,nodes, (1.0 .- θ_bar)*E_max,  E_max, ax_logk[ax_id])
     end
     
     θ_bar = Damage_Test("ExKI", phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, N_ens, α_reg, θ_dam_ref, N_iter, ax1, ax2)
     if noise_level_per != 0
-      ax_id = (noise_level_per == 1 ? 8 : 9 ;)
+      ax_id = (noise_level_per == 1 ? 10 : 11 ;)
       Plot_E_Field(phys_params,nodes, (1.0 .- θ_bar)*E_max,  E_max, ax_logk[ax_id])
     end
+    
+    
+    
+    if noise_level_per == 5
+      α_reg = 0.0
+      θ_bar = Damage_Test("EnKI", phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, N_ens, α_reg, θ_dam_ref, N_iter, ax1, ax2)
+      if noise_level_per != 0
+        Plot_E_Field(phys_params,nodes, (1.0 .- θ_bar)*E_max,  E_max, ax_logk[4])
+      end
+      
+      θ_bar = Damage_Test("UKI", phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, N_ens, α_reg, θ_dam_ref, N_iter, ax1, ax2)
+      if noise_level_per != 0
+        Plot_E_Field(phys_params,nodes, (1.0 .- θ_bar)*E_max,  E_max, ax_logk[8])
+      end
+      
+      θ_bar = Damage_Test("ExKI", phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, N_ens, α_reg, θ_dam_ref, N_iter, ax1, ax2)
+      if noise_level_per != 0
+        Plot_E_Field(phys_params,nodes, (1.0 .- θ_bar)*E_max,  E_max, ax_logk[12])
+      end
+    end
+    
+    
+    
     
     
     fig.tight_layout()
@@ -352,9 +376,10 @@ function Compare()
     close(fig)
   end
   
-  Plot_E_Field(phys_params,nodes, (1.0 .- θ_dam_ref)*E_max,  E_max, ax_logk[10])
-  im = Plot_E_Field(phys_params,nodes, (1.0 .- θ_dam_ref)*E_max,  E_max, ax_logk[11])
-  Plot_E_Field(phys_params,nodes, (1.0 .- θ_dam_ref)*E_max,  E_max, ax_logk[12])
+  Plot_E_Field(phys_params,nodes, (1.0 .- θ_dam_ref)*E_max,  E_max, ax_logk[13])
+  im = Plot_E_Field(phys_params,nodes, (1.0 .- θ_dam_ref)*E_max,  E_max, ax_logk[14])
+  Plot_E_Field(phys_params,nodes, (1.0 .- θ_dam_ref)*E_max,  E_max, ax_logk[15])
+  Plot_E_Field(phys_params,nodes, (1.0 .- θ_dam_ref)*E_max,  E_max, ax_logk[16])
   
   
   fig_logk.tight_layout()
