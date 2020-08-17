@@ -82,7 +82,7 @@ function Show_Result(phys_params::Params, data_ref::Array{Float64, 2}, Q0::Array
   
   plot(xx, fDA, label="DA")
   legend()
-  savefig("Figs/Closure."*string(ite)*".pdf"); close("all")
+  savefig("Figs/Closure."*string(ite)*".png"); close("all")
   
 end
 
@@ -193,7 +193,7 @@ nθ = 12
 θ0_bar = zeros(Float64, nθ)  #rand(Normal(0, 1), nθ)                    # 
 θθ0_cov = Array(Diagonal(fill(1.0, nθ)))           # standard deviation
 Φ = ΦQP
-N_iter = 100
+N_iter = 50
 
 α_reg = 1.0
 
@@ -205,7 +205,7 @@ for i = 1:3
   
   # set mean and covariance
   t_mean =  Compute_Obs(phys_params, data_ref)
-  t_cov = Array(Diagonal(0.05^2*t_mean.^2))
+  #t_cov = Array(Diagonal(0.05^2*t_mean.^2))
   
   if noise_level > 0.0
     Random.seed!(123);
@@ -215,7 +215,7 @@ for i = 1:3
     end
   end
   
-  
+  t_cov = Array(Diagonal(0.05^2*t_mean.^2)) 
   
   exkiobj = ExKI(phys_params,
   t_mean, t_cov, 
@@ -350,7 +350,7 @@ end
   fig.tight_layout()
   # fig.subplots_adjust(right=0.8)
   # ax.legend(bbox_to_anchor=(0.8, 0.8))
-  fig.savefig("Figs/Lorenz96-Closure.pdf"); 
+  fig.savefig("Figs/Lorenz96-Closure.png"); 
   close(fig)
   
   

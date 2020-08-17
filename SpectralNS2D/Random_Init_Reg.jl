@@ -261,7 +261,7 @@ function Compare()
   seq_pairs = Compute_Seq_Pairs(na)
   t_cov = Array(Diagonal(fill(1.0, phys_params.n_data))) 
   θ0_bar = zeros(Float64, 2na)
-  θθ0_cov = Array(Diagonal(fill(1.0, 2*na)))           # standard deviation
+  θθ0_cov = Array(Diagonal(fill(10.0, 2*na)))           # standard deviation
   
   N_iter = 50 
   N_ens = 201
