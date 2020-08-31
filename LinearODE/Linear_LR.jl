@@ -23,7 +23,7 @@ end
 
 
 
-function LRRUKI_Run(t_mean, t_cov, θ_bar, θθ_cov,  G,  N_r, α_reg::Float64,  N_iter::Int64 = 100,  update_cov::Int64 = 0)
+function LRRUKI_Run(t_mean, t_cov, θ_bar, θθ_cov,  G,  N_r, α_reg::Float64,  N_iter::Int64 = 100)
     parameter_names = ["θ"]
     
     ny, nθ = size(G)
@@ -40,13 +40,7 @@ function LRRUKI_Run(t_mean, t_cov, θ_bar, θθ_cov,  G,  N_r, α_reg::Float64, 
     
     for i in 1:N_iter
         
-        params_i = deepcopy(lrrukiobj.θ_bar[end])
-        
         update_ensemble!(lrrukiobj, ens_func) 
-        
-        if (update_cov) > 0 && (i%update_cov == 0) 
-            reset_θθ0_cov!(lrrukiobj)
-        end
         
     end
     
@@ -91,7 +85,7 @@ end
 function Linear_Test(filter_type::String, problem_type::String, nθ::Int64 = 10, N_r::Int64 = 1, α_reg::Float64 = 1.0, N_ite::Int64 = 1000)
     
     θ0_bar = zeros(Float64, nθ)  # mean 
-    θθ0_cov = Array(Diagonal(fill(0.5^2, nθ)))     # standard deviation
+    θθ0_cov = Array(Diagonal(fill(10.0^2, nθ)))     # standard deviation
     
     
     G = zeros(nθ, nθ)
@@ -116,7 +110,7 @@ function Linear_Test(filter_type::String, problem_type::String, nθ::Int64 = 10,
     else
         error("Problem type : ", problem_type, " has not implemented!")
     end
-    
+    @info "cond(G) = " , cond(G)
     θ_ref = fill(1.0, nθ)
     t_mean = G*θ_ref 
     t_cov = Array(Diagonal(fill(0.5^2, nθ)))
@@ -136,10 +130,12 @@ function Linear_Test(filter_type::String, problem_type::String, nθ::Int64 = 10,
         errors[2, i] = norm(θ_bar .- 1.0)
         
     end
+
+    errors ./= norm(ones(size(lrrukiobj.θ_bar[1], 1)))
     
     
     semilogy(ites, errors[1, :], "--o", fillstyle="none", markevery=50, label= "LRRUKI")
-    semilogy(ites, errors[2, :], "--o", fillstyle="none", markevery=50, label= "EnKI")
+    # semilogy(ites, errors[2, :], "--o", fillstyle="none", markevery=50, label= "EnKI")
     xlabel("Iterations")
     ylabel("\$L_2\$ norm error")
     #ylim((0.1,15))
@@ -155,8 +151,8 @@ end
 
  
 problem_type = "Poisson_1D"
-filter_type = "ETKI"
-Linear_Test(filter_type, problem_type, 10, 100, 1.0, 1000)
+filter_type = "EnKI"
+Linear_Test(filter_type, problem_type, 10, 6, 1.0, 50)
 
 @info "Finished!"
 
