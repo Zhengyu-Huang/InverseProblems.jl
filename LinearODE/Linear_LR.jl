@@ -169,10 +169,22 @@ function Hilbert_Test(filter_type::String, nθ::Int64 = 10, N_r::Int64 = 1, α_r
     
 
     
+    # G = zeros(nθ, nθ)
+    # for i = 1:nθ
+    #     for j = 1:nθ
+    #         G[i,j] = 1/(i + j - 1)
+    #     end
+    # end
+
+    # hack the code Poisson
     G = zeros(nθ, nθ)
     for i = 1:nθ
         for j = 1:nθ
-            G[i,j] = 1/(i + j - 1)
+            if i == j
+                G[i,j] = 2
+            elseif i == j-1 || i == j+1
+                G[i,j] = -1
+            end
         end
     end
     
@@ -316,7 +328,7 @@ if mission == "2params"
 else
     
     filter_type = "ETKI"
-    Hilbert_Test(filter_type, 10, 6, 1.0, 1000)
+    Hilbert_Test(filter_type, 10, 10, 1.0, 1000)
     # ilbert_Test(100, 1000)
 end
 
