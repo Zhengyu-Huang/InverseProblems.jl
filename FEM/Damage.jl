@@ -586,7 +586,7 @@ function Run_Damage(phys_params::Params, θ_type::String, θ = nothing, save_dis
     data = data[:]
     if noise_level > 0.0
         noise = similar(data)
-        Random.seed!(42);
+        Random.seed!(123);
         for i = 1:length(data)
             noise[i] = rand(Normal(0, noise_level*abs(data[i])))
             #noise[i] = rand(Uniform(-noise_level*abs(data[i]), noise_level*abs(data[i])))

@@ -216,16 +216,16 @@ function update_ensemble!(exki::ExKIObj{FT}, ens_func::Function) where {FT}
 
     g = zeros(FT, N_ens, N_g)
     g .= ens_func(θ_p)
-    g_bar = construct_mean(exki, g)
+    g_bar =  g[1,:] #construct_mean(exki, g)
 
-    
+
     gg_cov = construct_cov(exki, g, g_bar) + 2exki.obs_cov
     θg_cov = construct_cov(exki, θ_p, θ_p_bar, g, g_bar)
 
     tmp = θg_cov/gg_cov
     # use G(θ_bar) instead of FG(θ)
     θ_bar =  θ_p_bar + tmp*(exki.g_t - g[1,:])
-    
+
     θθ_cov =  θθ_p_cov - tmp*θg_cov' 
 
 
