@@ -4,7 +4,7 @@ using LinearAlgebra
 using PyPlot
 include("../Plot.jl")
 include("../REnKI.jl")
-include("../TRUKI.jl")
+include("../TDRUKI.jl")
 function run_linear_ensemble(params_i, G)
     
     N_ens,  N_θ = size(params_i)
@@ -192,10 +192,10 @@ end
 
 
 
-problem_type = "Elliptic"  #"Identity"# "Elliptic"  #"Identity" #"Poisson_1D" 
+problem_type = "Identity" #"Elliptic"  #"Identity"# "Elliptic"  #"Identity" #"Poisson_1D" 
 # Linear_Test(problem_type, true, 500, 5, 1.0, 50)
 
-Linear_Test(problem_type, false, 500, 5, 1.0, 50)
+Linear_Test(problem_type, true, 500, 5, 1.0, 50)
 
 
 

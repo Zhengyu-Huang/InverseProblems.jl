@@ -9,7 +9,7 @@ using DocStringExtensions
 TRUKIObj{FT<:AbstractFloat, IT<:Int}
 Struct that is used in Unscented Kalman Inversion (EKI)
 """
-struct TRUKIObj{FT<:AbstractFloat, IT<:Int}
+mutable struct TRUKIObj{FT<:AbstractFloat, IT<:Int}
     "vector of parameter names (never used)"
      unames::Vector{String}
     "a vector of arrays of size N_ensemble x N_parameters containing the mean of the parameters (in each TRUKI iteration a new array of mean is added)"
@@ -38,6 +38,8 @@ struct TRUKIObj{FT<:AbstractFloat, IT<:Int}
      Z_ω::Array{FT, 2}
      "Covariance matrix of the observation error"
      Σ_ν::Array{FT, 2} 
+     "For low rank "
+     counter::Int64
 end
 
 
@@ -100,9 +102,10 @@ function TRUKIObj(parameter_names::Vector{String},
 
     Σ_ω, Σ_ν =  (2-α_reg^2)*θθ0_cov_sqr, 2*obs_cov
     
+    counter = 0
 
     TRUKIObj{FT,IT}(parameter_names, θ_bar, θθ_cov_sqr, g_t, obs_cov, g_bar, N_r, N_θ, N_g, 
-                  sample_weights, μ_weights, cov_weights, α_reg, Σ_ω, Σ_ν)
+                  sample_weights, μ_weights, cov_weights, α_reg, Σ_ω, Σ_ν, counter)
 
 end
 
@@ -198,6 +201,7 @@ use G(θ_bar) instead of FG(θ)
 """
 function update_ensemble!(truki::TRUKIObj{FT}, ens_func::Function) where {FT}
     
+    
     θ_bar  = copy(truki.θ_bar[end])
     θθ_cov_sqr = copy(truki.θθ_cov_sqr[end])
 
@@ -210,8 +214,14 @@ function update_ensemble!(truki::TRUKIObj{FT}, ens_func::Function) where {FT}
     
 
     θ_p_bar  = α_reg*θ_bar + (1-α_reg)*truki.θ_bar[1]
-    θθ_p_cov_sqr = [α_reg^2*θθ_cov_sqr  Z_ω]
-    
+
+    nrank , N_r = size(Z_ω, 2), truki.N_r
+    col_start = mod1(truki.counter*N_r + 1, nrank)
+    if col_start + N_r-1 <= nrank
+        θθ_p_cov_sqr = [α_reg^2*θθ_cov_sqr  Z_ω[:, col_start: col_start + N_r-1]]
+    else
+        θθ_p_cov_sqr = [α_reg^2*θθ_cov_sqr  Z_ω[:, col_start: nrank] Z_ω[1:col_start+N_r-1-nrank]]
+    end
 
 
     ############# Update
@@ -282,7 +292,7 @@ function update_ensemble!(truki::TRUKIObj{FT}, ens_func::Function) where {FT}
     push!(truki.g_bar, g[1,:]) # N_ens x N_data
     push!(truki.θ_bar, θ_bar) # N_ens x N_params
     push!(truki.θθ_cov_sqr, θθ_cov_sqr) # N_ens x N_data
-
+    truki.counter += 1
     
 
 end
