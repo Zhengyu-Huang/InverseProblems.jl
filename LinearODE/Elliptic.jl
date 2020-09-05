@@ -3,9 +3,8 @@ using Statistics
 using LinearAlgebra
 using PyPlot
 include("../Plot.jl")
-include("../LRRUKI.jl")
 include("../REnKI.jl")
-
+include("../TRUKI.jl")
 function run_linear_ensemble(params_i, G)
     
     N_ens,  N_θ = size(params_i)
@@ -21,7 +20,28 @@ function run_linear_ensemble(params_i, G)
 end
 
 
-
+function TRUKI_Run(t_mean, t_cov, θ_bar, θθ_cov_sqr,  G,  N_r, α_reg::Float64,  N_iter::Int64 = 100)
+    parameter_names = ["θ"]
+    
+    ens_func(θ_ens) = run_linear_ensemble(θ_ens, G)
+    
+    trukiobj = TRUKIObj(parameter_names,
+    N_r,
+    θ_bar, 
+    θθ_cov_sqr,
+    t_mean, # observation
+    t_cov,
+    α_reg)
+    
+    for i in 1:N_iter
+        
+        update_ensemble!(trukiobj, ens_func) 
+        
+    end
+    
+    return trukiobj
+    
+end
 
 function LRRUKI_Run(t_mean, t_cov, θ_bar, θθ_cov,  G,  N_r, α_reg::Float64,  N_iter::Int64 = 100)
     parameter_names = ["θ"]
@@ -98,6 +118,7 @@ function Linear_Test(problem_type::String, nθ::Int64 = 10, N_r::Int64 = 1, α_r
     x = LinRange(h, 1-h, nθ)
 
     f = fill(1.0, nθ)
+    
     θ_ref = G\f
 
     t_mean = f
@@ -120,8 +141,7 @@ function Linear_Test(problem_type::String, nθ::Int64 = 10, N_r::Int64 = 1, α_r
     enkiobj = EnKI_Run("EnKI", t_mean, t_cov, θ0_bar, θθ0_cov, G, 2N_r+1, α_reg, N_ite)
     eakiobj = EnKI_Run("EAKI", t_mean, t_cov, θ0_bar, θθ0_cov, G, 2N_r+1, α_reg, N_ite)
     etkiobj = EnKI_Run("ETKI", t_mean, t_cov, θ0_bar, θθ0_cov, G, 2N_r+1, α_reg, N_ite)
-    lrrukiobj = LRRUKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov, G, N_r, α_reg, N_ite)
-    
+    trukiobj = TRUKI_Run(t_mean, t_cov, θ0_bar, Z0_cov, G, N_r, α_reg, N_ite)
     
     # Plot
     ites = Array(LinRange(1, N_ite+1, N_ite+1))
@@ -138,7 +158,7 @@ function Linear_Test(problem_type::String, nθ::Int64 = 10, N_r::Int64 = 1, α_r
         θ_bar = dropdims(mean(etkiobj.θ[i], dims=1), dims=1)
         errors[3, i] = norm(θ_bar .- θ_ref)
 
-        errors[4, i] = norm(lrrukiobj.θ_bar[i] .- θ_ref)
+        errors[4, i] = norm(trukiobj.θ_bar[i] .- θ_ref)
         
         
     end
@@ -147,10 +167,10 @@ function Linear_Test(problem_type::String, nθ::Int64 = 10, N_r::Int64 = 1, α_r
 
     errors ./= norm(θ_ref)
     
-    semilogy(ites, errors[1, :], "--o", fillstyle="none", markevery=50, label= "EnKI")
-    semilogy(ites, errors[2, :], "--o", fillstyle="none", markevery=50, label= "EAKI")
-    semilogy(ites, errors[3, :], "--o", fillstyle="none", markevery=50, label= "ETKI")
-    semilogy(ites, errors[4, :], "--o", fillstyle="none", markevery=50, label= "LRRUKI")
+    semilogy(ites, errors[1, :], "--o", fillstyle="none", markevery=10, label= "EnKI")
+    semilogy(ites, errors[2, :], "--o", fillstyle="none", markevery=10, label= "EAKI")
+    semilogy(ites, errors[3, :], "--o", fillstyle="none", markevery=10, label= "ETKI")
+    semilogy(ites, errors[4, :], "--o", fillstyle="none", markevery=10, label= "TRUKI")
     
     xlabel("Iterations")
     ylabel("\$L_2\$ norm error")
@@ -162,14 +182,14 @@ function Linear_Test(problem_type::String, nθ::Int64 = 10, N_r::Int64 = 1, α_r
     savefig("Linear-"*string(nθ)*".pdf")
     close("all")
     
-    return lrrukiobj
+    return trukiobj
 end
 
 
 
 
 problem_type = "Elliptic"  #"Identity"# "Elliptic"  #"Identity" #"Poisson_1D" 
-Linear_Test(problem_type, 200, 5, 1.0, 100)
+Linear_Test(problem_type, 200, 5, 1.0, 50)
 
 
 
