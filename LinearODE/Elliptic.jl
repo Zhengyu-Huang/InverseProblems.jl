@@ -70,7 +70,7 @@ end
 function EnKI_Run(filter_type, t_mean, t_cov, θ0_bar, θθ0_cov,  G,  N_ens, α_reg::Float64, N_iter::Int64 = 100)
     parameter_names = ["θ"]
     
-
+    
     
     ens_func(θ_ens) = run_linear_ensemble(θ_ens, G)
     
@@ -97,11 +97,11 @@ function EnKI_Run(filter_type, t_mean, t_cov, θ0_bar, θθ0_cov,  G,  N_ens, α
 end
 
 
-function Linear_Test(problem_type::String, nθ::Int64 = 10, N_r::Int64 = 1, α_reg::Float64 = 1.0, N_ite::Int64 = 1000)
+function Linear_Test(problem_type::String, low_rank_prior::Bool = true, nθ::Int64 = 10, N_r::Int64 = 1, α_reg::Float64 = 1.0, N_ite::Int64 = 1000)
     
     
     h = 1/(nθ + 1)
-
+    
     if problem_type == "Elliptic"
         # -p'' + p = f        p(0) = p(1) = 0
         # discretize 0,h,2h, ..., 1,     h = 1/(nθ + 1)
@@ -116,31 +116,36 @@ function Linear_Test(problem_type::String, nθ::Int64 = 10, N_r::Int64 = 1, α_r
         error("Problem type : ", problem_type, " has not implemented!")
     end
     x = LinRange(h, 1-h, nθ)
-
+    
     f = fill(1.0, nθ)
     
     θ_ref = G\f
-
+    
     t_mean = f
     t_cov = Array(Diagonal(fill(1.0^2, nθ)))
-
-
-    θ0_bar = zeros(Float64, nθ)  # mean 
-    θθ0_cov = Array(Diagonal(fill(10.0^2, nθ)))     # standard deviation
-
-    Z0_cov = ones(Float64, nθ, N_r)
     
-    for i = 1:N_r
-        Z0_cov[:, i] = sin.(i *  pi*x) 
+    
+    θ0_bar = zeros(Float64, nθ)  # mean 
+    
+    if !low_rank_prior
+        θθ0_cov = Array(Diagonal(fill(10.0^2, nθ)))     # covariance
+        Z0_cov = Array(Diagonal(fill(10.0, nθ)))        # square root of the covariance
+        
+    else
+        Z0_cov = ones(Float64, nθ, N_r)
+        for i = 1:N_r
+            Z0_cov[:, i] = 10.0 * sin.(i *  pi*x) 
+        end
+        
+        θθ0_cov = Z0_cov * Z0_cov' + Array(Diagonal(fill(1e-10, nθ))) 
+        
     end
 
-
-    θθ0_cov = Z0_cov * Z0_cov' * 1 + Array(Diagonal(fill(1e-10, nθ))) 
-    
-    
     enkiobj = EnKI_Run("EnKI", t_mean, t_cov, θ0_bar, θθ0_cov, G, 2N_r+1, α_reg, N_ite)
     eakiobj = EnKI_Run("EAKI", t_mean, t_cov, θ0_bar, θθ0_cov, G, 2N_r+1, α_reg, N_ite)
     etkiobj = EnKI_Run("ETKI", t_mean, t_cov, θ0_bar, θθ0_cov, G, 2N_r+1, α_reg, N_ite)
+    
+    
     trukiobj = TRUKI_Run(t_mean, t_cov, θ0_bar, Z0_cov, G, N_r, α_reg, N_ite)
     
     # Plot
@@ -151,20 +156,19 @@ function Linear_Test(problem_type::String, nθ::Int64 = 10, N_r::Int64 = 1, α_r
         
         θ_bar = dropdims(mean(enkiobj.θ[i], dims=1), dims=1)
         errors[1, i] = norm(θ_bar .- θ_ref)
-
+        
         θ_bar = dropdims(mean(eakiobj.θ[i], dims=1), dims=1)
         errors[2, i] = norm(θ_bar .- θ_ref)
-
+        
         θ_bar = dropdims(mean(etkiobj.θ[i], dims=1), dims=1)
         errors[3, i] = norm(θ_bar .- θ_ref)
-
+        
         errors[4, i] = norm(trukiobj.θ_bar[i] .- θ_ref)
         
         
     end
-
-    # error("stop")
-
+    
+    
     errors ./= norm(θ_ref)
     
     semilogy(ites, errors[1, :], "--o", fillstyle="none", markevery=10, label= "EnKI")
@@ -189,9 +193,9 @@ end
 
 
 problem_type = "Elliptic"  #"Identity"# "Elliptic"  #"Identity" #"Poisson_1D" 
-Linear_Test(problem_type, 200, 5, 1.0, 50)
+# Linear_Test(problem_type, true, 500, 5, 1.0, 50)
 
-
+Linear_Test(problem_type, false, 500, 5, 1.0, 50)
 
 
 
