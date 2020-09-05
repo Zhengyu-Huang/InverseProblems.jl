@@ -99,6 +99,7 @@ function LRRUKIObj(parameter_names::Vector{String},
     cov_weights[2:N_ens] .= 1/(2(N_r + λ))
 
     Σ_ω, Σ_ν =  (2-α_reg^2)*θθ0_cov, 2*obs_cov
+    
 
     LRRUKIObj{FT,IT}(parameter_names, θ_bar, θθ_cov, g_t, obs_cov, g_bar, N_r, N_θ, N_g, 
                   sample_weights, μ_weights, cov_weights, α_reg, Σ_ω, Σ_ν)
@@ -119,8 +120,12 @@ function construct_sigma_ensemble(lrruki::LRRUKIObj{FT}, x_bar::Array{FT}, x_cov
     # use svd decomposition
     svd_xx_cov = svd(x_cov)
 
-    @info "energy : ", sum(svd_xx_cov.S[1:N_r])/sum(svd_xx_cov.S)
-    @info "svd_xx_cov.S : ", svd_xx_cov.S
+    # @info "energy : ", sum(svd_xx_cov.S[1:N_r])/sum(svd_xx_cov.S)
+    # @info "svd_xx_cov.S : ", svd_xx_cov.S
+
+    # @info "svd_xx_cov.U : ", svd_xx_cov.U
+    # @info "x_cov : ", x_cov
+
     x = zeros(Float64, 2*N_r+1, N_x)
     x[1, :] = x_bar
     for i = 1: N_r
@@ -209,6 +214,8 @@ function update_ensemble!(lrruki::LRRUKIObj{FT}, ens_func::Function) where {FT}
     
     θ_bar  = copy(lrruki.θ_bar[end])
     θθ_cov = copy(lrruki.θθ_cov[end])
+
+    # @info "θθ_cov ", diag(θθ_cov)
     ############# Prediction 
     # Generate sigma points, and time step update 
     
@@ -226,13 +233,15 @@ function update_ensemble!(lrruki::LRRUKIObj{FT}, ens_func::Function) where {FT}
     N_θ, N_g, N_ens = lrruki.N_θ, lrruki.N_g, 2*lrruki.N_r+1
     θ_p = construct_sigma_ensemble(lrruki, θ_p_bar, θθ_p_cov)
     θ_p_bar_  = construct_mean(lrruki, θ_p)
-    θθ_p_cov_ = construct_cov(lrruki, θ_p, θ_p_bar)
+    θθ_p_cov = construct_cov(lrruki, θ_p, θ_p_bar)
     #@show  norm(θ_p_bar_ - θ_p_bar), norm(θθ_p_cov - θθ_p_cov_)
-
+    #@info "θθ_p_cov_: ", diag(θθ_p_cov_)
     
     g = zeros(FT, N_ens, N_g)
     g .= ens_func(θ_p)
-    g_bar = construct_mean(lrruki, g)
+    g_bar = g[1,:] #construct_mean(lrruki, g)
+
+    # @info "θ_p: ", θ_p
 
     
     gg_cov = construct_cov(lrruki, g, g_bar) + Σ_ν
@@ -243,9 +252,23 @@ function update_ensemble!(lrruki::LRRUKIObj{FT}, ens_func::Function) where {FT}
     # use G(θ_bar) instead of FG(θ)
     θ_bar =  θ_p_bar + K*(lrruki.g_t - g[1,:])
 
-    @info "θ_bar : ", θ_bar
+    # K = θθ'G' (Gθθ'G' + Σ_ν)G(θ_ref - θ)
+    @info norm(lrruki.g_t - g[1,:]), norm(K*(lrruki.g_t - g[1,:]))
     
     θθ_cov =  θθ_p_cov - K*θg_cov' 
+
+    # @info " gg_cov ", diag(gg_cov)
+    # @info " θg_cov ", diag(θg_cov)
+    # @info "θ_bar : ", θ_bar
+    # @info "θθ_p_cov : ", diag(θθ_p_cov)
+    # @info "K*θg_cov' : ", diag(K*θg_cov')
+    # @info "θθ_cov' ", θθ_cov # diag(θθ_cov')
+
+
+    # @info " K*θg_cov' : ", K*θg_cov'
+
+    # @info " θθ_p_cov : ", θθ_p_cov
+    # @info " θθ_cov : ", θθ_cov
 
     # # Test
     # nθ = 40

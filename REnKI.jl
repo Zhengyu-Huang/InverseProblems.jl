@@ -43,18 +43,38 @@ end
 # outer constructors
 function EnKIObj(filter_type::String,
     parameter_names::Vector{String},
-    θ0::Array{FT, 2},
+    N_ens::Int64,
     θ0_bar::Array{FT},
     θθ0_cov::Array{FT, 2},
     g_t,
     obs_cov::Array{FT, 2},
     α_reg::Float64) where {FT<:AbstractFloat}
     
-    # ensemble size
-    N_ens = size(θ0)[1]
+    
+
     IT = typeof(N_ens)
     # parameters
     θ = Array{FT, 2}[] # array of Array{FT, 2}'s
+
+    # generate ensemble
+    Random.seed!(123)
+    θ0 = rand(MvNormal(θ0_bar, θθ0_cov), N_ens)'
+
+
+    # use svd decomposition
+    # svd_θθ0_cov = svd(θθ0_cov)
+    # N_θ = size(θ0_bar, 1)
+    # θ0 = zeros(Float64, N_ens, N_θ)
+    # θ0[1, :] = θ0_bar
+    # N_r = div(N_ens, 2)
+    # for i = 1: N_r
+    #     θ0[i+1,     :] = θ0_bar + sqrt(svd_θθ0_cov.S[i])*svd_θθ0_cov.U[:, i]
+    #     θ0[i+1+N_r, :] = θ0_bar - sqrt(svd_θθ0_cov.S[i])*svd_θθ0_cov.U[:, i]
+    # end
+
+
+
+
     push!(θ, θ0) # insert parameters at end of array (in this case just 1st entry)
     
     g_bar = Array{FT}[]  # array of Array{FT, 2}'s
@@ -62,8 +82,8 @@ function EnKIObj(filter_type::String,
     g = Vector{FT}[]
     N_g = size(g_t, 1)
 
-
-    Σ_ω, Σ_ν =  (2-α_reg^2)*θθ0_cov, 2*obs_cov
+    γ = 2.0
+    Σ_ω, Σ_ν =  (γ/(γ-1)-α_reg^2)*θθ0_cov, γ*obs_cov
     # Σ_ω, Σ_ν =  1.0e-15*θθ0_cov, obs_cov
     
     EnKIObj{FT,IT}(filter_type, parameter_names, θ, θ0_bar, θθ0_cov,  g_t, obs_cov, g_bar, N_ens, N_g, α_reg, Σ_ω, Σ_ν)
@@ -180,9 +200,6 @@ function update_ensemble!(enki::EnKIObj{FT}, ens_func::Function) where {FT<:Abst
         Z_p_t ./= sqrt(N_ens - 1)
 
 
-
-
-
         
         # update particles by Ensemble Adjustment Kalman Filter
         # Dp = F^T Σ F, Σ = F Dp F^T, Dp is non-singular
@@ -211,14 +228,6 @@ function update_ensemble!(enki::EnKIObj{FT}, ens_func::Function) where {FT<:Abst
 
         ################# Debug check
 
-        @info "norm(A) ", norm(A)
-
-        θθ_cov = Z_p_t'*(I - GZ_p_t/(GZ_p_t'*GZ_p_t + Σ_ν)*GZ_p_t') *Z_p_t
-
-        @info "norm(Z_p_t) ", norm(Z_p_t), "norm(θθ_cov)", norm(θθ_cov)
-
-        
-        # Debug 
         # θθ_p_cov = construct_cov(enki, θ_p, θ_p_bar, θ_p, θ_p_bar)
         # θθ_cov = Z_p_t'*(I - GZ_p_t/(GZ_p_t'*GZ_p_t + Σ_ν)*GZ_p_t') *Z_p_t
         # θ_bar_debug = dropdims(mean(θ, dims=1), dims=1)
@@ -254,7 +263,6 @@ function update_ensemble!(enki::EnKIObj{FT}, ens_func::Function) where {FT<:Abst
 
         ################# Debug check
 
-        # Debug
         # Z_p_t = copy(θ_p)
         # for j = 1:N_ens;    Z_p_t[j, :] .-=  θ_p_bar;    end
         # Z_p_t ./= sqrt(N_ens - 1)
