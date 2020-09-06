@@ -217,10 +217,11 @@ function update_ensemble!(truki::TRUKIObj{FT}, ens_func::Function) where {FT}
 
     nrank , N_r = size(Z_ω, 2), truki.N_r
     col_start = mod1(truki.counter*N_r + 1, nrank)
+
     if col_start + N_r-1 <= nrank
         θθ_p_cov_sqr = [α_reg^2*θθ_cov_sqr  Z_ω[:, col_start: col_start + N_r-1]]
     else
-        θθ_p_cov_sqr = [α_reg^2*θθ_cov_sqr  Z_ω[:, col_start: nrank] Z_ω[1:col_start+N_r-1-nrank]]
+        θθ_p_cov_sqr = [α_reg^2*θθ_cov_sqr  Z_ω[:, col_start: nrank] Z_ω[:, 1:col_start+N_r-1-nrank]]
     end
 
 

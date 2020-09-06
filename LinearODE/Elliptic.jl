@@ -118,8 +118,10 @@ function Linear_Test(problem_type::String, low_rank_prior::Bool = true, nθ::Int
     x = LinRange(h, 1-h, nθ)
     
     f = fill(1.0, nθ)
-    
     θ_ref = G\f
+
+    # θ_ref = fill(1.0, nθ)
+    # f = G*θ_ref
     
     t_mean = f
     t_cov = Diagonal(fill(1.0^2, nθ))
@@ -169,21 +171,23 @@ function Linear_Test(problem_type::String, low_rank_prior::Bool = true, nθ::Int
 
         
     end
+
     
     
     errors ./= norm(θ_ref)
-    markevery = div(N_ite, 10)
+    markevery = max(div(N_ite, 10),1)
     semilogy(ites, errors[1, :], "--o", fillstyle="none", markevery=markevery, label= "EnKI")
     semilogy(ites, errors[2, :], "--o", fillstyle="none", markevery=markevery, label= "EAKI")
     semilogy(ites, errors[3, :], "--o", fillstyle="none", markevery=markevery, label= "ETKI")
     semilogy(ites, errors[4, :], "--o", fillstyle="none", markevery=markevery, label= "TRUKI")
-    
+   
     xlabel("Iterations")
     ylabel("\$L_2\$ norm error")
     #ylim((0.1,15))
     grid("on")
     legend()
     tight_layout()
+ 
     
     savefig("Elliptic-"*string(nθ)*"lr"*string(low_rank_prior)*".pdf")
     close("all")
@@ -195,11 +199,11 @@ end
 
 
 problem_type = "Elliptic"  
+
 Linear_Test(problem_type, true, 500, 5, 1.0, 50)
-
-Linear_Test(problem_type, false, 500, 5, 1.0, 50000)
-
+Linear_Test(problem_type, false, 500, 50, 1.0, 500000)
 
 
+@info "Finish"
 
 
