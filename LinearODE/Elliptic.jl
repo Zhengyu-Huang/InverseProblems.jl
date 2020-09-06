@@ -142,9 +142,13 @@ function Linear_Test(problem_type::String, low_rank_prior::Bool = true, nθ::Int
     end
 
     enkiobj = EnKI_Run("EnKI", t_mean, t_cov, θ0_bar, θθ0_cov, G, 2N_r+1, α_reg, N_ite)
+    @info "finish EnKI"
     eakiobj = EnKI_Run("EAKI", t_mean, t_cov, θ0_bar, θθ0_cov, G, 2N_r+1, α_reg, N_ite)
+    @info "finish EAKI"
     etkiobj = EnKI_Run("ETKI", t_mean, t_cov, θ0_bar, θθ0_cov, G, 2N_r+1, α_reg, N_ite)
+    @info "finish ETKI"
     trukiobj = TRUKI_Run(t_mean, t_cov, θ0_bar, Z0_cov, G, N_r, α_reg, N_ite)
+    @info "finish TRUKI"
 
     # Plot
     ites = Array(LinRange(1, N_ite+1, N_ite+1))
@@ -193,7 +197,7 @@ end
 problem_type = "Elliptic"  
 Linear_Test(problem_type, true, 500, 5, 1.0, 50)
 
-Linear_Test(problem_type, false, 500, 5, 1.0, 50)
+Linear_Test(problem_type, false, 500, 5, 1.0, 50000)
 
 
 
