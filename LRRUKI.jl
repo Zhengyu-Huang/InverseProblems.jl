@@ -126,6 +126,8 @@ function construct_sigma_ensemble(lrruki::LRRUKIObj{FT}, x_bar::Array{FT}, x_cov
     # @info "svd_xx_cov.U : ", svd_xx_cov.U
     # @info "x_cov : ", x_cov
 
+    @info "svd_xx_cov.S : ", svd_xx_cov.S
+
     x = zeros(Float64, 2*N_r+1, N_x)
     x[1, :] = x_bar
     for i = 1: N_r
@@ -256,6 +258,8 @@ function update_ensemble!(lrruki::LRRUKIObj{FT}, ens_func::Function) where {FT}
     @info norm(lrruki.g_t - g[1,:]), norm(K*(lrruki.g_t - g[1,:]))
     
     θθ_cov =  θθ_p_cov - K*θg_cov' 
+
+    @info size(θθ_cov)
 
     # @info " gg_cov ", diag(gg_cov)
     # @info " θg_cov ", diag(θg_cov)

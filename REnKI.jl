@@ -21,11 +21,11 @@ struct EnKIObj{FT<:AbstractFloat, IT<:Int}
     "Prior mean"
     θ0_bar::Array{FT}
     "Prior convariance"
-    θθ0_cov::Array{FT, 2}
+    θθ0_cov
     "observation"
     g_t::Vector{FT}
     "covariance of the observational noise, which is assumed to be normally distributed"
-    obs_cov::Array{FT, 2}
+    obs_cov
     "predicted g_bar"   
     g_bar::Vector{Array{FT}}
     "ensemble size"
@@ -35,9 +35,9 @@ struct EnKIObj{FT<:AbstractFloat, IT<:Int}
     "regularization parameter"
     α_reg::Float64
     "Covariance matrix of the evolution error"
-    Σ_ω::Array{FT, 2}
+    Σ_ω
     "Covariance matrix of the observation error"
-    Σ_ν::Array{FT, 2} 
+    Σ_ν
 end
 
 # outer constructors
@@ -45,9 +45,9 @@ function EnKIObj(filter_type::String,
     parameter_names::Vector{String},
     N_ens::Int64,
     θ0_bar::Array{FT},
-    θθ0_cov::Array{FT, 2},
+    θθ0_cov,
     g_t,
-    obs_cov::Array{FT, 2},
+    obs_cov,
     α_reg::Float64) where {FT<:AbstractFloat}
     
     
@@ -168,15 +168,36 @@ function update_ensemble!(enki::EnKIObj{FT}, ens_func::Function) where {FT<:Abst
     
     g_bar = dropdims(mean(g, dims=1), dims=1)
     
-    gg_cov = construct_cov(enki, g, g_bar, g, g_bar) + Σ_ν
-    θg_cov = construct_cov(enki, θ_p, θ_p_bar, g, g_bar)
+    
 
     
     
     
     # Kalman gain
-    K = θg_cov/gg_cov
-    θ_bar = θ_p_bar + K*(enki.g_t - g_bar)
+    Z_p_t = copy(θ_p)
+    for j = 1:N_ens;    Z_p_t[j, :] .-=  θ_p_bar;    end
+    Z_p_t ./= sqrt(N_ens - 1)
+
+
+    V_p_t = copy(g)  
+    for j = 1:N_ens;  V_p_t[j, :] .-=  g_bar;  end
+    V_p_t ./= sqrt(N_ens - 1)
+
+    #=
+    gg_cov = construct_cov(enki, g, g_bar, g, g_bar) + Σ_ν
+    θg_cov = construct_cov(enki, θ_p, θ_p_bar, g, g_bar)
+    K = θg_cov * gg_cov⁻¹ 
+      = Z_p * V_p' * (V_p *V_p' + Σ_ν)
+      = Z_p * V_p' * (V_p *V_p' + Σ_ν)⁻¹ 
+      = Z_p_t' * X⁻¹ * V_p_t * Σ_ν⁻¹ 
+    =#                       
+    X = V_p_t/Σ_ν*V_p_t'
+    svd_X = svd(X)
+    C, Γ = svd_X.U, svd_X.S
+
+
+    
+    θ_bar = θ_p_bar + Z_p_t' * (C *( Γ .\ (C' * (V_p_t * (Σ_ν\(enki.g_t - g_bar))))))
 
     filter_type = enki.filter_type
     
@@ -189,15 +210,13 @@ function update_ensemble!(enki::EnKIObj{FT}, ens_func::Function) where {FT<:Abst
         
         θ = copy(θ_p) 
         for j = 1:N_ens
-            θ[j,:] += K*(enki.g_t - y[j, :]) # N_ens x N_θ
+            θ[j,:] += Z_p_t' * (C *( Γ .\ (C' * (V_p_t * (Σ_ν\((enki.g_t - y[j, :]))))))) # N_ens x N_θ
         end
         
     elseif filter_type == "EAKI"
         
 
-        Z_p_t = copy(θ_p)
-        for j = 1:N_ens;    Z_p_t[j, :] .-=  θ_p_bar;    end
-        Z_p_t ./= sqrt(N_ens - 1)
+        
 
 
         
@@ -206,16 +225,14 @@ function update_ensemble!(enki::EnKIObj{FT}, ens_func::Function) where {FT<:Abst
 
         F, sqrt_D_p, V =  trunc_svd(Z_p_t') 
 
-        GZ_p_t = copy(g)  
-        for j = 1:N_ens;     GZ_p_t[j, :] .-=  g_bar;    end
-        GZ_p_t ./= sqrt(N_ens - 1)
 
+        # I + V_p_t/Σ_ν*V_p_t' = C (Γ + I) C'
+        # Y = V' /(I + V_p_t/Σ_ν*V_p_t') * V
+        Y = V' * C ./ (Γ .+ 1.0)' * C' * V
 
-        
-        X = V' /(I + GZ_p_t/Σ_ν*GZ_p_t') * V
-        svd_X = svd(X)
+        svd_Y = svd(Y)
 
-        U, D = svd_X.U, svd_X.S
+        U, D = svd_Y.U, svd_Y.S
 
 
         A = (F .* sqrt_D_p' * U .* sqrt.(D)') * (sqrt_D_p .\ F')
@@ -229,7 +246,7 @@ function update_ensemble!(enki::EnKIObj{FT}, ens_func::Function) where {FT<:Abst
         ################# Debug check
 
         # θθ_p_cov = construct_cov(enki, θ_p, θ_p_bar, θ_p, θ_p_bar)
-        # θθ_cov = Z_p_t'*(I - GZ_p_t/(GZ_p_t'*GZ_p_t + Σ_ν)*GZ_p_t') *Z_p_t
+        # θθ_cov = Z_p_t'*(I - V_p_t/(V_p_t'*V_p_t + Σ_ν)*V_p_t') *Z_p_t
         # θ_bar_debug = dropdims(mean(θ, dims=1), dims=1)
         # θθ_cov_debug = construct_cov(enki, θ, θ_bar_debug, θ, θ_bar_debug)
         # @info "mean error is ", norm(θ_bar - θ_bar_debug), " cov error is ", norm(θθ_cov - A*Z_p_t'*Z_p_t*A'), norm(θθ_cov - θθ_cov_debug)
@@ -237,15 +254,10 @@ function update_ensemble!(enki::EnKIObj{FT}, ens_func::Function) where {FT<:Abst
         
     elseif filter_type == "ETKI"
         
-        # Compute 
-        GZ_p_t = copy(g)  
-        for j = 1:N_ens;  GZ_p_t[j, :] .-=  g_bar;  end
-        GZ_p_t ./= sqrt(N_ens - 1)
-
         
         # update particles by Ensemble Adjustment Kalman Filter
         # Dp = F^T Σ F, Σ = F Dp F^T, Dp is non-singular
-        X = GZ_p_t/Σ_ν*GZ_p_t'
+        X = V_p_t/Σ_ν*V_p_t'
         svd_X = svd(X)
 
         C, Γ = svd_X.U, svd_X.S
@@ -269,7 +281,7 @@ function update_ensemble!(enki::EnKIObj{FT}, ens_func::Function) where {FT<:Abst
 
         
         # θθ_p_cov = construct_cov(enki, θ_p, θ_p_bar, θ_p, θ_p_bar)
-        # θθ_cov = Z_p_t'*(I - GZ_p_t/(GZ_p_t'*GZ_p_t + Σ_ν)*GZ_p_t') *Z_p_t
+        # θθ_cov = Z_p_t'*(I - V_p_t/(V_p_t'*V_p_t + Σ_ν)*V_p_t') *Z_p_t
         # θ_bar_debug = dropdims(mean(θ, dims=1), dims=1)
         # θθ_cov_debug = construct_cov(enki, θ, θ_bar_debug, θ, θ_bar_debug)
         # @info "mean error is ", norm(θ_bar - θ_bar_debug), " cov error is ", norm(θθ_cov - Z_p_t'*T*T'*Z_p_t), norm(θθ_cov - θθ_cov_debug)

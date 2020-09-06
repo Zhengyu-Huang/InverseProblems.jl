@@ -122,14 +122,14 @@ function Linear_Test(problem_type::String, low_rank_prior::Bool = true, nθ::Int
     θ_ref = G\f
     
     t_mean = f
-    t_cov = Array(Diagonal(fill(1.0^2, nθ)))
+    t_cov = Diagonal(fill(1.0^2, nθ))
     
     
     θ0_bar = zeros(Float64, nθ)  # mean 
     
     if !low_rank_prior
-        θθ0_cov = Array(Diagonal(fill(10.0^2, nθ)))     # covariance
-        Z0_cov = Array(Diagonal(fill(10.0, nθ)))        # square root of the covariance
+        θθ0_cov = Diagonal(fill(10.0^2, nθ))    # covariance
+        Z0_cov = Array(Diagonal(fill(10.0, nθ)))       # square root of the covariance
         
     else
         Z0_cov = ones(Float64, nθ, N_r)
@@ -144,10 +144,8 @@ function Linear_Test(problem_type::String, low_rank_prior::Bool = true, nθ::Int
     enkiobj = EnKI_Run("EnKI", t_mean, t_cov, θ0_bar, θθ0_cov, G, 2N_r+1, α_reg, N_ite)
     eakiobj = EnKI_Run("EAKI", t_mean, t_cov, θ0_bar, θθ0_cov, G, 2N_r+1, α_reg, N_ite)
     etkiobj = EnKI_Run("ETKI", t_mean, t_cov, θ0_bar, θθ0_cov, G, 2N_r+1, α_reg, N_ite)
-    
-    
     trukiobj = TRUKI_Run(t_mean, t_cov, θ0_bar, Z0_cov, G, N_r, α_reg, N_ite)
-    
+
     # Plot
     ites = Array(LinRange(1, N_ite+1, N_ite+1))
     errors = zeros(Float64, (4, N_ite+1))
@@ -164,17 +162,17 @@ function Linear_Test(problem_type::String, low_rank_prior::Bool = true, nθ::Int
         errors[3, i] = norm(θ_bar .- θ_ref)
         
         errors[4, i] = norm(trukiobj.θ_bar[i] .- θ_ref)
-        
+
         
     end
     
     
     errors ./= norm(θ_ref)
-    
-    semilogy(ites, errors[1, :], "--o", fillstyle="none", markevery=10, label= "EnKI")
-    semilogy(ites, errors[2, :], "--o", fillstyle="none", markevery=10, label= "EAKI")
-    semilogy(ites, errors[3, :], "--o", fillstyle="none", markevery=10, label= "ETKI")
-    semilogy(ites, errors[4, :], "--o", fillstyle="none", markevery=10, label= "TRUKI")
+    markevery = div(N_ite, 10)
+    semilogy(ites, errors[1, :], "--o", fillstyle="none", markevery=markevery, label= "EnKI")
+    semilogy(ites, errors[2, :], "--o", fillstyle="none", markevery=markevery, label= "EAKI")
+    semilogy(ites, errors[3, :], "--o", fillstyle="none", markevery=markevery, label= "ETKI")
+    semilogy(ites, errors[4, :], "--o", fillstyle="none", markevery=markevery, label= "TRUKI")
     
     xlabel("Iterations")
     ylabel("\$L_2\$ norm error")
@@ -183,7 +181,7 @@ function Linear_Test(problem_type::String, low_rank_prior::Bool = true, nθ::Int
     legend()
     tight_layout()
     
-    savefig("Linear-"*string(nθ)*".pdf")
+    savefig("Elliptic-"*string(nθ)*"lr"*string(low_rank_prior)*".pdf")
     close("all")
     
     return trukiobj
@@ -192,10 +190,10 @@ end
 
 
 
-problem_type = "Identity" #"Elliptic"  #"Identity"# "Elliptic"  #"Identity" #"Poisson_1D" 
-# Linear_Test(problem_type, true, 500, 5, 1.0, 50)
-
+problem_type = "Elliptic"  
 Linear_Test(problem_type, true, 500, 5, 1.0, 50)
+
+Linear_Test(problem_type, false, 500, 5, 1.0, 50)
 
 
 

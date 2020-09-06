@@ -19,7 +19,7 @@ mutable struct TRUKIObj{FT<:AbstractFloat, IT<:Int}
      "vector of observations (length: N_data); mean of all observation samples"
      g_t::Vector{FT}
      "covariance of the observational noise"
-     obs_cov::Array{FT, 2}
+     obs_cov
      "a vector of arrays of size N_ensemble x N_g containing the predicted observation (in each TRUKI iteration a new array of predicted observation is added)"
      g_bar::Vector{Array{FT}}
      "low rank dimension, ensemble size is 2N_r+1 "
@@ -37,7 +37,7 @@ mutable struct TRUKIObj{FT<:AbstractFloat, IT<:Int}
      "Square root of the Covariance matrix of the evolution error"
      Z_ω::Array{FT, 2}
      "Covariance matrix of the observation error"
-     Σ_ν::Array{FT, 2} 
+     Σ_ν
      "For low rank "
      counter::Int64
 end
@@ -58,7 +58,7 @@ function TRUKIObj(parameter_names::Vector{String},
                 θ0_bar::Array{FT}, 
                 θθ0_cov_sqr::Array{FT, 2},
                 g_t::Vector{FT}, # observation
-                obs_cov::Array{FT, 2},
+                obs_cov,
                 α_reg::Float64) where {FT<:AbstractFloat}
 
     # ensemble size
@@ -100,12 +100,12 @@ function TRUKIObj(parameter_names::Vector{String},
     cov_weights[1] = λ/(N_r + λ) + 1 - α^2 + β
     cov_weights[2:N_ens] .= 1/(2(N_r + λ))
 
-    Σ_ω, Σ_ν =  (2-α_reg^2)*θθ0_cov_sqr, 2*obs_cov
+    Z_ω, Σ_ν =  sqrt(2-α_reg^2)*θθ0_cov_sqr, 2*obs_cov
     
     counter = 0
 
     TRUKIObj{FT,IT}(parameter_names, θ_bar, θθ_cov_sqr, g_t, obs_cov, g_bar, N_r, N_θ, N_g, 
-                  sample_weights, μ_weights, cov_weights, α_reg, Σ_ω, Σ_ν, counter)
+                  sample_weights, μ_weights, cov_weights, α_reg, Z_ω, Σ_ν, counter)
 
 end
 
@@ -124,7 +124,7 @@ function construct_sigma_ensemble(truki::TRUKIObj{FT}, x_bar::Array{FT}, x_cov_s
     svd_xx_cov_sqr = svd(x_cov_sqr)
 
     # @info "energy : ", sum(svd_xx_cov.S[1:N_r])/sum(svd_xx_cov.S)
-    @info "svd_xx_cov_sqr.S : ", svd_xx_cov_sqr.S
+    # @info "svd_xx_cov_sqr.S : ", svd_xx_cov_sqr.S
 
     # @info "svd_xx_cov.U : ", svd_xx_cov.U
     # @info "x_cov : ", x_cov
