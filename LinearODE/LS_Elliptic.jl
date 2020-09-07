@@ -175,8 +175,7 @@ end
 
 problem_type = "Elliptic"  
 
-Linear_Test(problem_type, true, 500, 5, 1.0, 50)
-Linear_Test(problem_type, false, 500, 50, 1.0, 500000)
+Linear_Test(problem_type, false, 50, 5, 1.0, 1000000)
 
 
 @info "Finish"

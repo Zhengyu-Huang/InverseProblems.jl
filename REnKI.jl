@@ -4,7 +4,20 @@ using Distributions
 using LinearAlgebra
 using DocStringExtensions
 
+ # generate ensemble
+ Random.seed!(123)
 
+function MvNormal_sqr(N_ens, θ_bar, θθ_cov_sqr)
+
+    
+    N_θ, N_r = size(θθ_cov_sqr)
+    θ = zeros(Float64, N_ens, N_θ)
+    for i = 1: N_ens
+        θ[i,     :] = θ_bar + θθ_cov_sqr * rand(Normal(0, 1), N_r)
+    end
+
+    return θ
+end
 """
 EnKIObj{FT<:AbstractFloat, IT<:Int}
 Structure that is used in Ensemble Kalman Inversion (EnKI)
@@ -21,7 +34,7 @@ struct EnKIObj{FT<:AbstractFloat, IT<:Int}
     "Prior mean"
     θ0_bar::Array{FT}
     "Prior convariance"
-    θθ0_cov
+    θθ0_cov_sqr::Array{FT, 2}
     "observation"
     g_t::Vector{FT}
     "covariance of the observational noise, which is assumed to be normally distributed"
@@ -34,8 +47,8 @@ struct EnKIObj{FT<:AbstractFloat, IT<:Int}
     N_g::IT
     "regularization parameter"
     α_reg::Float64
-    "Covariance matrix of the evolution error"
-    Σ_ω
+    "Covariance matrix square root of the evolution error"
+    Z_ω
     "Covariance matrix of the observation error"
     Σ_ν
 end
@@ -45,7 +58,7 @@ function EnKIObj(filter_type::String,
     parameter_names::Vector{String},
     N_ens::Int64,
     θ0_bar::Array{FT},
-    θθ0_cov,
+    θθ0_cov_sqr::Array{FT,2},
     g_t,
     obs_cov,
     α_reg::Float64) where {FT<:AbstractFloat}
@@ -56,24 +69,11 @@ function EnKIObj(filter_type::String,
     # parameters
     θ = Array{FT, 2}[] # array of Array{FT, 2}'s
 
-    # generate ensemble
-    Random.seed!(123)
-    θ0 = rand(MvNormal(θ0_bar, θθ0_cov), N_ens)'
+   
+    # θ0 = rand(MvNormal(θ0_bar, θθ0_cov), N_ens)'
 
-
-    # use svd decomposition
-    # svd_θθ0_cov = svd(θθ0_cov)
-    # N_θ = size(θ0_bar, 1)
-    # θ0 = zeros(Float64, N_ens, N_θ)
-    # θ0[1, :] = θ0_bar
-    # N_r = div(N_ens, 2)
-    # for i = 1: N_r
-    #     θ0[i+1,     :] = θ0_bar + sqrt(svd_θθ0_cov.S[i])*svd_θθ0_cov.U[:, i]
-    #     θ0[i+1+N_r, :] = θ0_bar - sqrt(svd_θθ0_cov.S[i])*svd_θθ0_cov.U[:, i]
-    # end
-
-
-
+    θ0 = MvNormal_sqr(N_ens, θ0_bar, θθ0_cov_sqr)
+    
 
     push!(θ, θ0) # insert parameters at end of array (in this case just 1st entry)
     
@@ -83,10 +83,10 @@ function EnKIObj(filter_type::String,
     N_g = size(g_t, 1)
 
     γ = 2.0
-    Σ_ω, Σ_ν =  (γ/(γ-1)-α_reg^2)*θθ0_cov, γ*obs_cov
+    Z_ω, Σ_ν =  sqrt((γ/(γ-1)-α_reg^2))*θθ0_cov_sqr, γ*obs_cov
     # Σ_ω, Σ_ν =  1.0e-15*θθ0_cov, obs_cov
     
-    EnKIObj{FT,IT}(filter_type, parameter_names, θ, θ0_bar, θθ0_cov,  g_t, obs_cov, g_bar, N_ens, N_g, α_reg, Σ_ω, Σ_ν)
+    EnKIObj{FT,IT}(filter_type, parameter_names, θ, θ0_bar, θθ0_cov_sqr,  g_t, obs_cov, g_bar, N_ens, N_g, α_reg, Z_ω, Σ_ν)
 end
 
 
@@ -149,13 +149,14 @@ function update_ensemble!(enki::EnKIObj{FT}, ens_func::Function) where {FT<:Abst
     α_reg = enki.α_reg
     
     # evolution and observation covariance matrices
-    Σ_ω, Σ_ν = enki.Σ_ω, enki.Σ_ν
+    Z_ω, Σ_ν = enki.Z_ω, enki.Σ_ν
     
     # generate evolution error
-    noise = rand(MvNormal(zeros(N_θ), Σ_ω), N_ens) # N_ens
+    noise = MvNormal_sqr(N_ens, zeros(N_θ), Z_ω)
+
     
     for j = 1:N_ens
-        θ_p[j, :] .= α_reg*θ_p[j, :] + (1-α_reg)*θ0_bar + noise[:, j]
+        θ_p[j, :] .= α_reg*θ_p[j, :] + (1-α_reg)*θ0_bar + noise[j, :]
     end
     
     θ_p_bar = dropdims(mean(θ_p, dims=1), dims=1)
@@ -257,11 +258,11 @@ function update_ensemble!(enki::EnKIObj{FT}, ens_func::Function) where {FT<:Abst
         
         # update particles by Ensemble Adjustment Kalman Filter
         # Dp = F^T Σ F, Σ = F Dp F^T, Dp is non-singular
-        X = V_p_t/Σ_ν*V_p_t'
-        svd_X = svd(X)
+        # X = V_p_t/Σ_ν*V_p_t'
+        # svd_X = svd(X)
 
-        C, Γ = svd_X.U, svd_X.S
-        
+        # C, Γ = svd_X.U, svd_X.S
+   
         #Original ETKF is  T = C * (Γ .+ 1)^{-1/2}, but it is biased
         T = C ./ sqrt.(Γ .+ 1)' * C'
 

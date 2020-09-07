@@ -1,11 +1,13 @@
 using NNGCM
 using LinearAlgebra
+using Random
 
+Random.seed!(42)
 """
 @info norm(spe_vor_c), norm(spe_vor_c[1:8, 1:8])
 """
 
-function Barotropic_Main(init_type::String, init_data = nothing)
+function Barotropic_Main(ndays::Int64, init_type::String, init_data = nothing, obs_coord = nothing)
   # the decay of a sinusoidal disturbance to a zonally symmetric flow 
   # that resembles that found in the upper troposphere in Northern winter.
   name = "Barotropic"
@@ -33,7 +35,7 @@ function Barotropic_Main(init_type::String, init_data = nothing)
   
   start_time = 0 
   day_to_second = 86400
-  end_time = 2*day_to_second  #2 day
+  end_time = ndays*day_to_second  #2 day
   Δt = 1800
   init_step = true
   
@@ -59,6 +61,12 @@ function Barotropic_Main(init_type::String, init_data = nothing)
   
   if init_type == "truth"
     
+    ################# Observations are grid points
+    # Random sample
+    nobs = 10
+    obs_coord = zeros(Int64, 2nobs, 2)
+    obs_coord[1:nobs, 1], obs_coord[1:nobs, 2] = rand(1:nλ, nobs), trunc.(Int64, LinRange(1, nθ, nobs))
+    ##################################
     
     for i = 1:nλ
       grid_u[i, :, 1] .= 25 * cosθ - 30 * cosθ.^3 + 300 * sinθ.^2 .* cosθ.^6
@@ -80,6 +88,18 @@ function Barotropic_Main(init_type::String, init_data = nothing)
       end
     end
     
+    ################# Observations are grid points
+    # Random sample in the band
+    band = Int64[]
+    for j = 1:nθ
+      if abs(θc[j] - θ0) < θw;    push!(band, j);    end
+      
+    end
+    
+    obs_coord[nobs+1:end, 1], obs_coord[nobs+1:end, 2] = rand(1:nλ, nobs), trunc.(Int64, LinRange(band[1], band[end], nobs))
+    ##################################
+    
+    
     Lat_Lon_Pcolormesh(mesh, grid_vor_pert, 1, "Barotropic_vor_pert0.png")
     
     grid_vor .+= grid_vor_pert
@@ -88,21 +108,24 @@ function Barotropic_Main(init_type::String, init_data = nothing)
     
     Trans_Grid_To_Spherical!(mesh, grid_vor, spe_vor_c)
     UV_Grid_From_Vor_Div!(mesh, spe_vor_c,  spe_div_c, grid_u, grid_v)
-
+    
     Lat_Lon_Pcolormesh(mesh, grid_u, 1, "Barotropic_vel_u0.png")
     
   else
     
     Barotropic_ω0!(mesh, init_type, init_data, spe_vor_c, grid_vor)
-      
+    
     spe_div_c .= 0.0
     grid_div  .= 0.0
     UV_Grid_From_Vor_Div!(mesh, spe_vor_c,  spe_div_c, grid_u, grid_v)
   end
   
+  spe_vor0 = copy(spe_vor_c) 
+  grid_vor0 = copy(grid_vor)
+  
   ###########################################################################################
   
-  obs = Array{Float64, 3}[]
+  obs_data = Array{Float64, 3}[]
   
   
   NT = Int64(end_time / Δt)
@@ -115,21 +138,30 @@ function Barotropic_Main(init_type::String, init_data = nothing)
     time += Δt
     if time % day_to_second == 0
       @info "day = ", div(time , day_to_second)
-      push!(obs, grid_vor)
+      # TODO can change to other quantities
+      if init_type == "truth"
+        Lat_Lon_Pcolormesh(mesh, grid_u, 1, obs_coord,  "Barotropic_u-"*string(div(time , day_to_second))*".png")
+      end
+      push!(obs_data, grid_u)
     end
     
   end
-  
-  Lat_Lon_Pcolormesh(mesh, grid_u,  1, "Barotropic_vel_u.png")
-  Lat_Lon_Pcolormesh(mesh, grid_vor, 1, "Barotropic_vor.png")
-  
-  return mesh, dyn_data, obs
+  if init_type == "truth"
+    Lat_Lon_Pcolormesh(mesh, grid_u,  1, "Barotropic_vel_u.png")
+    Lat_Lon_Pcolormesh(mesh, grid_vor, 1, "Barotropic_vor.png")
+  end
+
+  return mesh, dyn_data, grid_vor0, spe_vor0, obs_coord, obs_data
 end
 
 
 function Barotropic_ω0!(mesh, init_type::String, init_data, spe_vor0, grid_vor0)
+  radius = 6371.2e3
+  
   if init_type == "grid_vor"
     grid_vor0[:] = copy(init_data)
+    
+    grid_vor0 ./= radius
     
     Trans_Grid_To_Spherical!(mesh, grid_vor0, spe_vor0)
     
@@ -150,7 +182,7 @@ function Barotropic_ω0!(mesh, init_type::String, init_data, spe_vor0, grid_vor0
     for n = 1:N
       for m = 0:n
         i_init_data = Int64((n+2)*(n-1)/2) + m + 1
-        # @info m+1,n+1, i_init_data
+        # TODO /radius
         spe_vor0[m+1,n+1] = (init_data[2*i_init_data-1] + init_data[2*i_init_data] * im)/radius
       end
     end
@@ -159,7 +191,7 @@ function Barotropic_ω0!(mesh, init_type::String, init_data, spe_vor0, grid_vor0
   else 
     error("Initial condition type :", init_type,  " is not recognized.")
   end
-
+  
 end
 
 ###########################################################################################

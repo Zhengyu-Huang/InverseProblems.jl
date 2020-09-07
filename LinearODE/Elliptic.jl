@@ -67,7 +67,7 @@ function LRRUKI_Run(t_mean, t_cov, θ_bar, θθ_cov,  G,  N_r, α_reg::Float64, 
 end
 
 
-function EnKI_Run(filter_type, t_mean, t_cov, θ0_bar, θθ0_cov,  G,  N_ens, α_reg::Float64, N_iter::Int64 = 100)
+function EnKI_Run(filter_type, t_mean, t_cov, θ0_bar, θθ0_cov_sqr,  G,  N_ens, α_reg::Float64, N_iter::Int64 = 100)
     parameter_names = ["θ"]
     
     
@@ -80,7 +80,7 @@ function EnKI_Run(filter_type, t_mean, t_cov, θ0_bar, θθ0_cov,  G,  N_ens, α
     parameter_names,
     N_ens, 
     θ0_bar,
-    θθ0_cov,
+    θθ0_cov_sqr,
     t_mean, # observation
     t_cov,
     α_reg)
@@ -139,15 +139,14 @@ function Linear_Test(problem_type::String, low_rank_prior::Bool = true, nθ::Int
             Z0_cov[:, i] = 10.0 * sin.(i *  pi*x) 
         end
         
-        θθ0_cov = Z0_cov * Z0_cov' + Array(Diagonal(fill(1e-10, nθ))) 
         
     end
 
-    enkiobj = EnKI_Run("EnKI", t_mean, t_cov, θ0_bar, θθ0_cov, G, 2N_r+1, α_reg, N_ite)
+    enkiobj = EnKI_Run("EnKI", t_mean, t_cov, θ0_bar, Z0_cov , G, 2N_r+1, α_reg, N_ite)
     @info "finish EnKI"
-    eakiobj = EnKI_Run("EAKI", t_mean, t_cov, θ0_bar, θθ0_cov, G, 2N_r+1, α_reg, N_ite)
+    eakiobj = EnKI_Run("EAKI", t_mean, t_cov, θ0_bar, Z0_cov , G, 2N_r+1, α_reg, N_ite)
     @info "finish EAKI"
-    etkiobj = EnKI_Run("ETKI", t_mean, t_cov, θ0_bar, θθ0_cov, G, 2N_r+1, α_reg, N_ite)
+    etkiobj = EnKI_Run("ETKI", t_mean, t_cov, θ0_bar, Z0_cov , G, 2N_r+1, α_reg, N_ite)
     @info "finish ETKI"
     trukiobj = TRUKI_Run(t_mean, t_cov, θ0_bar, Z0_cov, G, N_r, α_reg, N_ite)
     @info "finish TRUKI"
@@ -201,7 +200,6 @@ end
 problem_type = "Elliptic"  
 
 Linear_Test(problem_type, true, 500, 5, 1.0, 50)
-Linear_Test(problem_type, false, 500, 50, 1.0, 500000)
 
 
 @info "Finish"
