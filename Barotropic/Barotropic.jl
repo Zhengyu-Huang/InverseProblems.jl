@@ -99,7 +99,7 @@ function Barotropic_Main(ndays::Int64, init_type::String, init_data = nothing, o
       
     end
 
-    nobs_x, nobs_y = 12, 12
+    nobs_x, nobs_y = 12, 6
 
     nobs = nobs_x * nobs_y
     obs_coord = zeros(Int64, nobs, 2)
@@ -109,7 +109,7 @@ function Barotropic_Main(ndays::Int64, init_type::String, init_data = nothing, o
     # X,Y = repeat(θc_deg, 1, nd), repeat(σc, 1, nθ)'
     obs_x = trunc.(Int64, LinRange(1, nλ, nobs_x+1))[1:nobs_x]
     # obs_y = trunc.(Int64, LinRange(band[1], band[end], nobs_y))
-    obs_y = trunc.(Int64, LinRange(1, nθ, nobs_y))
+    obs_y = trunc.(Int64, LinRange(Int64(nθ/2), nθ, nobs_y))
     for i = 1:nobs_x
       for j = 1:nobs_y
           obs_coord[i + (j-1)*nobs_x, 1], obs_coord[i + (j-1)*nobs_x, 2] = obs_x[i], obs_y[j]

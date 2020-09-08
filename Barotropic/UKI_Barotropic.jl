@@ -90,7 +90,12 @@ function Barotropic_RUKI(barotropic::Barotropic_Data, t_mean::Array{Float64,1}, 
   α_reg)
   
   for i in 1:N_iter
-    
+
+    if i==1
+    Barotropic_ω0!(mesh, init_type, rukiobj.θ_bar[end], spe_vor0, grid_vor0)
+    @info "i0: error of ω0 :", norm(grid_vor0_ref - grid_vor0), " / ",  norm(grid_vor0_ref)
+    end
+
     update_ensemble!(rukiobj, ens_func) 
     
     
@@ -98,8 +103,6 @@ function Barotropic_RUKI(barotropic::Barotropic_Data, t_mean::Array{Float64,1}, 
     
     
     Barotropic_ω0!(mesh, init_type, params_i, spe_vor0, grid_vor0)
-    
-    
     @info "error of ω0 :", norm(grid_vor0_ref - grid_vor0), " / ",  norm(grid_vor0_ref)
 
     @info "optimization error :", norm(obs_data - rukiobj.g_bar[end]), " / ",  norm(obs_data)
@@ -207,6 +210,7 @@ end
 ###############################################################################################
 
 function Compare(α_reg::Float64, noise_level::Int64)
+  @info "α_reg::Float64, noise_level::Int64 : ", α_reg, noise_level
   ndays  = 2
   mesh,  grid_vor_b, spe_vor_b, grid_vor0, spe_vor0, obs_coord, obs_data = Barotropic_Main(ndays, "truth")
   obs_data = convert_obs(obs_coord, obs_data)
@@ -241,19 +245,19 @@ function Compare(α_reg::Float64, noise_level::Int64)
   begin
     barotropic.init_type = "spec_vor"
     # N = 7, n, m = 0,1, ... 7  
-    N = 5
+    N = 7
     nθ = (N+3)*N
     θ0_bar = zeros(Float64, nθ)                              # mean 
 
 
 
-  # radius = 6371.2e3  
-  # for n = 1:N
-  #   for m = 0:n
-  #     i_init_data = Int64((n+2)*(n-1)/2) + m + 1
-  #     θ0_bar[2*i_init_data-1],  θ0_bar[2*i_init_data] = real(spe_vor_b[m+1,n+1])*radius,  imag(spe_vor_b[m+1,n+1])*radius
-  #   end
-  # end
+  radius = 6371.2e3  
+  for n = 1:N
+    for m = 0:n
+      i_init_data = Int64((n+2)*(n-1)/2) + m + 1
+      θ0_bar[2*i_init_data-1],  θ0_bar[2*i_init_data] = real(spe_vor_b[m+1,n+1])*radius,  imag(spe_vor_b[m+1,n+1])*radius
+    end
+  end
 
 
 
@@ -269,4 +273,4 @@ function Compare(α_reg::Float64, noise_level::Int64)
 end
 
 
-Compare(1.0, 0)
+Compare(0.5, 0)
