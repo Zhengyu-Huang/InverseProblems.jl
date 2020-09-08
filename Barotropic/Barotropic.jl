@@ -7,11 +7,11 @@ Random.seed!(42)
 @info norm(spe_vor_c), norm(spe_vor_c[1:8, 1:8])
 """
 
-function Barotropic_Main(ndays::Int64, init_type::String, init_data = nothing, obs_coord = nothing)
+function Barotropic_Main(ndays::Int64, init_type::String, init_data = nothing, obs_coord = nothing, plot_data::Bool=false)
   # the decay of a sinusoidal disturbance to a zonally symmetric flow 
   # that resembles that found in the upper troposphere in Northern winter.
   name = "Barotropic"
-  num_fourier, nθ, nd = 85, 128, 1
+  num_fourier, nθ, nd = 42, 64, 1 #85, 128, 1
   num_spherical = num_fourier + 1
   nλ = 2nθ
   
@@ -34,7 +34,7 @@ function Barotropic_Main(ndays::Int64, init_type::String, init_data = nothing, o
   implicit_coef = 0.0
   
   start_time = 0 
-  day_to_second = 86400
+  day_to_second = div(86400,2)
   end_time = ndays*day_to_second  #2 day
   Δt = 1800
   init_step = true
@@ -59,14 +59,12 @@ function Barotropic_Main(ndays::Int64, init_type::String, init_data = nothing, o
   spe_vor_c, spe_div_c = dyn_data.spe_vor_c, dyn_data.spe_div_c
   grid_vor, grid_div = dyn_data.grid_vor, dyn_data.grid_div
   
+  grid_vor_b = similar(grid_vor); spe_vor_b = similar(spe_vor_c)
+
+
   if init_type == "truth"
     
-    ################# Observations are grid points
-    # Random sample
-    nobs = 10
-    obs_coord = zeros(Int64, 2nobs, 2)
-    obs_coord[1:nobs, 1], obs_coord[1:nobs, 2] = rand(1:nλ, nobs), trunc.(Int64, LinRange(1, nθ, nobs))
-    ##################################
+    
     
     for i = 1:nλ
       grid_u[i, :, 1] .= 25 * cosθ - 30 * cosθ.^3 + 300 * sinθ.^2 .* cosθ.^6
@@ -78,25 +76,45 @@ function Barotropic_Main(ndays::Int64, init_type::String, init_data = nothing, o
     Vor_Div_From_Grid_UV!(mesh, grid_u, grid_v, spe_vor_c, spe_div_c) 
     Trans_Spherical_To_Grid!(mesh, spe_vor_c,  grid_vor)
     Trans_Spherical_To_Grid!(mesh, spe_div_c,  grid_div)
+
+    grid_vor_b = copy(grid_vor); spe_vor_b = copy(spe_vor_c)
     
     grid_vor_pert = similar(grid_vor)
     # ! adding a perturbation to the vorticity
-    m, θ0, θw, A = 4.0, 45.0 * pi / 180, 15.0 * pi / 180.0, 8.0e-5
+    m, θ0, θw, A = 2.0, 45.0 * pi / 180, 15.0 * pi / 180.0, 8.0e-5
     for i = 1:nλ
       for j = 1:nθ
         grid_vor_pert[i,j, 1] = A / 2.0 * cosθ[j] * exp(-((θc[j] - θ0) / θw)^2) * cos(m * λc[i])
       end
     end
+
     
     ################# Observations are grid points
+    # Random sample
+    
     # Random sample in the band
     band = Int64[]
     for j = 1:nθ
-      if abs(θc[j] - θ0) < θw;    push!(band, j);    end
+      if θc[j] < θ0 + θw && θc[j]  > θ0 - 2θw;    push!(band, j);    end
       
     end
-    
-    obs_coord[nobs+1:end, 1], obs_coord[nobs+1:end, 2] = rand(1:nλ, nobs), trunc.(Int64, LinRange(band[1], band[end], nobs))
+
+    nobs_x, nobs_y = 12, 12
+
+    nobs = nobs_x * nobs_y
+    obs_coord = zeros(Int64, nobs, 2)
+    # obs_coord[1:nobs, 1], obs_coord[1:nobs, 2] = trunc.(Int64, LinRange(1, nλ, nobs)), trunc.(Int64, LinRange(1, nθ, nobs))
+
+
+    # X,Y = repeat(θc_deg, 1, nd), repeat(σc, 1, nθ)'
+    obs_x = trunc.(Int64, LinRange(1, nλ, nobs_x+1))[1:nobs_x]
+    # obs_y = trunc.(Int64, LinRange(band[1], band[end], nobs_y))
+    obs_y = trunc.(Int64, LinRange(1, nθ, nobs_y))
+    for i = 1:nobs_x
+      for j = 1:nobs_y
+          obs_coord[i + (j-1)*nobs_x, 1], obs_coord[i + (j-1)*nobs_x, 2] = obs_x[i], obs_y[j]
+      end
+    end
     ##################################
     
     
@@ -110,6 +128,9 @@ function Barotropic_Main(ndays::Int64, init_type::String, init_data = nothing, o
     UV_Grid_From_Vor_Div!(mesh, spe_vor_c,  spe_div_c, grid_u, grid_v)
     
     Lat_Lon_Pcolormesh(mesh, grid_u, 1, "Barotropic_vel_u0.png")
+
+    @info norm(spe_vor_c), norm(spe_vor_c[1:6, 1:6]), norm(real.(spe_vor_c)), norm(imag.(spe_vor_c))
+    @info spe_vor_c[1:6, 1:6]
     
   else
     
@@ -120,8 +141,7 @@ function Barotropic_Main(ndays::Int64, init_type::String, init_data = nothing, o
     UV_Grid_From_Vor_Div!(mesh, spe_vor_c,  spe_div_c, grid_u, grid_v)
   end
   
-  spe_vor0 = copy(spe_vor_c) 
-  grid_vor0 = copy(grid_vor)
+  spe_vor0 = copy(spe_vor_c); grid_vor0 = copy(grid_vor)
   
   ###########################################################################################
   
@@ -139,19 +159,19 @@ function Barotropic_Main(ndays::Int64, init_type::String, init_data = nothing, o
     if time % day_to_second == 0
       @info "day = ", div(time , day_to_second)
       # TODO can change to other quantities
-      if init_type == "truth"
+      if init_type == "truth" || plot_data 
         Lat_Lon_Pcolormesh(mesh, grid_u, 1, obs_coord,  "Barotropic_u-"*string(div(time , day_to_second))*".png")
       end
       push!(obs_data, grid_u)
     end
     
   end
-  if init_type == "truth"
+  if init_type == "truth" || plot_data 
     Lat_Lon_Pcolormesh(mesh, grid_u,  1, "Barotropic_vel_u.png")
     Lat_Lon_Pcolormesh(mesh, grid_vor, 1, "Barotropic_vor.png")
   end
 
-  return mesh, dyn_data, grid_vor0, spe_vor0, obs_coord, obs_data
+  return mesh,  grid_vor_b, spe_vor_b, grid_vor0, spe_vor0, obs_coord, obs_data
 end
 
 
