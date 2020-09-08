@@ -21,7 +21,7 @@ mutable struct Barotropic_Data
   grid_vor0::Array{Float64, 3}
   spe_vor0::Array{ComplexF64, 3}
   
-  ndays::Int64
+  nframes::Int64
   init_type::String
 end
 
@@ -43,9 +43,9 @@ function convert_obs(obs_coord, obs_raw)
 end
 
 
-function Barotropic_run(ndays::Int64, init_type::String, init_data=nothing, obs_coord=nothing)
+function Barotropic_run(nframes::Int64, init_type::String, init_data=nothing, obs_coord=nothing)
   
-  _, _, _, _, _, _, obs_raw = Barotropic_Main(ndays, init_type, init_data, obs_coord)
+  _, _, _, _, _, _, obs_raw = Barotropic_Main(nframes, init_type, init_data, obs_coord)
 
   # update obs
   obs = convert_obs(obs_coord, obs_raw)
@@ -53,16 +53,16 @@ function Barotropic_run(ndays::Int64, init_type::String, init_data=nothing, obs_
   return obs
 end
 
-function Barotropic_ensemble(params_i::Array{Float64, 2},  ndays::Int64, init_type::String,  obs_coord::Array{Int64, 2})
+function Barotropic_ensemble(params_i::Array{Float64, 2},  nframes::Int64, init_type::String,  obs_coord::Array{Int64, 2})
   
   N_ens,  N_θ = size(params_i)
-  N_data = size(obs_coord, 1) * ndays
+  N_data = size(obs_coord, 1) * nframes
   
   g_ens = zeros(Float64, N_ens,  N_data)
 
   Threads.@threads for i = 1:N_ens 
     # g: N_ens x N_data
-    g_ens[i, :] .= Barotropic_run(ndays, init_type, params_i[i, :], obs_coord)
+    g_ens[i, :] .= Barotropic_run(nframes, init_type, params_i[i, :], obs_coord)
   end
   
   return g_ens
@@ -76,11 +76,11 @@ function Barotropic_RUKI(barotropic::Barotropic_Data, t_mean::Array{Float64,1}, 
   
   mesh, obs_coord, obs_data, init_type = barotropic.mesh, barotropic.obs_coord, barotropic.obs_data, barotropic.init_type
   grid_vor0_ref, grid_vor0, spe_vor0 = barotropic.grid_vor0_ref, barotropic.grid_vor0, barotropic.spe_vor0
-  ndays = barotropic.ndays
+  nframes = barotropic.nframes
   
   parameter_names = ["spe_ω"] 
   
-  ens_func(θ_ens) = Barotropic_ensemble(θ_ens, ndays, init_type, obs_coord)
+  ens_func(θ_ens) = Barotropic_ensemble(θ_ens, nframes, init_type, obs_coord)
   
   rukiobj = ExKIObj(parameter_names,
   θ0_bar, 
@@ -107,7 +107,7 @@ function Barotropic_RUKI(barotropic::Barotropic_Data, t_mean::Array{Float64,1}, 
 
     @info "optimization error :", norm(obs_data - rukiobj.g_bar[end]), " / ",  norm(obs_data)
 
-    Lat_Lon_Pcolormesh(mesh, grid_vor0, 1, "Barotropic_vor_"*string(i)*".png")
+    Lat_Lon_Pcolormesh(mesh, grid_vor0, 1; save_file_name = "Barotropic_vor_"*string(i)*".png", vmax = vor0_max, vmin = vor0_vmin, cmap = "jet")
     
   end
   
@@ -121,11 +121,11 @@ function Barotropic_TRUKI(barotropic::Barotropic_Data, t_mean::Array{Float64,1},
 
   mesh, obs_coord, init_type = barotropic.mesh, barotropic.obs_coord, barotropic.init_type
   grid_vor0_ref, grid_vor0, spe_vor0 = barotropic.grid_vor0_ref, barotropic.grid_vor0, barotropic.spe_vor0
-  ndays = barotropic.ndays
+  nframes = barotropic.nframes
                           
   parameter_names = ["spe_ω"] 
   
-  ens_func(θ_ens) = Barotropic_ensemble(θ_ens, ndays, init_type, obs_coord)
+  ens_func(θ_ens) = Barotropic_ensemble(θ_ens, nframes, init_type, obs_coord)
   
   trukiobj = TRUKIObj(parameter_names,
   N_r,
@@ -166,11 +166,11 @@ function Barotropic_EnKI(filter_type::String, barotropic::Barotropic_Data, t_mea
   
   mesh, obs_coord, init_type = barotropic.mesh, barotropic.obs_coord, barotropic.init_type
   grid_vor0_ref, grid_vor0, spe_vor0 = barotropic.grid_vor0_ref, barotropic.grid_vor0, barotropic.spe_vor0
-  ndays = barotropic.ndays
+  nframes = barotropic.nframes
   
   parameter_names = ["spe_ω"] 
   
-  ens_func(θ_ens) = Barotropic_ensemble(θ_ens, ndays, init_type, obs_coord)
+  ens_func(θ_ens) = Barotropic_ensemble(θ_ens, nframes, init_type, obs_coord)
 
   ekiobj = EnKIObj(filter_type, 
   parameter_names,
@@ -211,12 +211,12 @@ end
 
 function Compare(α_reg::Float64, noise_level::Int64)
   @info "α_reg::Float64, noise_level::Int64 : ", α_reg, noise_level
-  ndays  = 2
-  mesh,  grid_vor_b, spe_vor_b, grid_vor0, spe_vor0, obs_coord, obs_data = Barotropic_Main(ndays, "truth")
+  nframes  = 2
+  mesh,  grid_vor_b, spe_vor_b, grid_vor0, spe_vor0, obs_coord, obs_data = Barotropic_Main(nframes, "truth")
   obs_data = convert_obs(obs_coord, obs_data)
   
   
-  barotropic = Barotropic_Data(mesh, obs_coord, obs_data, grid_vor0, similar(grid_vor0), similar(spe_vor0), ndays, "truth")
+  barotropic = Barotropic_Data(mesh, obs_coord, obs_data, grid_vor0, similar(grid_vor0), similar(spe_vor0), nframes, "truth")
   
   t_mean = obs_data
   N_data = length(t_mean)
@@ -235,7 +235,7 @@ function Compare(α_reg::Float64, noise_level::Int64)
   # end
   
 
-  # _, _, _, _, obs_coord, obs_raw_debug = Barotropic_Main(ndays,  "spec_vor" , init_data, obs_coord, true)
+  # _, _, _, _, obs_coord, obs_raw_debug = Barotropic_Main(nframes,  "spec_vor" , init_data, obs_coord, true)
   # t_mean_debug = convert_obs(obs_coord, obs_raw_debug)
   # @info norm(t_mean_debug - t_mean)/norm(t_mean)
   # error("stop")
@@ -264,7 +264,7 @@ function Compare(α_reg::Float64, noise_level::Int64)
 
     θθ0_cov = Array(Diagonal(fill(1.0^2, nθ)))           # standard deviation
     
-    N_ite = 50 
+    N_ite = 20
     
     ukiobj = Barotropic_RUKI(barotropic,  t_mean, t_cov, θ0_bar, θθ0_cov, α_reg,  N_ite)
   end

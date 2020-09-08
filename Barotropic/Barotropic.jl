@@ -3,11 +3,12 @@ using LinearAlgebra
 using Random
 
 
+vor0_max, vor0_vmin = 4.208362320588924e-5, -1.7565000874341874e-5
 """
 @info norm(spe_vor_c), norm(spe_vor_c[1:8, 1:8])
 """
 
-function Barotropic_Main(ndays::Int64, init_type::String, init_data = nothing, obs_coord = nothing, plot_data::Bool=false)
+function Barotropic_Main(nframes::Int64, init_type::String, init_data = nothing, obs_coord = nothing, plot_data::Bool=false)
   # the decay of a sinusoidal disturbance to a zonally symmetric flow 
   # that resembles that found in the upper troposphere in Northern winter.
   name = "Barotropic"
@@ -34,8 +35,11 @@ function Barotropic_Main(ndays::Int64, init_type::String, init_data = nothing, o
   implicit_coef = 0.0
   
   start_time = 0 
+  
   day_to_second = 86400
-  end_time = ndays*day_to_second  #2 day
+
+  obs_time = Int64(day_to_second/nframes)
+  end_time = day_to_second  #2 day
   Δt = 1800
   init_step = true
   
@@ -61,7 +65,7 @@ function Barotropic_Main(ndays::Int64, init_type::String, init_data = nothing, o
   
   grid_vor_b = similar(grid_vor); spe_vor_b = similar(spe_vor_c)
 
-
+  
   if init_type == "truth"
     
     
@@ -71,7 +75,7 @@ function Barotropic_Main(ndays::Int64, init_type::String, init_data = nothing, o
     end
     grid_v .= 0.0 
     
-    Lat_Lon_Pcolormesh(mesh, grid_u,  1, "Barotropic_vel_u_pert0.png")
+    Lat_Lon_Pcolormesh(mesh, grid_u,  1; save_file_name = "Barotropic_vel_u_pert0.png", cmap = "jet")
     
     Vor_Div_From_Grid_UV!(mesh, grid_u, grid_v, spe_vor_c, spe_div_c) 
     Trans_Spherical_To_Grid!(mesh, spe_vor_c,  grid_vor)
@@ -119,16 +123,16 @@ function Barotropic_Main(ndays::Int64, init_type::String, init_data = nothing, o
     ##################################
     
     
-    Lat_Lon_Pcolormesh(mesh, grid_vor_pert, 1, "Barotropic_vor_pert0.png")
+    Lat_Lon_Pcolormesh(mesh, grid_vor_pert, 1; save_file_name = "Barotropic_vor_pert0.png", cmap = "jet")
     
     grid_vor .+= grid_vor_pert
-    Lat_Lon_Pcolormesh(mesh, grid_vor, 1, "Barotropic_vor0.png")
+    Lat_Lon_Pcolormesh(mesh, grid_vor, 1; save_file_name = "Barotropic_vor0.png", cmap = "jet")
     
     
     Trans_Grid_To_Spherical!(mesh, grid_vor, spe_vor_c)
     UV_Grid_From_Vor_Div!(mesh, spe_vor_c,  spe_div_c, grid_u, grid_v)
     
-    Lat_Lon_Pcolormesh(mesh, grid_u, 1, "Barotropic_vel_u0.png")
+    Lat_Lon_Pcolormesh(mesh, grid_u, 1; save_file_name = "Barotropic_vel_u0.png", cmap = "jet")
 
     @info norm(spe_vor_c), norm(spe_vor_c[1:8, 1:8])
     
@@ -157,19 +161,19 @@ function Barotropic_Main(ndays::Int64, init_type::String, init_data = nothing, o
   for i = 2:NT
     Barotropic_Dynamics!(mesh, atmo_data, dyn_data, integrator)
     time += Δt
-    if time % day_to_second == 0
+    if time % obs_time == 0
       # @info "day = ", div(time , day_to_second)
       # TODO can change to other quantities
       if init_type == "truth" || plot_data 
-        Lat_Lon_Pcolormesh(mesh, grid_u, 1, obs_coord,  "Barotropic_u-"*string(div(time , day_to_second))*".png")
+        Lat_Lon_Pcolormesh(mesh, grid_u, 1, obs_coord; save_file_name =   "Barotropic_u-"*string(div(time , day_to_second))*".png", cmap = "jet")
       end
       push!(obs_data, grid_u)
     end
     
   end
   if init_type == "truth" || plot_data 
-    Lat_Lon_Pcolormesh(mesh, grid_u,  1, "Barotropic_vel_u.png")
-    Lat_Lon_Pcolormesh(mesh, grid_vor, 1, "Barotropic_vor.png")
+    Lat_Lon_Pcolormesh(mesh, grid_u,  1; save_file_name =  "Barotropic_vel_u.png", cmap = "jet")
+    Lat_Lon_Pcolormesh(mesh, grid_vor, 1; save_file_name =  "Barotropic_vor.png", cmap = "jet")
   end
 
 
