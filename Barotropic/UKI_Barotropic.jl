@@ -309,7 +309,7 @@ function Compare(α_reg::Float64, noise_level::Int64)
     
     
     trukiobj = Barotropic_TRUKI(barotropic,  t_mean, t_cov, θ0_bar, Z0_cov, N_r, α_reg,  N_ite)
-    enkiobj = Barotropic_EnKI("EnKI", barotropic,  t_mean, t_cov, θ0_bar, Z0_cov, 2N_r+1, α_reg,  N_ite)
+    # enkiobj = Barotropic_EnKI("EnKI", barotropic,  t_mean, t_cov, θ0_bar, Z0_cov, 2N_r+1, α_reg,  N_ite)
     eakiobj = Barotropic_EnKI("EAKI", barotropic,  t_mean, t_cov, θ0_bar, Z0_cov, 2N_r+1, α_reg,  N_ite)
     etkiobj = Barotropic_EnKI("ETKI", barotropic,  t_mean, t_cov, θ0_bar, Z0_cov, 2N_r+1, α_reg,  N_ite)
     
@@ -337,11 +337,11 @@ function Compare(α_reg::Float64, noise_level::Int64)
     
     
     
-    # enki
-    params_i = deepcopy(dropdims(mean(enkiobj.θ[i], dims=1), dims=1))
-    Barotropic_ω0!(mesh, "grid_vor", params_i, spe_vor_i, grid_vor_i)
-    errors[3, i, 1] = norm(grid_vor_i - grid_vor0)  /   norm(grid_vor0)
-    errors[3, i, 2] = norm(obs_data - enkiobj.g_bar[i])   /  norm(obs_data)
+    # # enki
+    # params_i = deepcopy(dropdims(mean(enkiobj.θ[i], dims=1), dims=1))
+    # Barotropic_ω0!(mesh, "grid_vor", params_i, spe_vor_i, grid_vor_i)
+    # errors[3, i, 1] = norm(grid_vor_i - grid_vor0)  /   norm(grid_vor0)
+    # errors[3, i, 2] = norm(obs_data - enkiobj.g_bar[i])   /  norm(obs_data)
     
     # eaki
     params_i = deepcopy(dropdims(mean(eakiobj.θ[i], dims=1), dims=1))
@@ -360,10 +360,10 @@ function Compare(α_reg::Float64, noise_level::Int64)
   end
  
   labels = ["TUKI", "UKI", "EnKI", "EAKI", "ETKI"]
-  linestyles = ["-", "-.", "--", ":", ":"]
-  markers = ["o", "^", "s", "d", "h"]
+  linestyles = ["-", "-.", ":", "--", ":"]
+  markers = ["o", "^", "h", "s", "d"]
   ites = Array(1:N_ite)
-  for i = 1:5
+  for i in [1,2,4,5]
     ax1.plot(ites, errors[i, :, 1], linestyle=linestyles[i], marker=markers[i], fillstyle="none", markevery=5, label= labels[i])
     ax2.plot(ites, errors[i, :, 2], linestyle=linestyles[i], marker=markers[i], fillstyle="none", markevery=5, label= labels[i])
   end
