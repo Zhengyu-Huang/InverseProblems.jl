@@ -75,7 +75,7 @@ function Barotropic_Main(nframes::Int64, init_type::String, init_data = nothing,
     end
     grid_v .= 0.0 
     
-    Lat_Lon_Pcolormesh(mesh, grid_u,  1; save_file_name = "Barotropic_vel_u_pert0.png", cmap = "jet")
+    Lat_Lon_Pcolormesh(mesh, grid_u,  1; save_file_name = "Figs/Barotropic_vel_u_pert0.png", cmap = "jet")
     
     Vor_Div_From_Grid_UV!(mesh, grid_u, grid_v, spe_vor_c, spe_div_c) 
     Trans_Spherical_To_Grid!(mesh, spe_vor_c,  grid_vor)
@@ -123,16 +123,16 @@ function Barotropic_Main(nframes::Int64, init_type::String, init_data = nothing,
     ##################################
     
     
-    Lat_Lon_Pcolormesh(mesh, grid_vor_pert, 1; save_file_name = "Barotropic_vor_pert0.png", cmap = "jet")
+    Lat_Lon_Pcolormesh(mesh, grid_vor_pert, 1; save_file_name = "Figs/Barotropic_vor_pert0.png", cmap = "jet")
     
     grid_vor .+= grid_vor_pert
-    Lat_Lon_Pcolormesh(mesh, grid_vor, 1; save_file_name = "Barotropic_vor0.png", cmap = "jet")
+    Lat_Lon_Pcolormesh(mesh, grid_vor, 1; save_file_name = "Figs/Barotropic_vor0.png", cmap = "jet")
     
     
     Trans_Grid_To_Spherical!(mesh, grid_vor, spe_vor_c)
     UV_Grid_From_Vor_Div!(mesh, spe_vor_c,  spe_div_c, grid_u, grid_v)
     
-    Lat_Lon_Pcolormesh(mesh, grid_u, 1; save_file_name = "Barotropic_vel_u0.png", cmap = "jet")
+    Lat_Lon_Pcolormesh(mesh, grid_u, 1; save_file_name = "Figs/Barotropic_vel_u0.png", cmap = "jet")
 
     @info norm(spe_vor_c), norm(spe_vor_c[1:8, 1:8])
     
@@ -165,15 +165,15 @@ function Barotropic_Main(nframes::Int64, init_type::String, init_data = nothing,
       # @info "day = ", div(time , day_to_second)
       # TODO can change to other quantities
       if init_type == "truth" || plot_data 
-        Lat_Lon_Pcolormesh(mesh, grid_u, 1, obs_coord; save_file_name =   "Barotropic_u-"*string(div(time , day_to_second))*".png", cmap = "jet")
+        Lat_Lon_Pcolormesh(mesh, grid_u, 1, obs_coord; save_file_name =   "Figs/Barotropic_u-"*string(div(time , day_to_second))*".png", cmap = "jet")
       end
       push!(obs_data, grid_u)
     end
     
   end
   if init_type == "truth" || plot_data 
-    Lat_Lon_Pcolormesh(mesh, grid_u,  1; save_file_name =  "Barotropic_vel_u.png", cmap = "jet")
-    Lat_Lon_Pcolormesh(mesh, grid_vor, 1; save_file_name =  "Barotropic_vor.png", cmap = "jet")
+    Lat_Lon_Pcolormesh(mesh, grid_u,  1; save_file_name =  "Figs/Barotropic_vel_u.png", cmap = "jet")
+    Lat_Lon_Pcolormesh(mesh, grid_vor, 1; save_file_name =  "Figs/Barotropic_vor.png", cmap = "jet")
   end
 
 
@@ -188,7 +188,7 @@ function Barotropic_ω0!(mesh, init_type::String, init_data, spe_vor0, grid_vor0
   if init_type == "grid_vor"
     grid_vor0[:] = copy(init_data)
     
-    grid_vor0 ./= radius
+    # grid_vor0 ./= radius
     
     Trans_Grid_To_Spherical!(mesh, grid_vor0, spe_vor0)
     

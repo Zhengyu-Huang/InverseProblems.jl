@@ -121,7 +121,7 @@ function construct_sigma_ensemble(truki::TRUKIObj{FT}, x_bar::Array{FT}, x_cov_s
     svd_xx_cov_sqr = svd(x_cov_sqr)
 
     # @info "energy : ", sum(svd_xx_cov.S[1:N_r])/sum(svd_xx_cov.S)
-    @info "svd_xx_cov_sqr.S : ", svd_xx_cov_sqr.S
+    # @info "svd_xx_cov_sqr.S : ", svd_xx_cov_sqr.S
 
     # @info "svd_xx_cov.U : ", svd_xx_cov.U
     # @info "x_cov : ", x_cov
