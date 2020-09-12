@@ -156,9 +156,9 @@ function Barotropic_TRUKI(barotropic::Barotropic_Data, t_mean::Array{Float64,1},
     @info "optimization error :", norm(obs_data - trukiobj.g_bar[end]), " / ",  norm(obs_data)
     
     if i%10 == 0
-    Lat_Lon_Pcolormesh(mesh, grid_vor0, 1; save_file_name = "Figs/TRUKI_Barotropic_vor_"*string(i)*".png", vmax = vor0_max, vmin = vor0_vmin, cmap = "jet")
+      Lat_Lon_Pcolormesh(mesh, grid_vor0, 1; save_file_name = "Figs/TRUKI_Barotropic_vor_"*string(i)*".png", vmax = vor0_max, vmin = vor0_vmin, cmap = "jet")
     end
-
+    
   end
   
   return trukiobj
@@ -210,7 +210,7 @@ function Barotropic_EnKI(filter_type::String, barotropic::Barotropic_Data, t_mea
     
     @info "optimization error :", norm(obs_data - ekiobj.g_bar[end]), " / ",  norm(obs_data)
     if i%10 == 0
-    Lat_Lon_Pcolormesh(mesh, grid_vor0, 1;  save_file_name = "Figs/"*filter_type*"_Barotropic_vor_"*string(i)*".png", vmax = vor0_max, vmin = vor0_vmin, cmap = "jet")
+      Lat_Lon_Pcolormesh(mesh, grid_vor0, 1;  save_file_name = "Figs/"*filter_type*"_Barotropic_vor_"*string(i)*".png", vmax = vor0_max, vmin = vor0_vmin, cmap = "jet")
     end
     
   end
@@ -227,7 +227,7 @@ end
 # 
 ###############################################################################################
 
-function Compare(α_reg::Float64, noise_level::Int64)
+function Compare(α_reg::Float64, noise_level::Int64, EnKI_run::Bool = false)
   rcParams = PyPlot.PyDict(PyPlot.matplotlib."rcParams")
   mysize = 20
   font0 = Dict(
@@ -238,8 +238,10 @@ function Compare(α_reg::Float64, noise_level::Int64)
   "legend.fontsize" => mysize,
   )
   merge!(rcParams, font0)
-
-
+  
+  
+  
+  
   @info "α_reg::Float64, noise_level::Int64 : ", α_reg, noise_level
   nframes  = 2
   mesh,  grid_vor_b, spe_vor_b, grid_vor0, spe_vor0, obs_coord, obs_data = Barotropic_Main(nframes, "truth")
@@ -255,26 +257,26 @@ function Compare(α_reg::Float64, noise_level::Int64)
   radius = 6371.2e3  
   N_ite = 20
   N = 7
-
-
+  
+  
   # RUKI
   begin
     barotropic.init_type = "spec_vor"
     # N = 7, n, m = 0,1, ... 7  
     nθ = (N+3)*N
     θ0_bar = zeros(Float64, nθ)                              # mean 
-  
+    
     for n = 1:N
       for m = 0:n
         i_init_data = Int64((n+2)*(n-1)/2) + m + 1
         θ0_bar[2*i_init_data-1],  θ0_bar[2*i_init_data] = real(spe_vor_b[m+1,n+1])*radius,  imag(spe_vor_b[m+1,n+1])*radius
       end
     end
-  
+    
     θθ0_cov = Array(Diagonal(fill(1.0^2, nθ)))           # standard deviation
-  
+    
     rukiobj = Barotropic_RUKI(barotropic,  t_mean, t_cov, θ0_bar, θθ0_cov, α_reg,  N_ite)
-  
+    
   end
   
   
@@ -308,10 +310,17 @@ function Compare(α_reg::Float64, noise_level::Int64)
     end
     
     
+    
+    
     trukiobj = Barotropic_TRUKI(barotropic,  t_mean, t_cov, θ0_bar, Z0_cov, N_r, α_reg,  N_ite)
-    # enkiobj = Barotropic_EnKI("EnKI", barotropic,  t_mean, t_cov, θ0_bar, Z0_cov, 2N_r+1, α_reg,  N_ite)
-    eakiobj = Barotropic_EnKI("EAKI", barotropic,  t_mean, t_cov, θ0_bar, Z0_cov, 2N_r+1, α_reg,  N_ite)
-    etkiobj = Barotropic_EnKI("ETKI", barotropic,  t_mean, t_cov, θ0_bar, Z0_cov, 2N_r+1, α_reg,  N_ite)
+    
+    if EnKI_run
+      Z0_cov ./= N_r
+      
+      enkiobj = Barotropic_EnKI("EnKI", barotropic,  t_mean, t_cov, θ0_bar, Z0_cov, 2N_r+1, α_reg,  N_ite)
+      eakiobj = Barotropic_EnKI("EAKI", barotropic,  t_mean, t_cov, θ0_bar, Z0_cov, 2N_r+1, α_reg,  N_ite)
+      etkiobj = Barotropic_EnKI("ETKI", barotropic,  t_mean, t_cov, θ0_bar, Z0_cov, 2N_r+1, α_reg,  N_ite)
+    end
     
   end
   
@@ -336,49 +345,50 @@ function Compare(α_reg::Float64, noise_level::Int64)
     errors[2, i, 2] = norm(obs_data - rukiobj.g_bar[i])   /  norm(obs_data)
     
     
-    
-    # # enki
-    # params_i = deepcopy(dropdims(mean(enkiobj.θ[i], dims=1), dims=1))
-    # Barotropic_ω0!(mesh, "grid_vor", params_i, spe_vor_i, grid_vor_i)
-    # errors[3, i, 1] = norm(grid_vor_i - grid_vor0)  /   norm(grid_vor0)
-    # errors[3, i, 2] = norm(obs_data - enkiobj.g_bar[i])   /  norm(obs_data)
-    
-    # eaki
-    params_i = deepcopy(dropdims(mean(eakiobj.θ[i], dims=1), dims=1))
-    Barotropic_ω0!(mesh, "grid_vor", params_i, spe_vor_i, grid_vor_i)
-    errors[4, i, 1] = norm(grid_vor_i - grid_vor0)  /   norm(grid_vor0)
-    errors[4, i, 2] = norm(obs_data - eakiobj.g_bar[i])   /  norm(obs_data)
-    
-    
-    # etki
-    params_i = deepcopy(dropdims(mean(etkiobj.θ[i], dims=1), dims=1))
-    Barotropic_ω0!(mesh, "grid_vor", params_i, spe_vor_i, grid_vor_i)
-    errors[5, i, 1] = norm(grid_vor_i - grid_vor0)  /   norm(grid_vor0)
-    errors[5, i, 2] = norm(obs_data - etkiobj.g_bar[i])   /  norm(obs_data)
-    
+    if EnKI_run
+      # enki
+      params_i = deepcopy(dropdims(mean(enkiobj.θ[i], dims=1), dims=1))
+      Barotropic_ω0!(mesh, "grid_vor", params_i, spe_vor_i, grid_vor_i)
+      errors[3, i, 1] = norm(grid_vor_i - grid_vor0)  /   norm(grid_vor0)
+      errors[3, i, 2] = norm(obs_data - enkiobj.g_bar[i])   /  norm(obs_data)
+      
+      # eaki
+      params_i = deepcopy(dropdims(mean(eakiobj.θ[i], dims=1), dims=1))
+      Barotropic_ω0!(mesh, "grid_vor", params_i, spe_vor_i, grid_vor_i)
+      errors[4, i, 1] = norm(grid_vor_i - grid_vor0)  /   norm(grid_vor0)
+      errors[4, i, 2] = norm(obs_data - eakiobj.g_bar[i])   /  norm(obs_data)
+      
+      
+      # etki
+      params_i = deepcopy(dropdims(mean(etkiobj.θ[i], dims=1), dims=1))
+      Barotropic_ω0!(mesh, "grid_vor", params_i, spe_vor_i, grid_vor_i)
+      errors[5, i, 1] = norm(grid_vor_i - grid_vor0)  /   norm(grid_vor0)
+      errors[5, i, 2] = norm(obs_data - etkiobj.g_bar[i])   /  norm(obs_data)
+      
+    end
     
   end
- 
+  
   labels = ["TUKI", "UKI", "EnKI", "EAKI", "ETKI"]
   linestyles = ["-", "-.", ":", "--", ":"]
   markers = ["o", "^", "h", "s", "d"]
   ites = Array(1:N_ite)
-  for i in [1,2,4,5]
+  for i in (EnKI_run ? [1,2,3,4,5] : [1,2])
     ax1.plot(ites, errors[i, :, 1], linestyle=linestyles[i], marker=markers[i], fillstyle="none", markevery=5, label= labels[i])
     ax2.plot(ites, errors[i, :, 2], linestyle=linestyles[i], marker=markers[i], fillstyle="none", markevery=5, label= labels[i])
   end
-
-
+  
+  
   ax1.set_xlabel("Iterations")
   ax1.set_ylabel("Relative L₂ norm error")
   ax1.grid(true)
-
+  
   ax2.set_xlabel("Iterations")
   ax2.set_ylabel("Optimization error")
   ax2.grid(true)
   ax2.legend()
-
-
+  
+  
   fig.savefig("Figs/Barotropic.pdf")
   close(fig)
   
@@ -386,4 +396,4 @@ function Compare(α_reg::Float64, noise_level::Int64)
 end
 
 
-Compare(0.5, 0)
+Compare(0.5, 0, false)

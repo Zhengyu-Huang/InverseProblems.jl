@@ -22,7 +22,7 @@ function HS_run(id::Int64, params::Array{Float64, 1})
   "k_a" => 1.0/(1+abs(kt_1)), "k_s" => 1.0/(1+abs(kt_1)) + 1.0/(1+abs(kt_2)), 
   "ΔT_y" => abs(ΔT_y), "Δθ_z" => abs(Δθ_z))
   
-  op_man = Atmos_Spectral_Dynamics_Main(physics_params, end_day, spinup_day)
+  op_man = Atmos_Spectral_Dynamics_Main(physics_params, end_day, spinup_day, mesh_size)
   Finalize_Output!(op_man)
   
   t_zonal_mean = op_man.t_zonal_mean
@@ -39,7 +39,7 @@ function HS_run(id::Int64, params::Array{Float64, 1})
     return t_zonal_mean_ref[:]
     
   elseif mesh_size == "T42"
-    
+
     return t_zonal_mean[:]
     
   else
@@ -126,9 +126,6 @@ function HS_RUKI(t_mean::Array{Float64,1}, t_cov::Array{Float64,2}, θ_bar::Arra
     
     update_ensemble!(rukiobj, ens_func) 
     
-    if (update_cov) > 0 && (i%update_cov == 1) 
-      reset_θθ0_cov!(rukiobj)
-    end
     
     if i%10 == 0
       @save "UKI_Obj_Ite_"*string(i)*".dat" rukiobj
@@ -182,7 +179,6 @@ end
 
 end_day = 400
 spinup_day = 200
-
 
 
 t_mean, t_cov = Comp_Mean_Cov()
