@@ -132,7 +132,7 @@ function Linear_Test(problem_type::String, low_rank_prior::Bool = true, nθ::Int
         
     end
 
-    ites = Array(LinRange(1, N_ite+1, N_ite+1))
+    ites = Array(LinRange(0, N_ite, N_ite+1))
     errors = zeros(Float64, (4, N_ite+1))
 
 
@@ -151,10 +151,12 @@ function Linear_Test(problem_type::String, low_rank_prior::Bool = true, nθ::Int
     
 
     markevery = max(div(N_ite, 10),1)
-    semilogy(ites, errors[1, :], "--o", fillstyle="none", markevery=markevery, label= "EnKI")
-    semilogy(ites, errors[2, :], "--o", fillstyle="none", markevery=markevery, label= "EAKI")
-    semilogy(ites, errors[3, :], "--o", fillstyle="none", markevery=markevery, label= "ETKI")
-    semilogy(ites, errors[4, :], "--o", fillstyle="none", markevery=markevery, label= "TRUKI")
+
+    semilogy(ites, errors[4, :], "-o",  color="C1", fillstyle="none", markevery=markevery, label= "TUKI")
+    semilogy(ites, errors[1, :], ":h",  color="C3", fillstyle="none", markevery=markevery, label= "EnKI")
+    semilogy(ites, errors[2, :], "--s",  color="C4", fillstyle="none", markevery=markevery, label= "EAKI")
+    semilogy(ites, errors[3, :], ":d",  color="C5", fillstyle="none", markevery=markevery, label= "ETKI")
+
    
     xlabel("Iterations")
     ylabel("\$L_2\$ norm error")
@@ -164,7 +166,7 @@ function Linear_Test(problem_type::String, low_rank_prior::Bool = true, nθ::Int
     tight_layout()
  
     
-    savefig("Elliptic-"*string(nθ)*"lr"*string(low_rank_prior)*".pdf")
+    savefig(problem_type*string(nθ)*"lr"*string(low_rank_prior)*".pdf")
     close("all")
     
     
@@ -173,9 +175,9 @@ end
 
 
 
-problem_type = "Elliptic"  
+problem_type = "Identity"
 
-Linear_Test(problem_type, false, 50, 5, 1.0, 1000000)
+Linear_Test(problem_type, false, 1000, 5, 1.0, 1000)
 
 
 @info "Finish"

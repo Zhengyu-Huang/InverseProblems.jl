@@ -152,6 +152,7 @@ function Linear_Test(problem_type::String, low_rank_prior::Bool = true, nθ::Int
     x = LinRange(h, 1-h, nθ)
     
     f = fill(1.0, nθ)
+    f[1:div(nθ,2)] .= 2.0
     θ_ref = G\f
 
     # θ_ref = fill(1.0, nθ)
@@ -196,7 +197,7 @@ function Linear_Test(problem_type::String, low_rank_prior::Bool = true, nθ::Int
     end
 
     # Plot
-    ites = Array(LinRange(1, N_ite+1, N_ite+1))
+    ites = Array(LinRange(0, N_ite, N_ite+1))
     errors = zeros(Float64, (5, N_ite+1))
     for i = 1:N_ite+1
         
@@ -221,11 +222,14 @@ function Linear_Test(problem_type::String, low_rank_prior::Bool = true, nθ::Int
     
     errors ./= norm(θ_ref)
     markevery = max(div(N_ite, 10),1)
-    semilogy(ites, errors[1, :], "--o", fillstyle="none", markevery=markevery, label= "EnKI")
-    semilogy(ites, errors[2, :], "--o", fillstyle="none", markevery=markevery, label= "EAKI")
-    semilogy(ites, errors[3, :], "--o", fillstyle="none", markevery=markevery, label= "ETKI")
-    semilogy(ites, errors[4, :], "--o", fillstyle="none", markevery=markevery, label= "TUKI")
-    semilogy(ites, errors[5, :], "--o", fillstyle="none", markevery=markevery, label= "UKI")
+
+
+    semilogy(ites, errors[4, :], "-o", color="C1", fillstyle="none", markevery=markevery, label= "TUKI")
+    semilogy(ites, errors[5, :], "-.^",  color="C2", fillstyle="none", markevery=markevery, label= "UKI")
+    semilogy(ites, errors[1, :], ":h",  color="C3", fillstyle="none", markevery=markevery, label= "EnKI")
+    semilogy(ites, errors[2, :], "--s",  color="C4", fillstyle="none", markevery=markevery, label= "EAKI")
+    semilogy(ites, errors[3, :], ":d",  color="C5", fillstyle="none", markevery=markevery, label= "ETKI")
+    
    
     xlabel("Iterations")
     ylabel("\$L_2\$ norm error")
@@ -235,7 +239,7 @@ function Linear_Test(problem_type::String, low_rank_prior::Bool = true, nθ::Int
     tight_layout()
  
     
-    savefig("Elliptic-"*string(nθ)*"lr"*string(low_rank_prior)*".pdf")
+    savefig(problem_type*string(nθ)*"lr"*string(low_rank_prior)*".pdf")
     close("all")
     
     return trukiobj
@@ -246,7 +250,7 @@ end
 
 problem_type = "Elliptic"  
 
-Linear_Test(problem_type, true, 500, 5, 1.0, 50)
+Linear_Test(problem_type, true, 1000, 5, 1.0, 20)
 
 
 @info "Finish"
