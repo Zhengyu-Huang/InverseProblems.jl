@@ -5,6 +5,7 @@ using PyPlot
 include("../Plot.jl")
 include("../REnKI.jl")
 include("../TDRUKI.jl")
+include("../RUKI.jl")
 function run_linear_ensemble(params_i, G)
     
     N_ens,  N_θ = size(params_i)
@@ -96,7 +97,40 @@ function EnKI_Run(filter_type, t_mean, t_cov, θ0_bar, θθ0_cov_sqr,  G,  N_ens
     
 end
 
+function UKI_Run(t_mean, t_cov, α0_bar, αα0_cov, G, θ_basis, α_reg, N_iter)
 
+    parameter_names = ["θ"]
+    
+    
+    
+    ens_func(α_ens) = 
+    begin 
+        
+        # α_ens is N_ens × N_α
+        # θ_basis is N_α × N_θ
+        θ_ens = α_ens * θ_basis
+        run_linear_ensemble(θ_ens, G)
+    end
+    
+
+    ukiobj = UKIObj(
+    parameter_names,
+    α0_bar,
+    αα0_cov,
+    t_mean, # observation
+    Array(t_cov),
+    α_reg)
+    
+    
+    for i in 1:N_iter
+        
+        update_ensemble!(ukiobj, ens_func) 
+        
+    end
+    
+    return ukiobj
+
+end
 function Linear_Test(problem_type::String, low_rank_prior::Bool = true, nθ::Int64 = 10, N_r::Int64 = 1, α_reg::Float64 = 1.0, N_ite::Int64 = 1000)
     
     
@@ -151,9 +185,19 @@ function Linear_Test(problem_type::String, low_rank_prior::Bool = true, nθ::Int
     trukiobj = TRUKI_Run(t_mean, t_cov, θ0_bar, Z0_cov, G, N_r, α_reg, N_ite)
     @info "finish TRUKI"
 
+    begin  #UKI
+        α0_bar = zeros(Float64, N_r)  # mean , 
+        αα0_cov =  Array(Diagonal(fill(10.0^2, N_r)))
+        θ_basis = zeros(Float64, N_r, nθ)
+        for i = 1:N_r
+            θ_basis[i,:] = sin.(i *  pi*x) 
+        end
+        ukiobj = UKI_Run(t_mean, t_cov, α0_bar, αα0_cov, G, θ_basis, α_reg, N_ite)
+    end
+
     # Plot
     ites = Array(LinRange(1, N_ite+1, N_ite+1))
-    errors = zeros(Float64, (4, N_ite+1))
+    errors = zeros(Float64, (5, N_ite+1))
     for i = 1:N_ite+1
         
         
@@ -169,6 +213,8 @@ function Linear_Test(problem_type::String, low_rank_prior::Bool = true, nθ::Int
         errors[4, i] = norm(trukiobj.θ_bar[i] .- θ_ref)
 
         
+        errors[5, i] = norm(ukiobj.θ_bar[i]' *  θ_basis - θ_ref')
+
     end
 
     
@@ -178,7 +224,8 @@ function Linear_Test(problem_type::String, low_rank_prior::Bool = true, nθ::Int
     semilogy(ites, errors[1, :], "--o", fillstyle="none", markevery=markevery, label= "EnKI")
     semilogy(ites, errors[2, :], "--o", fillstyle="none", markevery=markevery, label= "EAKI")
     semilogy(ites, errors[3, :], "--o", fillstyle="none", markevery=markevery, label= "ETKI")
-    semilogy(ites, errors[4, :], "--o", fillstyle="none", markevery=markevery, label= "TRUKI")
+    semilogy(ites, errors[4, :], "--o", fillstyle="none", markevery=markevery, label= "TUKI")
+    semilogy(ites, errors[5, :], "--o", fillstyle="none", markevery=markevery, label= "UKI")
    
     xlabel("Iterations")
     ylabel("\$L_2\$ norm error")
