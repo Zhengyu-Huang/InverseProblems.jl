@@ -72,7 +72,7 @@ end
 
 
 function Barotropic_RUKI(barotropic::Barotropic_Data, t_mean::Array{Float64,1}, t_cov::Array{Float64,2}, θ0_bar::Array{Float64,1}, θθ0_cov::Array{Float64,2}, 
-  α_reg::Float64 = 1.0, N_iter::Int64 = 100)
+  α_reg::Float64 = 1.0, N_iter::Int64 = 100, θ_basis = nothing)
   
   mesh, obs_coord, obs_data, init_type = barotropic.mesh, barotropic.obs_coord, barotropic.obs_data, barotropic.init_type
   grid_vor0_ref, grid_vor0, spe_vor0 = barotropic.grid_vor0_ref, barotropic.grid_vor0, barotropic.spe_vor0
@@ -108,6 +108,21 @@ function Barotropic_RUKI(barotropic::Barotropic_Data, t_mean::Array{Float64,1}, 
     @info "optimization error :", norm(obs_data - rukiobj.g_bar[end]), " / ",  norm(obs_data)
     if i%10 == 0
       Lat_Lon_Pcolormesh(mesh, grid_vor0, 1; save_file_name = "Figs/RUKI_Barotropic_vor_"*string(i)*".png", vmax = vor0_max, vmin = vor0_vmin, cmap = "jet")
+    
+    
+      begin # compute standard deviation on the diagonal
+        
+        α_vor0 = rukiobj.θθ_cov[end]
+        α_vor0_θ_basis = θ_basis*α_vor0
+
+        d_Cov_0 = similar(grid_vor0)
+        for j = 1:length(grid_vor0)
+          d_Cov_0[j] = sqrt( sum(θ_basis[j, :] .* α_vor0_θ_basis[j,:]) )
+        end
+        Lat_Lon_Pcolormesh(mesh, d_Cov_0, 1;  save_file_name = "Figs/RUKI_Barotropic_vor_std"*string(i)*".png", cmap = "jet")
+      end
+    
+    
     end
   end
   
@@ -157,6 +172,17 @@ function Barotropic_TRUKI(barotropic::Barotropic_Data, t_mean::Array{Float64,1},
     
     if i%10 == 0
       Lat_Lon_Pcolormesh(mesh, grid_vor0, 1; save_file_name = "Figs/TRUKI_Barotropic_vor_"*string(i)*".png", vmax = vor0_max, vmin = vor0_vmin, cmap = "jet")
+      
+      
+      begin # compute standard deviation on the diagonal
+        Z_vor0 = trukiobj.θθ_cov_sqr[end]
+        d_Cov_0 = similar(grid_vor0)
+        for j = 1:length(grid_vor0)
+          d_Cov_0[j] = sqrt( sum(Z_vor0[j, :].^2))
+        end
+        Lat_Lon_Pcolormesh(mesh, d_Cov_0, 1;  save_file_name = "Figs/TRUKI_Barotropic_vor_std"*string(i)*".png", cmap = "jet")
+      end
+      
     end
     
   end
@@ -211,6 +237,7 @@ function Barotropic_EnKI(filter_type::String, barotropic::Barotropic_Data, t_mea
     @info "optimization error :", norm(obs_data - ekiobj.g_bar[end]), " / ",  norm(obs_data)
     if i%10 == 0
       Lat_Lon_Pcolormesh(mesh, grid_vor0, 1;  save_file_name = "Figs/"*filter_type*"_Barotropic_vor_"*string(i)*".png", vmax = vor0_max, vmin = vor0_vmin, cmap = "jet")
+      
     end
     
   end
@@ -228,16 +255,7 @@ end
 ###############################################################################################
 
 function Compare(α_reg::Float64, noise_level::Int64, EnKI_run::Bool = false)
-  rcParams = PyPlot.PyDict(PyPlot.matplotlib."rcParams")
-  mysize = 20
-  font0 = Dict(
-  "font.size" => mysize,
-  "axes.labelsize" => mysize,
-  "xtick.labelsize" => mysize,
-  "ytick.labelsize" => mysize,
-  "legend.fontsize" => mysize,
-  )
-  merge!(rcParams, font0)
+  
   
   
   
@@ -259,25 +277,7 @@ function Compare(α_reg::Float64, noise_level::Int64, EnKI_run::Bool = false)
   N = 7
   
   
-  # RUKI
-  begin
-    barotropic.init_type = "spec_vor"
-    # N = 7, n, m = 0,1, ... 7  
-    nθ = (N+3)*N
-    θ0_bar = zeros(Float64, nθ)                              # mean 
-    
-    for n = 1:N
-      for m = 0:n
-        i_init_data = Int64((n+2)*(n-1)/2) + m + 1
-        θ0_bar[2*i_init_data-1],  θ0_bar[2*i_init_data] = real(spe_vor_b[m+1,n+1])*radius,  imag(spe_vor_b[m+1,n+1])*radius
-      end
-    end
-    
-    θθ0_cov = Array(Diagonal(fill(1.0^2, nθ)))           # standard deviation
-    
-    rukiobj = Barotropic_RUKI(barotropic,  t_mean, t_cov, θ0_bar, θθ0_cov, α_reg,  N_ite)
-    
-  end
+  
   
   
   begin
@@ -323,8 +323,29 @@ function Compare(α_reg::Float64, noise_level::Int64, EnKI_run::Bool = false)
     end
     
   end
+
+  # RUKI
+  begin
+    barotropic.init_type = "spec_vor"
+    # N = 7, n, m = 0,1, ... 7  
+    nθ = (N+3)*N
+    θ0_bar = zeros(Float64, nθ)                              # mean 
+    
+    for n = 1:N
+      for m = 0:n
+        i_init_data = Int64((n+2)*(n-1)/2) + m + 1
+        θ0_bar[2*i_init_data-1],  θ0_bar[2*i_init_data] = real(spe_vor_b[m+1,n+1])*radius,  imag(spe_vor_b[m+1,n+1])*radius
+      end
+    end
+    
+    θθ0_cov = Array(Diagonal(fill(1.0^2, nθ)))           # standard deviation
+    
+    rukiobj = Barotropic_RUKI(barotropic,  t_mean, t_cov, θ0_bar, θθ0_cov, α_reg,  N_ite, Z0_cov)
+    
+  end
+
   
-  fig, (ax1, ax2) = PyPlot.subplots(ncols=2, figsize=(20,8))
+  
   
   errors = zeros(Float64, 5, N_ite, 2)
   
@@ -369,13 +390,28 @@ function Compare(α_reg::Float64, noise_level::Int64, EnKI_run::Bool = false)
     
   end
   
+  
+  rcParams = PyPlot.PyDict(PyPlot.matplotlib."rcParams")
+  mysize = 24
+  font0 = Dict(
+  "font.size" => mysize,
+  "axes.labelsize" => mysize,
+  "xtick.labelsize" => mysize,
+  "ytick.labelsize" => mysize,
+  "legend.fontsize" => mysize,
+  )
+  merge!(rcParams, font0)
+
+  fig, (ax1, ax2) = PyPlot.subplots(ncols=2, figsize=(20,8))
+  
   labels = ["TUKI", "UKI", "EnKI", "EAKI", "ETKI"]
   linestyles = ["-", "-.", ":", "--", ":"]
   markers = ["o", "^", "h", "s", "d"]
-  ites = Array(1:N_ite)
+  colors = ["C1", "C2", "C3", "C4", "C5"]
+  ites = Array(0:N_ite-1)
   for i in (EnKI_run ? [1,2,3,4,5] : [1,2])
-    ax1.plot(ites, errors[i, :, 1], linestyle=linestyles[i], marker=markers[i], fillstyle="none", markevery=5, label= labels[i])
-    ax2.plot(ites, errors[i, :, 2], linestyle=linestyles[i], marker=markers[i], fillstyle="none", markevery=5, label= labels[i])
+    ax1.plot(ites, errors[i, :, 1], linestyle=linestyles[i], marker=markers[i], color = colors[i], fillstyle="none", markevery=5, label= labels[i])
+    ax2.plot(ites, errors[i, :, 2], linestyle=linestyles[i], marker=markers[i], color = colors[i], fillstyle="none", markevery=5, label= labels[i])
   end
   
   
@@ -388,6 +424,7 @@ function Compare(α_reg::Float64, noise_level::Int64, EnKI_run::Bool = false)
   ax2.grid(true)
   ax2.legend()
   
+  fig.tight_layout()
   
   fig.savefig("Figs/Barotropic.pdf")
   close(fig)

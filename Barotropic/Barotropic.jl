@@ -75,11 +75,13 @@ function Barotropic_Main(nframes::Int64, init_type::String, init_data = nothing,
     end
     grid_v .= 0.0 
     
-    Lat_Lon_Pcolormesh(mesh, grid_u,  1; save_file_name = "Figs/Barotropic_vel_u_pert0.png", cmap = "jet")
+    Lat_Lon_Pcolormesh(mesh, grid_u,  1; save_file_name = "Figs/Barotropic_u_backgroud.png", cmap = "jet")
     
     Vor_Div_From_Grid_UV!(mesh, grid_u, grid_v, spe_vor_c, spe_div_c) 
     Trans_Spherical_To_Grid!(mesh, spe_vor_c,  grid_vor)
     Trans_Spherical_To_Grid!(mesh, spe_div_c,  grid_div)
+
+    Lat_Lon_Pcolormesh(mesh, grid_vor,  1; save_file_name = "Figs/Barotropic_vor_backgroud.png", cmap = "jet")
 
     grid_vor_b = copy(grid_vor); spe_vor_b = copy(spe_vor_c)
     

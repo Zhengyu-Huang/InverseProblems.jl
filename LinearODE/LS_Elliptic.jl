@@ -2,6 +2,7 @@ using JLD
 using Statistics
 using LinearAlgebra
 using PyPlot
+using Distributions 
 include("../Plot.jl")
 include("../LSKI.jl")
 
@@ -106,8 +107,10 @@ function Linear_Test(problem_type::String, low_rank_prior::Bool = true, nθ::Int
     end
     x = LinRange(h, 1-h, nθ)
     
-    f = fill(1.0, nθ)
-    θ_ref = G\f
+    
+
+    θ_ref = Float64.(rand(Binomial(1,0.5), nθ))
+    f = G*θ_ref
 
     # θ_ref = fill(1.0, nθ)
     # f = G*θ_ref
