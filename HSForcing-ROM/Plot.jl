@@ -97,14 +97,14 @@ function contourf()
     Ulevels = LinRange(Umin, Umax, n_level)
     @load "Data/HS_OpM_T42.dat"
     t_zonal_mean, u_zonal_mean = output_manager.t_zonal_mean, output_manager.u_zonal_mean 
-    Sigma_Zonal_Mean_Contourf(output_manager, t_zonal_mean, "Contourf_T42.png"; levels=Tlevels, cmap="jet")
-    Sigma_Zonal_Mean_Contourf(output_manager, u_zonal_mean, "ContourU_T42.png"; levels=Ulevels, cmap="jet")
+    Sigma_Zonal_Mean_Contourf(output_manager, t_zonal_mean, "Contourf_T_T42.png"; levels=Tlevels, cmap="jet")
+    Sigma_Zonal_Mean_Contourf(output_manager, u_zonal_mean, "Contourf_U_T42.png"; levels=Ulevels, cmap="jet")
     
     
     @load "Data/HS_OpM_T21.dat"
     t_zonal_mean, u_zonal_mean = output_manager.t_zonal_mean, output_manager.u_zonal_mean 
-    Sigma_Zonal_Mean_Contourf(output_manager, t_zonal_mean, "Contourf_T21.png"; levels=Tlevels, cmap="jet")
-    Sigma_Zonal_Mean_Contourf(output_manager, u_zonal_mean, "ContourU_T21.png"; levels=Ulevels, cmap="jet")
+    Sigma_Zonal_Mean_Contourf(output_manager, t_zonal_mean, "Contourf_T_T21.png"; levels=Tlevels, cmap="jet")
+    Sigma_Zonal_Mean_Contourf(output_manager, u_zonal_mean, "Contourf_U_T21.png"; levels=Ulevels, cmap="jet")
     
     
 end
