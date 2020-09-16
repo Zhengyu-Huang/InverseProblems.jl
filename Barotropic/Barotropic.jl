@@ -8,7 +8,7 @@ vor0_max, vor0_vmin = 4.208362320588924e-5, -1.7565000874341874e-5
 @info norm(spe_vor_c), norm(spe_vor_c[1:8, 1:8])
 """
 
-function Barotropic_Main(nframes::Int64, init_type::String, init_data = nothing, obs_coord = nothing, plot_data::Bool=false)
+function Barotropic_Main(nframes::Int64, init_type::String, init_data = nothing, spe_vor_b = nothing, obs_coord = nothing, plot_data::Bool=false)
   # the decay of a sinusoidal disturbance to a zonally symmetric flow 
   # that resembles that found in the upper troposphere in Northern winter.
   name = "Barotropic"
@@ -62,9 +62,8 @@ function Barotropic_Main(nframes::Int64, init_type::String, init_data = nothing,
   grid_u, grid_v = dyn_data.grid_u_c, dyn_data.grid_v_c
   spe_vor_c, spe_div_c = dyn_data.spe_vor_c, dyn_data.spe_div_c
   grid_vor, grid_div = dyn_data.grid_vor, dyn_data.grid_div
-  
-  grid_vor_b = similar(grid_vor); spe_vor_b = similar(spe_vor_c)
 
+  grid_vor_b = nothing
   
   if init_type == "truth"
     
@@ -141,7 +140,7 @@ function Barotropic_Main(nframes::Int64, init_type::String, init_data = nothing,
     
   else
     
-    Barotropic_ω0!(mesh, init_type, init_data, spe_vor_c, grid_vor)
+    Barotropic_ω0!(mesh, init_type, init_data, spe_vor_c, grid_vor, spe_vor_b = spe_vor_b)
     
     spe_div_c .= 0.0
     grid_div  .= 0.0
@@ -167,7 +166,9 @@ function Barotropic_Main(nframes::Int64, init_type::String, init_data = nothing,
       # @info "day = ", div(time , day_to_second)
       # TODO can change to other quantities
       if init_type == "truth" || plot_data 
-        Lat_Lon_Pcolormesh(mesh, grid_u, 1, obs_coord; save_file_name =   "Figs/Barotropic_u-"*string(div(time , day_to_second))*".png", cmap = "jet")
+        @info "plot :",  "Figs/Barotropic_u-"*string(div(time , obs_time))*".png", " time = ", time
+        @info "norm(grid_u): ", norm(grid_u)
+        Lat_Lon_Pcolormesh(mesh, grid_u, 1, obs_coord; save_file_name =   "Figs/Barotropic_u-"*string(div(time , obs_time))*".png", cmap = "jet")
       end
       push!(obs_data, grid_u)
     end
@@ -184,7 +185,7 @@ function Barotropic_Main(nframes::Int64, init_type::String, init_data = nothing,
 end
 
 
-function Barotropic_ω0!(mesh, init_type::String, init_data, spe_vor0, grid_vor0)
+function Barotropic_ω0!(mesh, init_type::String, init_data, spe_vor0, grid_vor0; spe_vor_b = nothing)
   radius = 6371.2e3
   
   if init_type == "grid_vor"
@@ -196,7 +197,7 @@ function Barotropic_ω0!(mesh, init_type::String, init_data, spe_vor0, grid_vor0
     
   elseif init_type == "spec_vor"
     # 
-    spe_vor0 .= 0.0
+    spe_vor0 .= spe_vor_b
     # m = 0,   1, ... N
     # n = m, m+1, ... N
     # F_m,n = {F_0,1 F_1,1   F_0,2 F_1,2 F_2,2, ..., F_N,N}
@@ -212,7 +213,7 @@ function Barotropic_ω0!(mesh, init_type::String, init_data, spe_vor0, grid_vor0
       for m = 0:n
         i_init_data = Int64((n+2)*(n-1)/2) + m + 1
         # TODO /radius
-        spe_vor0[m+1,n+1] = (init_data[2*i_init_data-1] + init_data[2*i_init_data] * im)/radius
+        spe_vor0[m+1,n+1,1] += (init_data[2*i_init_data-1] + init_data[2*i_init_data] * im)/radius
       end
     end
     

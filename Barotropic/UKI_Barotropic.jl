@@ -43,9 +43,9 @@ function convert_obs(obs_coord, obs_raw)
 end
 
 
-function Barotropic_run(nframes::Int64, init_type::String, init_data=nothing, obs_coord=nothing)
+function Barotropic_run(nframes::Int64, init_type::String, init_data=nothing, obs_coord=nothing, spe_vor_b=nothing)
   
-  _, _, _, _, _, _, obs_raw = Barotropic_Main(nframes, init_type, init_data, obs_coord)
+  _, _, _, _, _, _, obs_raw = Barotropic_Main(nframes, init_type, init_data, spe_vor_b, obs_coord)
   
   # update obs
   obs = convert_obs(obs_coord, obs_raw)
@@ -53,7 +53,7 @@ function Barotropic_run(nframes::Int64, init_type::String, init_data=nothing, ob
   return obs
 end
 
-function Barotropic_ensemble(params_i::Array{Float64, 2},  nframes::Int64, init_type::String,  obs_coord::Array{Int64, 2})
+function Barotropic_ensemble(params_i::Array{Float64, 2},  nframes::Int64, init_type::String,  obs_coord::Array{Int64, 2}, spe_vor_b=nothing)
   
   N_ens,  N_θ = size(params_i)
   N_data = size(obs_coord, 1) * nframes
@@ -62,8 +62,9 @@ function Barotropic_ensemble(params_i::Array{Float64, 2},  nframes::Int64, init_
   
   Threads.@threads for i = 1:N_ens 
     # g: N_ens x N_data
-    g_ens[i, :] .= Barotropic_run(nframes, init_type, params_i[i, :], obs_coord)
+    g_ens[i, :] .= Barotropic_run(nframes, init_type, params_i[i, :], obs_coord, spe_vor_b)
   end
+  
   
   return g_ens
 end
@@ -71,7 +72,7 @@ end
 
 
 
-function Barotropic_RUKI(barotropic::Barotropic_Data, t_mean::Array{Float64,1}, t_cov::Array{Float64,2}, θ0_bar::Array{Float64,1}, θθ0_cov::Array{Float64,2}, 
+function Barotropic_RUKI(barotropic::Barotropic_Data, t_mean::Array{Float64,1}, t_cov::Array{Float64,2}, θ0_bar::Array{Float64,1}, spe_vor_b::Array{ComplexF64,3}, θθ0_cov::Array{Float64,2}, 
   α_reg::Float64 = 1.0, N_iter::Int64 = 100, θ_basis = nothing)
   
   mesh, obs_coord, obs_data, init_type = barotropic.mesh, barotropic.obs_coord, barotropic.obs_data, barotropic.init_type
@@ -80,7 +81,7 @@ function Barotropic_RUKI(barotropic::Barotropic_Data, t_mean::Array{Float64,1}, 
   
   parameter_names = ["spe_ω"] 
   
-  ens_func(θ_ens) = Barotropic_ensemble(θ_ens, nframes, init_type, obs_coord)
+  ens_func(θ_ens) = Barotropic_ensemble(θ_ens, nframes, init_type, obs_coord, spe_vor_b)
   
   rukiobj = ExKIObj(parameter_names,
   θ0_bar, 
@@ -92,7 +93,7 @@ function Barotropic_RUKI(barotropic::Barotropic_Data, t_mean::Array{Float64,1}, 
   for i in 1:N_iter
     
     if i==1
-      Barotropic_ω0!(mesh, init_type, rukiobj.θ_bar[end], spe_vor0, grid_vor0)
+      Barotropic_ω0!(mesh, init_type, rukiobj.θ_bar[end], spe_vor0, grid_vor0; spe_vor_b=spe_vor_b)
       @info "i0: error of ω0 :", norm(grid_vor0_ref - grid_vor0), " / ",  norm(grid_vor0_ref)
     end
     
@@ -102,7 +103,7 @@ function Barotropic_RUKI(barotropic::Barotropic_Data, t_mean::Array{Float64,1}, 
     params_i = deepcopy(rukiobj.θ_bar[end])
     
     
-    Barotropic_ω0!(mesh, init_type, params_i, spe_vor0, grid_vor0)
+    Barotropic_ω0!(mesh, init_type, params_i, spe_vor0, grid_vor0, spe_vor_b=spe_vor_b)
     @info "error of ω0 :", norm(grid_vor0_ref - grid_vor0), " / ",  norm(grid_vor0_ref)
     
     @info "optimization error :", norm(obs_data - rukiobj.g_bar[end]), " / ",  norm(obs_data)
@@ -331,16 +332,16 @@ function Compare(α_reg::Float64, noise_level::Int64, EnKI_run::Bool = false)
     nθ = (N+3)*N
     θ0_bar = zeros(Float64, nθ)                              # mean 
     
-    for n = 1:N
-      for m = 0:n
-        i_init_data = Int64((n+2)*(n-1)/2) + m + 1
-        θ0_bar[2*i_init_data-1],  θ0_bar[2*i_init_data] = real(spe_vor_b[m+1,n+1])*radius,  imag(spe_vor_b[m+1,n+1])*radius
-      end
-    end
+    # for n = 1:N
+    #   for m = 0:n
+    #     i_init_data = Int64((n+2)*(n-1)/2) + m + 1
+    #     θ0_bar[2*i_init_data-1],  θ0_bar[2*i_init_data] = real(spe_vor_b[m+1,n+1])*radius,  imag(spe_vor_b[m+1,n+1])*radius
+    #   end
+    # end
     
     θθ0_cov = Array(Diagonal(fill(1.0^2, nθ)))           # standard deviation
     
-    rukiobj = Barotropic_RUKI(barotropic,  t_mean, t_cov, θ0_bar, θθ0_cov, α_reg,  N_ite, Z0_cov)
+    rukiobj = Barotropic_RUKI(barotropic,  t_mean, t_cov, θ0_bar, spe_vor_b, θθ0_cov, α_reg,  N_ite, Z0_cov)
     
   end
 
@@ -361,7 +362,7 @@ function Compare(α_reg::Float64, noise_level::Int64, EnKI_run::Bool = false)
     
     # rukiobj
     params_i = deepcopy(rukiobj.θ_bar[i])
-    Barotropic_ω0!(mesh, "spec_vor", params_i, spe_vor_i, grid_vor_i)
+    Barotropic_ω0!(mesh, "spec_vor", params_i, spe_vor_i, grid_vor_i, spe_vor_b = spe_vor_b)
     errors[2, i, 1] = norm(grid_vor_i - grid_vor0)  /   norm(grid_vor0)
     errors[2, i, 2] = norm(obs_data - rukiobj.g_bar[i])   /  norm(obs_data)
     
