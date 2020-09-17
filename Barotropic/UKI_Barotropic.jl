@@ -276,7 +276,7 @@ function Compare(α_reg::Float64, noise_level::Int64, EnKI_run::Bool = false)
   radius = 6371.2e3  
   N_ite = 20
   N = 7
-  
+  N_r = (N+2)*N
   
   
   
@@ -284,7 +284,7 @@ function Compare(α_reg::Float64, noise_level::Int64, EnKI_run::Bool = false)
   begin
     barotropic.init_type = "grid_vor"
     # N = 7, n, m = 0,1, ... 7  
-    N_r = (N+3)*N
+    N_r = (N+2)*N
     N_ens = 2N_r + 1
     θ0_bar = copy(grid_vor_b[:])                      # mean 
     nθ = length( θ0_bar )
@@ -294,21 +294,36 @@ function Compare(α_reg::Float64, noise_level::Int64, EnKI_run::Bool = false)
     spe_θ0 = similar(spe_vor0)
     grid_θ0 = similar(grid_vor0)
     
+    m = 0
     for n = 1:N
-      for m = 0:n
-        i = Int64((n+2)*(n-1)/2) + m + 1
-        
         spe_θ0 .= 0.0
         spe_θ0[m+1,n+1] = 1.0/radius
         Trans_Spherical_To_Grid!(mesh, spe_θ0, grid_θ0)
-        Z0_cov[:, 2i-1] .= grid_θ0[:]
+
+        
+        Z0_cov[:, n] .= grid_θ0[:]
+    end
+    i_init_data = N
+    for m = 1:N
+      for n = m:N  
+        spe_θ0 .= 0.0
+        spe_θ0[m+1,n+1] = 1.0/radius
+        Trans_Spherical_To_Grid!(mesh, spe_θ0, grid_θ0)
+        Z0_cov[:, i_init_data + 1] .= grid_θ0[:]
         
         spe_θ0 .= 0.0
-        spe_θ0[m+1,n+1] = 1.0/radius *im
+        spe_θ0[m+1,n+1] = -1.0/radius *im
         Trans_Spherical_To_Grid!(mesh, spe_θ0, grid_θ0)
-        Z0_cov[:, 2i] .= grid_θ0[:]
+        Z0_cov[:, i_init_data + 2] .= grid_θ0[:]
+
+        i_init_data += 2
       end
     end
+    @assert(i_init_data == N_r)
+
+    svd_Z0 = svd(Z0_cov)
+    @info svd_Z0.S
+  
     
     
     
@@ -329,7 +344,7 @@ function Compare(α_reg::Float64, noise_level::Int64, EnKI_run::Bool = false)
   begin
     barotropic.init_type = "spec_vor"
     # N = 7, n, m = 0,1, ... 7  
-    nθ = (N+3)*N
+    nθ = N_r
     θ0_bar = zeros(Float64, nθ)                              # mean 
     
     # for n = 1:N

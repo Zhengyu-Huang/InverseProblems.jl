@@ -37,7 +37,7 @@ function Barotropic_Main(nframes::Int64, init_type::String, init_data = nothing,
   start_time = 0 
   
   day_to_second = 86400
-
+  
   obs_time = Int64(day_to_second/nframes)
   end_time = day_to_second  #2 day
   Δt = 1800
@@ -62,7 +62,7 @@ function Barotropic_Main(nframes::Int64, init_type::String, init_data = nothing,
   grid_u, grid_v = dyn_data.grid_u_c, dyn_data.grid_v_c
   spe_vor_c, spe_div_c = dyn_data.spe_vor_c, dyn_data.spe_div_c
   grid_vor, grid_div = dyn_data.grid_vor, dyn_data.grid_div
-
+  
   grid_vor_b = nothing
   
   if init_type == "truth"
@@ -79,9 +79,9 @@ function Barotropic_Main(nframes::Int64, init_type::String, init_data = nothing,
     Vor_Div_From_Grid_UV!(mesh, grid_u, grid_v, spe_vor_c, spe_div_c) 
     Trans_Spherical_To_Grid!(mesh, spe_vor_c,  grid_vor)
     Trans_Spherical_To_Grid!(mesh, spe_div_c,  grid_div)
-
+    
     Lat_Lon_Pcolormesh(mesh, grid_vor,  1; save_file_name = "Figs/Barotropic_vor_backgroud.png", cmap = "jet")
-
+    
     grid_vor_b = copy(grid_vor); spe_vor_b = copy(spe_vor_c)
     
     grid_vor_pert = similar(grid_vor)
@@ -92,7 +92,7 @@ function Barotropic_Main(nframes::Int64, init_type::String, init_data = nothing,
         grid_vor_pert[i,j, 1] = A / 2.0 * cosθ[j] * exp(-((θc[j] - θ0) / θw)^2) * cos(m * λc[i])
       end
     end
-
+    
     
     ################# Observations are grid points
     # Random sample
@@ -101,11 +101,11 @@ function Barotropic_Main(nframes::Int64, init_type::String, init_data = nothing,
     # band = Int64[]
     # for j = 1:nθ
     #   if θc[j] < θ0 + θw && θc[j]  > θ0 - 2θw;    push!(band, j);    end
-      
-    # end
-
     
-
+    # end
+    
+    
+    
     nobs = 60
     obs_coord = zeros(Int64, nobs, 2)
     Random.seed!(100)
@@ -134,7 +134,7 @@ function Barotropic_Main(nframes::Int64, init_type::String, init_data = nothing,
     UV_Grid_From_Vor_Div!(mesh, spe_vor_c,  spe_div_c, grid_u, grid_v)
     
     Lat_Lon_Pcolormesh(mesh, grid_u, 1; save_file_name = "Figs/Barotropic_vel_u0.png", cmap = "jet")
-
+    
     @info norm(spe_vor_c), norm(spe_vor_c[1:8, 1:8])
     
     
@@ -178,9 +178,9 @@ function Barotropic_Main(nframes::Int64, init_type::String, init_data = nothing,
     Lat_Lon_Pcolormesh(mesh, grid_u,  1; save_file_name =  "Figs/Barotropic_vel_u.png", cmap = "jet")
     Lat_Lon_Pcolormesh(mesh, grid_vor, 1; save_file_name =  "Figs/Barotropic_vor.png", cmap = "jet")
   end
-
-
-
+  
+  
+  
   return mesh,  grid_vor_b, spe_vor_b, grid_vor0, spe_vor0, obs_coord, obs_data
 end
 
@@ -200,22 +200,31 @@ function Barotropic_ω0!(mesh, init_type::String, init_data, spe_vor0, grid_vor0
     spe_vor0 .= spe_vor_b
     # m = 0,   1, ... N
     # n = m, m+1, ... N
-    # F_m,n = {F_0,1 F_1,1   F_0,2 F_1,2 F_2,2, ..., F_N,N}
+    # F_m,n = {F_0,1 F_0,2, F_0,3 ... F_0,N,    F_1,1 F_1,2, ... F_1,N, ..., F_N,N}
     # F_0,1 F_1,1  
     # F_0,2 F_1,2 F_2,2
     #   ...
     # F_0,N F_1,N F_2,N, ..., F_N,N
-    # 
-    n_init_data = length(init_data)
-    N = Int64((sqrt(9 + 4*n_init_data) - 3)/2)
+    # N + 2(N+1)N/2 = N^2 + 2N
     
+    n_init_data = length(init_data)
+    N = Int64(sqrt(1 + n_init_data) - 1)
+    
+    m = 0
     for n = 1:N
-      for m = 0:n
-        i_init_data = Int64((n+2)*(n-1)/2) + m + 1
-        # TODO /radius
-        spe_vor0[m+1,n+1,1] += (init_data[2*i_init_data-1] + init_data[2*i_init_data] * im)/radius
-      end
+      spe_vor0[m+1,n+1,1] += init_data[n]/radius
     end
+    i_init_data = N
+    for m = 1:N
+      for n = m:N
+        # m = 1, 2, 3 .. m 
+        #     0  N  N-1...
+        #     N + N-1 ... N-m+2 
+        spe_vor0[m+1,n+1,1] += (init_data[i_init_data+1] - init_data[i_init_data + 2]*im)/radius
+        i_init_data += 2
+      end 
+    end
+    @assert(i_init_data == n_init_data)
     
     Trans_Spherical_To_Grid!(mesh, spe_vor0, grid_vor0)
   else 
