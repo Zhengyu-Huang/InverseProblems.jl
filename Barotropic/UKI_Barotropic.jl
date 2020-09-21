@@ -109,21 +109,21 @@ function Barotropic_RUKI(barotropic::Barotropic_Data, t_mean::Array{Float64,1}, 
     @info "optimization error :", norm(obs_data - rukiobj.g_bar[end]), " / ",  norm(obs_data)
     if i%10 == 0
       Lat_Lon_Pcolormesh(mesh, grid_vor0, 1; save_file_name = "Figs/RUKI_Barotropic_vor_"*string(i)*".png", vmax = vor0_max, vmin = vor0_vmin, cmap = "jet")
-    
-    
+      
+      
       begin # compute standard deviation on the diagonal
         
         α_vor0 = rukiobj.θθ_cov[end]
         α_vor0_θ_basis = θ_basis*α_vor0
-
+        
         d_Cov_0 = similar(grid_vor0)
         for j = 1:length(grid_vor0)
           d_Cov_0[j] = sqrt( sum(θ_basis[j, :] .* α_vor0_θ_basis[j,:]) )
         end
         Lat_Lon_Pcolormesh(mesh, d_Cov_0, 1;  save_file_name = "Figs/RUKI_Barotropic_vor_std"*string(i)*".png", cmap = "jet")
       end
-    
-    
+      
+      
     end
   end
   
@@ -255,13 +255,13 @@ end
 # 
 ###############################################################################################
 
-function Compare(α_reg::Float64, noise_level::Int64, EnKI_run::Bool = false)
+function Compare(α_reg::Float64, noise_level::Float64, EnKI_run::Bool = false)
   
   
   
   
   
-  @info "α_reg::Float64, noise_level::Int64 : ", α_reg, noise_level
+  @info "α_reg::Float64, noise_level::Float64 : ", α_reg, noise_level
   nframes  = 2
   mesh,  grid_vor_b, spe_vor_b, grid_vor0, spe_vor0, obs_coord, obs_data = Barotropic_Main(nframes, "truth")
   obs_data = convert_obs(obs_coord, obs_data)
@@ -270,6 +270,17 @@ function Compare(α_reg::Float64, noise_level::Int64, EnKI_run::Bool = false)
   barotropic = Barotropic_Data(mesh, obs_coord, obs_data, grid_vor0, similar(grid_vor0), similar(spe_vor0), nframes, "truth")
   
   t_mean = obs_data
+  
+  if noise_level >= 0.0
+    Random.seed!(123);
+    for i = 1:length(t_mean)
+      noise = rand(Normal(0, noise_level*abs(t_mean[i])))
+      t_mean[i] += noise
+    end
+    
+  end
+  
+  
   N_data = length(t_mean)
   t_cov = Array(Diagonal(fill(1.0, N_data))) 
   
@@ -296,12 +307,12 @@ function Compare(α_reg::Float64, noise_level::Int64, EnKI_run::Bool = false)
     
     m = 0
     for n = 1:N
-        spe_θ0 .= 0.0
-        spe_θ0[m+1,n+1] = 1.0/radius
-        Trans_Spherical_To_Grid!(mesh, spe_θ0, grid_θ0)
-
-        
-        Z0_cov[:, n] .= grid_θ0[:]
+      spe_θ0 .= 0.0
+      spe_θ0[m+1,n+1] = 1.0/radius
+      Trans_Spherical_To_Grid!(mesh, spe_θ0, grid_θ0)
+      
+      
+      Z0_cov[:, n] .= grid_θ0[:]
     end
     i_init_data = N
     for m = 1:N
@@ -315,15 +326,15 @@ function Compare(α_reg::Float64, noise_level::Int64, EnKI_run::Bool = false)
         spe_θ0[m+1,n+1] = -1.0/radius *im
         Trans_Spherical_To_Grid!(mesh, spe_θ0, grid_θ0)
         Z0_cov[:, i_init_data + 2] .= grid_θ0[:]
-
+        
         i_init_data += 2
       end
     end
     @assert(i_init_data == N_r)
-
+    
     svd_Z0 = svd(Z0_cov)
     @info svd_Z0.S
-  
+    
     
     
     
@@ -339,7 +350,7 @@ function Compare(α_reg::Float64, noise_level::Int64, EnKI_run::Bool = false)
     end
     
   end
-
+  
   # RUKI
   begin
     barotropic.init_type = "spec_vor"
@@ -359,7 +370,7 @@ function Compare(α_reg::Float64, noise_level::Int64, EnKI_run::Bool = false)
     rukiobj = Barotropic_RUKI(barotropic,  t_mean, t_cov, θ0_bar, spe_vor_b, θθ0_cov, α_reg,  N_ite, Z0_cov)
     
   end
-
+  
   
   
   
@@ -417,7 +428,7 @@ function Compare(α_reg::Float64, noise_level::Int64, EnKI_run::Bool = false)
   "legend.fontsize" => mysize,
   )
   merge!(rcParams, font0)
-
+  
   fig, (ax1, ax2) = PyPlot.subplots(ncols=2, figsize=(20,8))
   
   labels = ["TUKI", "UKI", "EnKI", "EAKI", "ETKI"]
@@ -449,4 +460,4 @@ function Compare(α_reg::Float64, noise_level::Int64, EnKI_run::Bool = false)
 end
 
 
-Compare(0.5, 0, false)
+Compare(0.5, 0.05, false)
