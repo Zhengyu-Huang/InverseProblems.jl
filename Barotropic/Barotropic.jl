@@ -12,7 +12,7 @@ function Barotropic_Main(nframes::Int64, init_type::String, init_data = nothing,
   # the decay of a sinusoidal disturbance to a zonally symmetric flow 
   # that resembles that found in the upper troposphere in Northern winter.
   name = "Barotropic"
-  num_fourier, nθ, nd = 85, 128, 1  # 42, 64, 1
+  num_fourier, nθ, nd = 170, 256, 1 #85, 128, 1  # 42, 64, 1
   num_spherical = num_fourier + 1
   nλ = 2nθ
   
@@ -40,7 +40,7 @@ function Barotropic_Main(nframes::Int64, init_type::String, init_data = nothing,
   
   obs_time = Int64(day_to_second/nframes)
   end_time = day_to_second  #2 day
-  Δt = 1800
+  Δt = 900
   init_step = true
   
   integrator = Filtered_Leapfrog(robert_coef, 
@@ -108,7 +108,7 @@ function Barotropic_Main(nframes::Int64, init_type::String, init_data = nothing,
     
     nobs = 60
     obs_coord = zeros(Int64, nobs, 2)
-    Random.seed!(100)
+    Random.seed!(42)
     obs_coord[:,1], obs_coord[:, 2] = rand(1:nλ-1, nobs), rand(Int64(nθ/2)+1:nθ-1, nobs)
     # Lat_Lon_Pcolormesh(mesh, grid_u, 1, obs_coord,  "obs.png")
     # error("stop")
@@ -178,8 +178,6 @@ function Barotropic_Main(nframes::Int64, init_type::String, init_data = nothing,
     Lat_Lon_Pcolormesh(mesh, grid_u,  1; save_file_name =  "Figs/Barotropic_vel_u.png", cmap = "jet")
     Lat_Lon_Pcolormesh(mesh, grid_vor, 1; save_file_name =  "Figs/Barotropic_vor.png", cmap = "jet")
   end
-  
-  
   
   return mesh,  grid_vor_b, spe_vor_b, grid_vor0, spe_vor0, obs_coord, obs_data
 end
