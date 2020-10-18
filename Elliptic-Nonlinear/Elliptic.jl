@@ -4,6 +4,7 @@ using PyPlot
 using LinearAlgebra
 include("../RUKI.jl")
 include("../RExKI.jl")
+include("../REnKI.jl")
 # p(x) = u₂x + exp(-u₁)(-x²/2 + x/2)
 
 function forward(u::Array{Float64,1}, args)
@@ -219,8 +220,16 @@ X,Y = repeat(xx, 1, Ny), repeat(yy, 1, Nx)'
 pcolormesh(X, Y, Z)
 colorbar()
 
+
+
+α_reg,  N_ens,  N_iter = 0.0, 1000,  2
+enkiobj = EnKI(obs, obs_cov,  μ0, cov_sqr0 , α_reg, N_ens, N_iter)
+enki_θ  = enkiobj.θ[end]
+scatter(enki_θ[:, 1], enki_θ[:, 2], c= "r")
+
+
 # posterior distribution
-f_density(u) = f_posterior(u, nothing, obs, obs_cov, μ0, 2cov0) 
+f_density(u) = f_posterior(u, nothing, obs, obs_cov, μ0, cov0) 
 step_length = 1.0
 n_ite , n_burn_in= 1000000, 100000
 us = RWMH(f_density, μ0, step_length, n_ite)
