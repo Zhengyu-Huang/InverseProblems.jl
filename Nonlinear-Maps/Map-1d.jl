@@ -8,15 +8,24 @@ include("../RExKI.jl")
 include("../RWMCMC.jl")
 include("../SMC.jl")
 
-p_order = 3
 
-function forward(u::Array{Float64,1}, args)
+
+function p2(u::Array{Float64,1}, args)
+    p_order = 2
     u1 = u[1]
-    
     return [u1^p_order ;]
 end
 
+function p3(u::Array{Float64,1}, args)
+    p_order = 3
+    u1 = u[1]
+    return [u1^p_order ;]
+end
 
+function exp10(u::Array{Float64,1}, args)
+    u1 = u[1]
+    return [exp(u1/10.0) ;]
+end
 
 
 function ensemble(params_i::Array{Float64, 2})
@@ -173,7 +182,7 @@ function SMC(t_mean::Array{Float64,1}, t_cov::Array{Float64,2},
 end
 
 
-function Polynomial_Posterior_Plot()
+function Map_Posterior_Plot(forward_func::Function)
     
     # prior and covariance
     obs = [8.0;]
@@ -181,6 +190,8 @@ function Polynomial_Posterior_Plot()
     μ0 = [1.0;] 
     cov_sqr0    = reshape([10.0], (1, 1))
     cov0 = cov_sqr0 * cov_sqr0 
+
+    global forward = forward_func
     
     # compute posterior distribution by MCMC
     f_density(u) = f_posterior(u, nothing, obs, obs_cov, μ0, cov0) 
@@ -189,25 +200,27 @@ function Polynomial_Posterior_Plot()
     us = RWMCMC(f_density, μ0, step_length, n_ite)
 
     # for SMC
-    N_ens = 100
+    N_ens = 1000
     M_threshold = Float64(N_ens)
-    N_t = 50
+    N_t = 100
 
     for update_cov in [5,0]
         
         
         # compute posterior distribution the uki method 
-        α_reg,  N_iter = 1.0, 120
+        α_reg,  N_iter = 1.0, 100
         ukiobj = ExKI(obs, obs_cov,  μ0, cov0 , α_reg,  N_iter, update_cov)
         
         smcobj = SMC(obs, obs_cov, μ0, cov0,  N_ens, 1.0, M_threshold, N_t)
         
         Nx = 1000;
-        xx = Array(LinRange(1.95, 2.05, Nx))
+
+        uki_θ, uki_θθ_std = ukiobj.θ_bar[end][1], max(5*sqrt(ukiobj.θθ_cov[end][1,1]), 0.05)
+        xx = Array(LinRange(uki_θ - uki_θθ_std, uki_θ + uki_θθ_std, Nx))
         zz = similar(xx)
     
-        nrows, ncols = 2, 3
-        fig, ax = PyPlot.subplots(nrows=nrows, ncols=ncols, sharex=true, sharey=true, figsize=(18,12))
+        nrows, ncols = 2, 1
+        fig, ax = PyPlot.subplots(nrows=nrows, ncols=ncols, sharex=true, sharey=true, figsize=(6,12))
         for irow = 1:nrows
             for icol = 1:ncols
                 # plot UKI results 
@@ -225,7 +238,7 @@ function Polynomial_Posterior_Plot()
                 # plot SMC results 
                 θ = smcobj.θ[end]
                 weights = smcobj.weights[end]
-                ax[irow, icol].hist(θ, bins = 10, weights = weights, density = true, histtype = "step", label="SMC")
+                ax[irow, icol].hist(θ, bins = 100, weights = weights, density = true, histtype = "step", label="SMC")
                 
                 # plot MCMC results 
                 ax[irow, icol].hist(us[n_burn_in:end, 1], bins = 100, density = true, histtype = "step", label="MCMC")
@@ -235,11 +248,13 @@ function Polynomial_Posterior_Plot()
             end
         end
         
-        fig.savefig("Polynomial_UKI_update_cov"*string(update_cov)*".png")
+        fig.savefig(string(forward_func)*"_UKI_update_cov"*string(update_cov)*".png")
         close("all")
     end
     
 end
 
 
-Polynomial_Posterior_Plot()
+Map_Posterior_Plot(exp10)
+Map_Posterior_Plot(p2) 
+Map_Posterior_Plot(p3)
