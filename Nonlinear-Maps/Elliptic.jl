@@ -65,30 +65,7 @@ function f_posterior(u::Array{Float64,1}, args, obs::Array{Float64,1}, obs_cov::
     return Φ
 end
 
-function RWMH(f_density::Function, u0::Array{Float64,1}, step_length::Float64, n_ite::Int64)
-    
-    n = length(u0)
-    us = zeros(Float64, n_ite, n)
-    fs = zeros(Float64, n_ite)
-    
-    us[1, :] .= u0
-    fs[1] = f_density(u0)
-    
-    Random.seed!(666)
-    for i = 2:n_ite
-        u_p = us[i-1, :] 
-        u = u_p + step_length * rand(Normal(0, 1), n)
-        
-        
-        fs[i] = f_density(u)
-        α = min(1.0, exp(fs[i] - fs[i-1]))
-        us[i, :] = (rand(Bernoulli(α)) ? u : u_p)
-        fs[i] = (rand(Bernoulli(α)) ? fs[i] : fs[i-1])
-    end
-    
-    return us
-    
-end
+
 
 
 function UKI(t_mean::Array{Float64,1}, t_cov::Array{Float64,2}, 
@@ -211,7 +188,7 @@ function Ellitic_Posterior_Plot()
     f_density(u) = f_posterior(u, nothing, obs, obs_cov, μ0, cov0) 
     step_length = 1.0
     n_ite , n_burn_in= 1000000, 100000
-    us = RWMH(f_density, μ0, step_length, n_ite)
+    us = RWMCMC(f_density, μ0, step_length, n_ite)
     for update_cov in [0,5]
         
         
