@@ -72,7 +72,7 @@ function ExKIObj(parameter_names::Vector{String},
     β = 2.0
 
     α = min(sqrt(4/(N_θ + κ)), 1.0)
-    
+
     λ = α^2*(N_θ + κ) - N_θ
 
     
