@@ -203,19 +203,17 @@ function Map_Posterior_Plot(forward_func::Function)
     N_ens = 1000
     M_threshold = Float64(N_ens)
     N_t = 100
+    smcobj = SMC(obs, obs_cov, μ0, cov0,  N_ens, 1.0, M_threshold, N_t)
 
-    for update_cov in [5,0]
-        
+    for update_cov in [5]
         
         # compute posterior distribution the uki method 
         α_reg,  N_iter = 1.0, 100
-        ukiobj = ExKI(obs, obs_cov,  μ0, cov0 , α_reg,  N_iter, update_cov)
+        ukiobj = UKI(obs, obs_cov,  μ0, cov0 , α_reg,  N_iter, update_cov)
         
-        smcobj = SMC(obs, obs_cov, μ0, cov0,  N_ens, 1.0, M_threshold, N_t)
         
         Nx = 1000;
-
-        uki_θ, uki_θθ_std = ukiobj.θ_bar[end][1], max(5*sqrt(ukiobj.θθ_cov[end][1,1]), 0.05)
+        uki_θ, uki_θθ_std = ukiobj.θ_bar[end][1], min(max(5*sqrt(ukiobj.θθ_cov[end][1,1]), 0.05), 5)
         xx = Array(LinRange(uki_θ - uki_θθ_std, uki_θ + uki_θθ_std, Nx))
         zz = similar(xx)
     
@@ -233,15 +231,15 @@ function Map_Posterior_Plot(forward_func::Function)
                     temp = xx[ix] - uki_θ_bar
                     zz[ix] = exp(-0.5*(temp/uki_θθ_cov*temp)) / (sqrt(2 * pi * uki_θθ_cov))
                 end
-                ax[irow, icol].plot(xx, zz, label="UKI")
+                # ax[irow, icol].plot(xx, zz, label="UKI")
 
                 # plot SMC results 
                 θ = smcobj.θ[end]
                 weights = smcobj.weights[end]
-                ax[irow, icol].hist(θ, bins = 100, weights = weights, density = true, histtype = "step", label="SMC")
+                # ax[irow, icol].hist(θ, bins = 100, weights = weights, density = true, histtype = "step", label="SMC")
                 
                 # plot MCMC results 
-                ax[irow, icol].hist(us[n_burn_in:end, 1], bins = 100, density = true, histtype = "step", label="MCMC")
+                ax[irow, icol].hist(us[n_burn_in:end, 1], bins = 10, density = true, histtype = "step", label="MCMC")
 
                 
                 ax[irow, icol].legend()
@@ -255,6 +253,6 @@ function Map_Posterior_Plot(forward_func::Function)
 end
 
 
-Map_Posterior_Plot(exp10)
+# Map_Posterior_Plot(exp10)
 Map_Posterior_Plot(p2) 
-Map_Posterior_Plot(p3)
+# Map_Posterior_Plot(p3)
