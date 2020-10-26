@@ -27,6 +27,18 @@ function exp10(u::Array{Float64,1}, args)
     return [exp(u1/10.0) ;]
 end
 
+function xinv(u::Array{Float64,1}, args)
+    u1 = u[1]
+    return [1.0/u1 ;]
+    
+end
+
+function signp3(u::Array{Float64,1}, args)
+    u1 = u[1]
+    
+    return [sign(u1) + u1^3 ;]
+    
+end
 
 function ensemble(params_i::Array{Float64, 2})
     
@@ -147,7 +159,7 @@ function EnKI(t_mean::Array{Float64,1}, t_cov::Array{Float64,2},
     for i in 1:N_iter
         
         update_ensemble!(enkiobj, ens_func) 
-
+        
         
         @info "loss = ", (enkiobj.g_bar[i] - enkiobj.g_t)'/enkiobj.obs_cov*(enkiobj.g_bar[i] - enkiobj.g_t)
     end
@@ -181,71 +193,80 @@ function SMC(t_mean::Array{Float64,1}, t_cov::Array{Float64,2},
 end
 
 
-function Map_Posterior_Plot(forward_func::Function)
+function Map_Posterior_Plot(forward_func::Function, plot⁻::Bool = true)
     @info "start Map test: ", string(forward_func)
     # prior and covariance
     obs = forward_func([2.0;], nothing);
     obs_cov = reshape([0.1^2], (1,1))
-    μ0 = [1.0;] 
+    μ0⁻, μ0⁺ = [-1.0;] , [1.0;]
     cov_sqr0    = reshape([10.0], (1, 1))
     cov0 = cov_sqr0 * cov_sqr0 
-
+    
     global forward = forward_func
     
     # compute posterior distribution by MCMC
-    f_density(u) = f_posterior(u, nothing, obs, obs_cov, μ0, cov0) 
+    f_density(u) = f_posterior(u, nothing, obs, obs_cov, μ0⁻, cov0) 
     step_length = 1.0
     n_ite , n_burn_in= 5000000, 100000
-    us = RWMCMC(f_density, μ0, step_length, n_ite)
-
+    us = RWMCMC(f_density, μ0⁻, step_length, n_ite)
+    @info "MCMC min max = ", minimum(us), maximum(us)
+    
     N_ens = 1000
     M_threshold = Float64(N_ens)
     N_t = 100
-    smcobj = SMC(obs, obs_cov, μ0, cov0,  N_ens, 1.0, M_threshold, N_t)
-
-    for update_cov in [5, 0]
+    smcobj = SMC(obs, obs_cov, μ0⁻, cov0,  N_ens, 1.0, M_threshold, N_t)
+    
+    for update_cov in [1]
         
         # compute posterior distribution the uki method 
-        α_reg,  N_iter = 1.0, 100
-        ukiobj = ExKI(obs, obs_cov,  μ0, cov0 , α_reg,  N_iter, update_cov)
+        α_reg,  N_iter = 1.0, 20
+        ukiobj⁻ = ExKI(obs, obs_cov,  μ0⁻, cov0 , α_reg,  N_iter, update_cov)
+        ukiobj⁺ = ExKI(obs, obs_cov,  μ0⁺, cov0 , α_reg,  N_iter, update_cov)
         
+        nrows, ncols = 1, 1
+        fig, ax = PyPlot.subplots(nrows=nrows, ncols=ncols, sharex=true, sharey=true, figsize=(6,6))
         
-        Nx = 1000;
-        uki_θ, uki_θθ_std = ukiobj.θ_bar[end][1], min(max(5*sqrt(ukiobj.θθ_cov[end][1,1]), 0.05), 5)
+        # plot UKI results 
+ 
+        for i in [-1; 1]
+            if i == -1
+                uki, marker, linestyle, label, color = ukiobj⁻ , "o", "-", "UKI (m₀=-1)" , "C1"
+            else
+                uki, marker, linestyle, label, color =  ukiobj⁺, "*", ":", "UKI (m₀=1)" , "C2"
+            end
+            Nx = 1000;
+            uki_θ, uki_θθ_std = uki.θ_bar[end][1], min(5*sqrt(uki.θθ_cov[end][1,1]), 5)
+            xx = Array(LinRange(uki_θ - uki_θθ_std, uki_θ + uki_θθ_std, Nx))
+            zz = similar(xx)
+            uki_θ_bar = uki.θ_bar[end][1]
+            uki_θθ_cov = uki.θθ_cov[end][1,1]
+            @info "m0=", i,  uki_θ_bar,  uki_θθ_cov
+            for ix = 1:Nx  
+                temp = xx[ix] - uki_θ_bar
+                zz[ix] = exp(-0.5*(temp/uki_θθ_cov*temp)) / (sqrt(2 * pi * uki_θθ_cov))
+            end
 
-        xx = Array(LinRange(uki_θ - uki_θθ_std, uki_θ + uki_θθ_std, Nx))
-        zz = similar(xx)
-    
-        nrows, ncols = 2, 1
-        fig, ax = PyPlot.subplots(nrows=nrows, ncols=ncols, sharex=true, sharey=true, figsize=(12,12))
-        for irow = 1:nrows
-            for icol = 1:ncols
-                # plot UKI results 
-                ites = div(N_iter, nrows*ncols)*((irow-1)*ncols + icol)
-                uki_θ_bar = ukiobj.θ_bar[ites][1]
-                uki_θθ_cov = ukiobj.θθ_cov[ites][1,1]
-
-                @show uki_θ_bar,  uki_θθ_cov
-                for ix = 1:Nx  
-                    temp = xx[ix] - uki_θ_bar
-                    zz[ix] = exp(-0.5*(temp/uki_θθ_cov*temp)) / (sqrt(2 * pi * uki_θθ_cov))
-                end
-                ax[irow, icol].plot(xx, zz, label="UKI")
-
-                # plot SMC results 
-                θ = smcobj.θ[end]
-                weights = smcobj.weights[end]
-                ax[irow, icol].hist(θ, bins = 100, weights = weights, density = true, histtype = "step", label="SMC")
-                
-                # plot MCMC results 
-                ax[irow, icol].hist(us[n_burn_in:end, 1], bins = 100, density = true, histtype = "step", label="MCMC")
-
-                
-                ax[irow, icol].legend()
+            if i==1 || (plot⁻ && i == -1)
+                ax.plot(xx, zz, marker= marker,linestyle=linestyle, color=color, fillstyle="none", markevery=100, label=label)
             end
         end
         
-        fig.savefig(string(forward_func)*"_UKI_update_cov"*string(update_cov)*".png")
+        
+        
+        # plot MCMC results 
+        ax.hist(us[n_burn_in:end, 1], bins = 100, density = true, histtype = "step", label="MCMC (m₀=-1)", color="C3")
+
+
+        # plot SMC results 
+        θ = smcobj.θ[end]
+        weights = smcobj.weights[end]
+        ax.hist(θ, bins = 20, weights = weights, density = true, histtype = "step", label="SMC (m₀=-1)", color="C0")
+        
+        
+        ax.legend()
+        
+        
+        fig.savefig(string(forward_func)*"_UKI_update_cov"*string(update_cov)*string(plot⁻)*".pdf")
         close("all")
     end
     
@@ -255,3 +276,6 @@ end
 Map_Posterior_Plot(exp10)
 Map_Posterior_Plot(p2) 
 Map_Posterior_Plot(p3)
+Map_Posterior_Plot(xinv)
+Map_Posterior_Plot(xinv, false)
+Map_Posterior_Plot(signp3)
