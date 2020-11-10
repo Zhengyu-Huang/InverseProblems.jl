@@ -198,30 +198,36 @@ function Map_Posterior_Plot(forward_func::Function, plot⁻::Bool = true)
     # prior and covariance
     obs = forward_func([2.0;], nothing);
     obs_cov = reshape([0.1^2], (1,1))
-    μ0⁻, μ0⁺ = [-1.0;] , [1.0;]
-    cov_sqr0    = reshape([10.0], (1, 1))
-    cov0 = cov_sqr0 * cov_sqr0 
+
+    # prior distribution
+    μ0,  cov_sqr0   = [-1.0;], reshape([10.0],  (1, 1))
+    μ0⁻, cov_sqr0⁻  = [-1.0;], reshape([0.5],  (1, 1))
+    μ0⁺, cov_sqr0⁺  = [ 1.0;], reshape([0.5],  (1, 1))
+    
+    cov0  = cov_sqr0  * cov_sqr0 
+    cov0⁻ = cov_sqr0⁻ * cov_sqr0⁻ 
+    cov0⁺ = cov_sqr0⁺ * cov_sqr0⁺ 
     
     global forward = forward_func
     
     # compute posterior distribution by MCMC
-    f_density(u) = f_posterior(u, nothing, obs, obs_cov, μ0⁻, cov0) 
+    f_density(u) = f_posterior(u, nothing, obs, obs_cov, μ0, cov0) 
     step_length = 1.0
     n_ite , n_burn_in= 5000000, 100000
-    us = RWMCMC(f_density, μ0⁻, step_length, n_ite)
+    us = RWMCMC(f_density, μ0, step_length, n_ite)
     @info "MCMC min max = ", minimum(us), maximum(us)
     
+    # compute posterior distribution by SMC
     N_ens = 1000
     M_threshold = Float64(N_ens)
     N_t = 100
-    smcobj = SMC(obs, obs_cov, μ0⁻, cov0,  N_ens, 1.0, M_threshold, N_t)
+    smcobj = SMC(obs, obs_cov, μ0, cov0,  N_ens, 1.0, M_threshold, N_t)
     
     for update_cov in [1]
-        
         # compute posterior distribution the uki method 
         α_reg,  N_iter = 1.0, 20
-        ukiobj⁻ = ExKI(obs, obs_cov,  μ0⁻, cov0 , α_reg,  N_iter, update_cov)
-        ukiobj⁺ = ExKI(obs, obs_cov,  μ0⁺, cov0 , α_reg,  N_iter, update_cov)
+        ukiobj⁻ = ExKI(obs, obs_cov,  μ0⁻, cov0⁻ , α_reg,  N_iter, update_cov)
+        ukiobj⁺ = ExKI(obs, obs_cov,  μ0⁺, cov0⁺ , α_reg,  N_iter, update_cov)
         
         nrows, ncols = 1, 1
         fig, ax = PyPlot.subplots(nrows=nrows, ncols=ncols, sharex=true, sharey=true, figsize=(6,6))
@@ -254,13 +260,13 @@ function Map_Posterior_Plot(forward_func::Function, plot⁻::Bool = true)
         
         
         # plot MCMC results 
-        ax.hist(us[n_burn_in:end, 1], bins = 100, density = true, histtype = "step", label="MCMC (m₀=-1)", color="C3")
+        ax.hist(us[n_burn_in:end, 1], bins = 100, density = true, histtype = "step", label="MCMC", color="C3")
 
 
         # plot SMC results 
         θ = smcobj.θ[end]
         weights = smcobj.weights[end]
-        ax.hist(θ, bins = 20, weights = weights, density = true, histtype = "step", label="SMC (m₀=-1)", color="C0")
+        ax.hist(θ, bins = 20, weights = weights, density = true, histtype = "step", label="SMC", color="C0")
         
         
         ax.legend()
