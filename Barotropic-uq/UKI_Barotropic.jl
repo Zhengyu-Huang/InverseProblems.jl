@@ -75,6 +75,10 @@ end
 function Barotropic_RUKI(barotropic::Barotropic_Data, t_mean::Array{Float64,1}, t_cov::Array{Float64,2}, θ0_bar::Array{Float64,1}, spe_vor_b::Array{ComplexF64,3}, θθ0_cov::Array{Float64,2}, 
   α_reg::Float64 = 1.0, N_iter::Int64 = 100, θ_basis = nothing)
   
+  
+  update_cov = 1
+
+
   mesh, obs_coord, obs_data, init_type = barotropic.mesh, barotropic.obs_coord, barotropic.obs_data, barotropic.init_type
   grid_vor0_ref, grid_vor0, spe_vor0 = barotropic.grid_vor0_ref, barotropic.grid_vor0, barotropic.spe_vor0
   nframes = barotropic.nframes
@@ -94,6 +98,7 @@ function Barotropic_RUKI(barotropic::Barotropic_Data, t_mean::Array{Float64,1}, 
     
     if i==1
       Barotropic_ω0!(mesh, init_type, rukiobj.θ_bar[end], spe_vor0, grid_vor0; spe_vor_b=spe_vor_b)
+      @info norm(rukiobj.θ_bar[end]), norm(spe_vor0), norm(grid_vor0)
       @info "i0: error of ω0 :", norm(grid_vor0_ref - grid_vor0), " / ",  norm(grid_vor0_ref)
     end
     
@@ -124,6 +129,11 @@ function Barotropic_RUKI(barotropic::Barotropic_Data, t_mean::Array{Float64,1}, 
       end
       
       
+    end
+
+
+    if (update_cov > 0) && (i%update_cov == 0) 
+      rukiobj.θθ_cov[1] = copy(rukiobj.θθ_cov[end])
     end
   end
   
@@ -165,6 +175,49 @@ function Compare(α_reg::Float64, noise_level::Float64, EnKI_run::Bool = false)
   N = 7
   N_r = (N+2)*N
   
+
+
+  begin
+    # N = 7, n, m = 0,1, ... 7  
+    N_r = (N+2)*N
+    N_ens = 2N_r + 1
+    θ0_bar = copy(grid_vor_b[:])                      # mean 
+    nθ = length( θ0_bar )
+    
+    Z0_cov = ones(Float64, nθ, N_r)
+    
+    spe_θ0 = similar(spe_vor0)
+    grid_θ0 = similar(grid_vor0)
+    
+    m = 0
+    for n = 1:N
+      spe_θ0 .= 0.0
+      spe_θ0[m+1,n+1] = 1.0/radius
+      Trans_Spherical_To_Grid!(mesh, spe_θ0, grid_θ0)
+      
+      
+      Z0_cov[:, n] .= grid_θ0[:]
+    end
+    i_init_data = N
+    for m = 1:N
+      for n = m:N  
+        spe_θ0 .= 0.0
+        spe_θ0[m+1,n+1] = 1.0/radius
+        Trans_Spherical_To_Grid!(mesh, spe_θ0, grid_θ0)
+        Z0_cov[:, i_init_data + 1] .= grid_θ0[:]
+        
+        spe_θ0 .= 0.0
+        spe_θ0[m+1,n+1] = -1.0/radius *im
+        Trans_Spherical_To_Grid!(mesh, spe_θ0, grid_θ0)
+        Z0_cov[:, i_init_data + 2] .= grid_θ0[:]
+        
+        i_init_data += 2
+      end
+    end
+    @assert(i_init_data == N_r)
+
+    
+  end
   
   # RUKI
   begin

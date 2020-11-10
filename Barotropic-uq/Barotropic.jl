@@ -183,6 +183,7 @@ function Barotropic_ω0!(mesh, init_type::String, init_data, spe_vor0, grid_vor0
   radius = 6371.2e3
   
   if init_type == "spec_vor"
+    spe_vor0 .= 0.0
     # m = 0,   1, ... N
     # n = m, m+1, ... N
     # F_m,n = {F_0,1 F_0,2, F_0,3 ... F_0,N,    F_1,1 F_1,2, ... F_1,N, ..., F_N,N}
