@@ -6,6 +6,7 @@ include("../Plot.jl")
 include("../RUKI.jl")
 include("../RExKI.jl")
 include("../REnKI.jl")
+include("../RWMCMC.jl")
 # p(x) = u₂x + exp(-u₁)(-x²/2 + x/2)
 
 function forward(u::Array{Float64,1}, args)
@@ -189,7 +190,7 @@ function Ellitic_Posterior_Plot()
     step_length = 1.0
     n_ite , n_burn_in= 1000000, 100000
     us = RWMCMC(f_density, μ0, step_length, n_ite)
-    for update_cov in [0,5]
+    for update_cov in [0,1]
         
         
         # compute posterior distribution the uki method 
@@ -203,12 +204,11 @@ function Ellitic_Posterior_Plot()
         Z = zeros(Float64, Nx, Ny)
         
         
-        nrows, ncols = 2, 3
-        fig, ax = PyPlot.subplots(nrows=nrows, ncols=ncols, sharex=true, sharey=true, figsize=(18,12))
-        for irow = 1:nrows
+        ncols = 3
+        fig, ax = PyPlot.subplots(ncols=ncols, sharex=true, sharey=true, figsize=(18,6))
             for icol = 1:ncols
                 # plot UKI results 
-                ites = 5*((irow-1)*ncols + icol)
+                ites = 5*icol
                 uki_θ_bar = ukiobj.θ_bar[ites]
                 uki_θθ_cov = ukiobj.θθ_cov[ites]
                 det_θθ_cov = det(uki_θθ_cov)
@@ -218,14 +218,14 @@ function Ellitic_Posterior_Plot()
                         Z[ix, iy] = exp(-0.5*(temp'/uki_θθ_cov*temp)) / (2 * pi * sqrt(det_θθ_cov))
                     end
                 end
-                ax[irow, icol].contour(X, Y, Z, 50)
+                ax[icol].contour(X, Y, Z, 50)
                 
                 # plot MCMC results 
                 
                 everymarker = 1
-                ax[irow, icol].scatter(us[n_burn_in:everymarker:end, 1], us[n_burn_in:everymarker:end, 2], s = 1)
+                ax[icol].scatter(us[n_burn_in:everymarker:end, 1], us[n_burn_in:everymarker:end, 2], s = 1)
             end
-        end
+  
         
         fig.savefig("Elliptic_UKI_update_cov"*string(update_cov)*".png")
         close("all")
