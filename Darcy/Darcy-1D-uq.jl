@@ -108,7 +108,7 @@ end
 
 
 
-# UKI 
+function Darcy_1d_uq()
 N, L = 512, 1.0
 obs_ΔN = 8
 α = 1.0
@@ -145,6 +145,7 @@ ax.plot(θ_ind , ki_θ_bar - 3.0*ki_θθ_std, color="red")
 f_density(u) = f_posterior(u, darcy, obs, obs_cov, θ0_bar , θθ0_cov) 
 step_length = 1.0e-3# .0
 n_ite , n_burn_in= 50000000, 10000000
+# n_ite , n_burn_in= 50000, 10000
 # us = RWMCMC(f_density, θ0_bar, step_length, n_ite; seed=42)
 us = RWMCMC(f_density, u_ref, step_length, n_ite; seed=42)
 
@@ -160,8 +161,40 @@ ax.plot(θ_ind , u_ref, "--o", color="grey", fillstyle="none", label="Reference"
 ax.legend()
 # plot MCMC results 
 ax.set_xlabel("θ indices")
-
 fig.savefig("Darcy-1d-uq.png")
+
+
+
+
+########################################### Covaraince 
+fig, ax = PyPlot.subplots(figsize=(18,6))
+θ_cov_ind = Array(1:div(N_θ*(N_θ+1), 2))
+ki_θiθj_cov, mcmc_θiθj_cov = zeros(Float64, div(N_θ*(N_θ+1), 2)), zeros(Float64, div(N_θ*(N_θ+1), 2))
+ind_ij = 1
+for i = 1:N_θ
+    for j = i:N_θ
+        ki_θiθj_cov[ind_ij]   = ki_θθ_cov[i,j]
+        mcmc_θiθj_cov[ind_ij] = (us[n_burn_in:n_ite, i] .- mcmc_mean[i])' * (us[n_burn_in:n_ite, j] .- mcmc_mean[j])/(n_ite - n_burn_in)
+
+        ind_ij += 1
+    end
+end
+
+ax.plot(θ_cov_ind , ki_θiθj_cov,  "*", color="red", fillstyle="none",  label="UKI")
+ax.plot(θ_cov_ind , mcmc_θiθj_cov, "s", color="C2",  fillstyle="none" , label="MCMC")
+
+
+ax.legend()
+# plot MCMC results 
+ax.set_xlabel("Cov(θᵢ, θⱼ)")
+fig.savefig("Darcy-1d-cov.png")
+########################################## 
+
+
+
+
+
+
 
 
 fig, (ax1, ax2) = PyPlot.subplots(ncols=2, figsize=(14,6))
@@ -185,3 +218,6 @@ ax2.set_ylabel("Optimization error")
 ax2.grid(true)
 ax2.legend()
 fig.savefig("Darcy-1d-opt.png")
+end
+
+Darcy_1d_uq()
