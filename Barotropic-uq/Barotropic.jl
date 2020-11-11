@@ -162,16 +162,15 @@ function Barotropic_Main(nframes::Int64, init_type::String, init_data = nothing,
       # @info "day = ", div(time , day_to_second)
       # TODO can change to other quantities
       if init_type == "truth" || plot_data 
-        @info "plot :",  "Figs/Barotropic_u-"*string(div(time , obs_time))*".png", " time = ", time
-        @info "norm(grid_u): ", norm(grid_u)
-        Lat_Lon_Pcolormesh(mesh, grid_u, 1, obs_coord; save_file_name =   "Figs/Barotropic_u-"*string(div(time , obs_time))*".png", cmap = "jet")
+        
+        Lat_Lon_Pcolormesh(mesh, grid_vor, 1, obs_coord; save_file_name =   "Figs/Barotropic_vor-"*string(div(time , obs_time))*".png", cmap = "jet")
       end
-      push!(obs_data, grid_u)
+      push!(obs_data, grid_vor)
     end
     
   end
   if init_type == "truth" || plot_data 
-    Lat_Lon_Pcolormesh(mesh, grid_u,  1; save_file_name =  "Figs/Barotropic_vel_u.png", cmap = "jet")
+    # Lat_Lon_Pcolormesh(mesh, grid_u,  1; save_file_name =  "Figs/Barotropic_vel_u.png", cmap = "jet")
     Lat_Lon_Pcolormesh(mesh, grid_vor, 1; save_file_name =  "Figs/Barotropic_vor.png", cmap = "jet")
   end
   

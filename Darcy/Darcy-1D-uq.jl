@@ -78,6 +78,7 @@ function ExKI_Run(t_mean, t_cov, θ_bar, θθ_cov,  darcy::Param_Darcy,  α_reg:
         
         @info "F error of data_mismatch :", (exkiobj.g_bar[end] - exkiobj.g_t)'*(exkiobj.obs_cov\(exkiobj.g_bar[end] - exkiobj.g_t))
         
+        @info "F norm of the covariance: ", norm(exkiobj.θθ_cov[end])
         
         if (update_cov > 0) && (i%update_cov == 0) 
             exkiobj.θθ_cov[1] = copy(exkiobj.θθ_cov[end])
@@ -100,7 +101,7 @@ function f_posterior(u::Array{Float64,1}, darcy, obs::Array{Float64,1}, obs_cov:
     
     
     Φ = - 0.5*(obs - Gu)'/obs_cov*(obs - Gu) - 0.5*(u - μ0)'/cov0*(u - μ0)
-    
+
     return Φ
 end
 
@@ -125,16 +126,14 @@ obs_cov = Array(Diagonal(fill(0.1^2, length(obs))))
 θ0_bar = zeros(Float64, N_θ)  # mean 
 θθ0_cov = Array(Diagonal(fill(1.0^2.0, N_θ)))
 
+fig, ax = PyPlot.subplots(figsize=(18,6))
 
 N_ite = 50
 kiobj = ExKI_Run(obs, obs_cov, θ0_bar, θθ0_cov, darcy,  1.0, N_ite)
-
 xx = darcy.xx
 ki_θ_bar  = kiobj.θ_bar[end]
 ki_θθ_cov = kiobj.θθ_cov[end]
 ki_θθ_std = sqrt.(diag(kiobj.θθ_cov[end]))
-
-fig, ax = PyPlot.subplots(figsize=(18,6))
 ax.plot(θ_ind , ki_θ_bar,"-*", color="red", fillstyle="none",  label="UKI")
 ax.plot(θ_ind , ki_θ_bar + 3.0*ki_θθ_std, color="red")
 ax.plot(θ_ind , ki_θ_bar - 3.0*ki_θθ_std, color="red")
@@ -143,10 +142,11 @@ ax.plot(θ_ind , ki_θ_bar - 3.0*ki_θθ_std, color="red")
 
 # compute posterior distribution by MCMC
 θθ0_cov = Array(Diagonal(fill(10.0^2.0, N_θ)))
-f_density(u) = f_posterior(u, darcy, obs, obs_cov, θ0_bar, θθ0_cov) 
-step_length = 1.0
-n_ite , n_burn_in= 5000, 1000
-us = RWMCMC(f_density, θ0_bar, step_length, n_ite; seed=42)
+f_density(u) = f_posterior(u, darcy, obs, obs_cov, θ0_bar , θθ0_cov) 
+step_length = 1.0e-3# .0
+n_ite , n_burn_in= 50000000, 10000000
+# us = RWMCMC(f_density, θ0_bar, step_length, n_ite; seed=42)
+us = RWMCMC(f_density, u_ref, step_length, n_ite; seed=42)
 
 mcmc_mean = mean(us[n_burn_in:n_ite, :], dims=1)[:]
 mcmc_std = std(us[n_burn_in:n_ite, :], dims=1)[:]
@@ -161,7 +161,7 @@ ax.legend()
 # plot MCMC results 
 ax.set_xlabel("θ indices")
 
-fig.savefig("Darcy-1d-qu.png")
+fig.savefig("Darcy-1d-uq.png")
 
 
 fig, (ax1, ax2) = PyPlot.subplots(ncols=2, figsize=(14,6))
