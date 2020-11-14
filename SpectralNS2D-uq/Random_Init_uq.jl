@@ -47,17 +47,19 @@ function Random_Init_Test(method::String,
   
   
   ites = Array(LinRange(1, N_iter, N_iter))
-  errors = zeros(Float64, (2, N_iter))
+  errors = zeros(Float64, (3, N_iter))
   for i = 1:N_iter
     
     ω0 = Initial_ω0_KL(mesh, θ_bar[i], seq_pairs)
     
     errors[1, i] = norm(ω0_ref - ω0)/norm(ω0_ref)
     errors[2, i] = 0.5*(kiobj.g_bar[i] - kiobj.g_t)'*(kiobj.obs_cov\(kiobj.g_bar[i] - kiobj.g_t))
+    errors[3, i] = norm(kiobj.θθ_cov[i])   
     
   end
+  errors[3, 1] = norm(θθ0_cov) 
   
-  fig, (ax1, ax2) = PyPlot.subplots(ncols=2, figsize=(14,6))
+  fig, (ax1, ax2, ax3) = PyPlot.subplots(ncols=3, figsize=(18,6))
   ax1.plot(ites, errors[1, :], "-o",  fillstyle="none", markevery=5, label= "UKI")
   ax1.set_xlabel("Iterations")
   ax1.set_ylabel("Relative L₂ norm error")
@@ -69,6 +71,13 @@ function Random_Init_Test(method::String,
   ax2.set_ylabel("Optimization error")
   ax2.grid(true)
   ax2.legend()
+
+  ax3.plot(ites, errors[3, :], "-o", fillstyle="none", markevery=5, label= "UKI")
+  ax3.set_xlabel("Iterations")
+  ax3.set_ylabel("Frobenius norm")
+  ax3.grid(true)
+  ax3.legend()
+  fig.tight_layout()
   fig.savefig("Figs/NS-UQ-Loss.pdf")
   
   
@@ -170,9 +179,9 @@ function UQ_test()
   # initial prior distribution is 
   na = 50
   seq_pairs = Compute_Seq_Pairs(na)
-  t_cov = Array(Diagonal(fill(1.0, phys_params.n_data))) 
+  t_cov = Array(Diagonal(fill(0.1^2, phys_params.n_data))) 
   θ0_bar = zeros(Float64, 2na)
-  θθ0_cov = Array(Diagonal(fill(10.0, 2*na)))           # standard deviation
+  θθ0_cov = Array(Diagonal(fill(1.0, 2*na)))           # standard deviation
   
   N_iter = 50 
   
@@ -192,9 +201,10 @@ function UQ_test()
   α_reg = 1.0
   ω0, std_ω0 = Random_Init_Test("ExKI", phys_params, seq_pairs, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, ω0_ref, N_iter)
   
-  
+  PyPlot.close("all")
   Plot_Field(mesh, ω0_ref, "NS-UQ-ref.pdf")
   Plot_Field(mesh, ω0, "NS-UQ-mean.pdf")
+  Plot_Field(mesh, ω0 - ω0_ref, "NS-UQ-error.pdf", nothing, nothing)
   Plot_Field(mesh, 3*std_ω0, "NS-UQ-3std.pdf", nothing, nothing)
   
   

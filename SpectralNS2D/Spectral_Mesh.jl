@@ -336,6 +336,7 @@ function Visual(mesh::Spectral_Mesh, u::Array{Float64,2}, var_name::String,
     
         
         if save_file_name != "None"
+            tight_layout()
             savefig(save_file_name)
             close("all")
         end
@@ -366,6 +367,7 @@ function Visual_Obs(mesh::Spectral_Mesh, u::Array{Float64,2}, Δd_x::Int64,  Δd
 
     
     if save_file_name != "None"
+        tight_layout()
         savefig(save_file_name)
         close("all")
     end

@@ -121,6 +121,10 @@ u_ref = darcy.u_ref
 κ = exp.(darcy.logκ)
 h = solve_GWF(darcy, κ)
 
+
+plot_field(darcy, h, true, "Figs/Darcy-1D-obs-ref.pdf")
+plot_field(darcy, darcy.logκ, false, "Figs/Darcy-1D-logk-ref.pdf")
+
 obs = compute_obs(darcy, h)
 obs_cov = Array(Diagonal(fill(0.1^2, length(obs))))
 θ0_bar = zeros(Float64, N_θ)  # mean 
@@ -143,8 +147,8 @@ ax.plot(θ_ind , ki_θ_bar - 3.0*ki_θθ_std, color="red")
 # compute posterior distribution by MCMC
 θθ0_cov = Array(Diagonal(fill(10.0^2.0, N_θ)))
 f_density(u) = f_posterior(u, darcy, obs, obs_cov, θ0_bar , θθ0_cov) 
-step_length = 1.0e-3# .0
-n_ite , n_burn_in= 50000000, 10000000
+step_length = 1.0e-2# .0
+n_ite , n_burn_in= 200000000, 100000000
 # n_ite , n_burn_in= 50000, 10000
 # us = RWMCMC(f_density, θ0_bar, step_length, n_ite; seed=42)
 us = RWMCMC(f_density, u_ref, step_length, n_ite; seed=42)
@@ -161,6 +165,7 @@ ax.plot(θ_ind , u_ref, "--o", color="grey", fillstyle="none", label="Reference"
 ax.legend()
 # plot MCMC results 
 ax.set_xlabel("θ indices")
+fig.tight_layout()
 fig.savefig("Darcy-1d-uq.png")
 
 
@@ -186,7 +191,8 @@ ax.plot(θ_cov_ind , mcmc_θiθj_cov, "s", color="C2",  fillstyle="none" , label
 
 ax.legend()
 # plot MCMC results 
-ax.set_xlabel("Cov(θᵢ, θⱼ)")
+ax.set_xlabel("Cov(θ₍ᵢ₎, θ₍ⱼ₎)")
+fig.tight_layout()
 fig.savefig("Darcy-1d-cov.png")
 ########################################## 
 
@@ -217,6 +223,7 @@ ax2.set_xlabel("Iterations")
 ax2.set_ylabel("Optimization error")
 ax2.grid(true)
 ax2.legend()
+fig.tight_layout()
 fig.savefig("Darcy-1d-opt.png")
 end
 
