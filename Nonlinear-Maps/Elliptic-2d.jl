@@ -182,20 +182,22 @@ function Ellitic_Posterior_Plot()
     obs = [27.5; 79.7]
     obs_cov = [0.1^2   0.0; 0.0  0.1^2]
     μ0 = [0.0; 0.0] 
-    cov_sqr0    = [1.0  0.0; 0.0 10.0]
+    cov_sqr0    = [10.0  0.0; 0.0 10.0]
     cov0 = cov_sqr0 * cov_sqr0 
     
     # compute posterior distribution by MCMC
     f_density(u) = f_posterior(u, nothing, obs, obs_cov, μ0, cov0) 
     step_length = 1.0
-    n_ite , n_burn_in= 1000000, 100000
+    n_ite , n_burn_in= 5000000, 1000000
     us = RWMCMC(f_density, μ0, step_length, n_ite)
+
+    uki_cov0 = [1.0  0.0; 0.0 100.0]
     for update_cov in [0,1]
         
         
         # compute posterior distribution the uki method 
         α_reg,  N_iter = 1.0, 30
-        ukiobj = ExKI(obs, obs_cov,  μ0, cov0 , α_reg,  N_iter, update_cov)
+        ukiobj = ExKI(obs, obs_cov,  μ0, uki_cov0 , α_reg,  N_iter, update_cov)
         
         Nx = 100; Ny = 200
         xx = Array(LinRange(-4, -2, Nx))
@@ -205,7 +207,7 @@ function Ellitic_Posterior_Plot()
         
         
         ncols = 3
-        fig, ax = PyPlot.subplots(ncols=ncols, sharex=true, sharey=true, figsize=(18,6))
+        fig, ax = PyPlot.subplots(ncols=ncols, sharex=true, sharey=true, figsize=(15,5))
             for icol = 1:ncols
                 # plot UKI results 
                 ites = 5*icol
@@ -226,7 +228,7 @@ function Ellitic_Posterior_Plot()
                 ax[icol].scatter(us[n_burn_in:everymarker:end, 1], us[n_burn_in:everymarker:end, 2], s = 1)
             end
   
-        
+        fig.tight_layout()
         fig.savefig("Elliptic_UKI_update_cov"*string(update_cov)*".png")
         close("all")
     end

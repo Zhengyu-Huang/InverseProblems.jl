@@ -213,7 +213,7 @@ function Map_Posterior_Plot(forward_func::Function, plot⁻::Bool = true)
     # compute posterior distribution by MCMC
     f_density(u) = f_posterior(u, nothing, obs, obs_cov, μ0, cov0) 
     step_length = 1.0
-    n_ite , n_burn_in= 5000000, 100000
+    n_ite , n_burn_in= 5000000, 1000000
     us = RWMCMC(f_density, μ0, step_length, n_ite)
     @info "MCMC min max = ", minimum(us), maximum(us)
     
