@@ -147,8 +147,8 @@ ax.plot(θ_ind , ki_θ_bar - 3.0*ki_θθ_std, color="red")
 # compute posterior distribution by MCMC
 θθ0_cov = Array(Diagonal(fill(10.0^2.0, N_θ)))
 f_density(u) = f_posterior(u, darcy, obs, obs_cov, θ0_bar , θθ0_cov) 
-step_length = 1.0e-2# .0
-n_ite , n_burn_in= 200000000, 100000000
+step_length = 1.0e-3# .0
+n_ite , n_burn_in= 200000000, 50000000
 # n_ite , n_burn_in= 50000, 10000
 # us = RWMCMC(f_density, θ0_bar, step_length, n_ite; seed=42)
 us = RWMCMC(f_density, u_ref, step_length, n_ite; seed=42)
