@@ -3,7 +3,7 @@ using Statistics
 using LinearAlgebra
 
 include("../Plot.jl")
-include("../UKI.jl")
+include("../RExKI.jl")
 
 # J = x_j[ix]^m + x_{j+1}[ix]^m + ... + x_{k}[ix]^m
 # x_1 = μ0
@@ -484,11 +484,12 @@ function UKI_Run(t_mean, t_cov, θ_bar, θθ_cov, Tobs::Float64 = 10.0, Tspinup:
     
     ens_func(θ_ens) = run_Lorenz_ensemble(θ_ens, Tobs, Tspinup, Δt)
     
-    ukiobj = UKIObj(parameter_names,
+    ukiobj = ExKIObj(parameter_names,
     θ_bar, 
     θθ_cov,
     t_mean, # observation
-    t_cov)
+    t_cov,
+    1.0)
     
     
     for i in 1:N_iter
@@ -528,6 +529,9 @@ t_mean, t_cov = Data_Gen(T, Tobs, Tspinup, Δt)
 θθ0_cov = [0.5^2  0.0    0.0; 
           0.0    0.5^2  0.0;        # standard deviation
           0.0    0.0    0.5^2;]
+θθ0_cov = [1^2  0.0    0.0; 
+          0.0    1^2  0.0;        # standard deviation
+          0.0    0.0    1^2;]
 
 N_ite = 20 
 update_cov = 0
