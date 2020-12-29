@@ -211,6 +211,7 @@ function update_ensemble!(exki::ExKIObj{FT}, ens_func::Function) where {FT}
     # Generate sigma points
     N_θ, N_g, N_ens = exki.N_θ, exki.N_g, exki.N_ens
     θ_p = construct_sigma_ensemble(exki, θ_p_bar, θθ_p_cov)
+    #todo unnecessary 
     θ_p_bar  = construct_mean(exki, θ_p)
     θθ_p_cov = construct_cov(exki, θ_p, θ_p_bar)
 
