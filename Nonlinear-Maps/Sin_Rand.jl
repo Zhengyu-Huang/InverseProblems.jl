@@ -6,7 +6,7 @@ include("../Plot.jl")
 include("../RExKI.jl")
 include("../RWMCMC.jl")
 # 
-Nθ, Ny = 100, 150
+Nθ, Ny = 200, 150
 Random.seed!(123);
 c = 20.0
 A = rand(Normal(0, 1), (Ny, Nθ))
@@ -58,6 +58,8 @@ function ExKI(t_mean::Array{Float64,1}, t_cov::Array{Float64,2},
     t_mean, # observation
     t_cov,
     α_reg)
+
+    θref = 2.0*ones(length(θ0_bar))
     
     for i in 1:N_iter
         
@@ -66,6 +68,7 @@ function ExKI(t_mean::Array{Float64,1}, t_cov::Array{Float64,2},
         # @info "g_bar = ", ukiobj.g_bar[i], "g_t = ", ukiobj.g_t
         @info "loss = ", (ukiobj.g_bar[i] - ukiobj.g_t)'/ukiobj.obs_cov*(ukiobj.g_bar[i] - ukiobj.g_t)
         @info "norm(θ) = ", norm(ukiobj.θ_bar[i])
+        @info "relative error = ", norm(ukiobj.θ_bar[i] - θref)/norm(θref)
         @info "norm(θ_cov) = ", norm(ukiobj.θθ_cov[i])
         
         if (update_cov) > 0 && (i%update_cov == 0) 
@@ -90,7 +93,7 @@ function Sin_Rand_Posterior_Plot()
     obs_cov = Array(Diagonal(fill(0.1^2, Ny))) 
     
     μ0 =  fill(0.0, Nθ)
-    cov_sqr0  = Array(Diagonal(fill(1.0, Nθ))) 
+    cov_sqr0  = Array(Diagonal(fill(2.0, Nθ))) 
     cov0 = cov_sqr0 * cov_sqr0 
     
     # compute posterior distribution by MCMC
@@ -102,7 +105,7 @@ function Sin_Rand_Posterior_Plot()
         
         
         # compute posterior distribution the uki method 
-        α_reg,  N_iter = 1.0, 50
+        α_reg,  N_iter = 0.99, 500
         ukiobj = ExKI(obs, obs_cov,  μ0, cov0 , α_reg,  N_iter, update_cov)
         
         
@@ -113,8 +116,8 @@ function Sin_Rand_Posterior_Plot()
         
         fig, ax = PyPlot.subplots(figsize=(18,6))
         ax.plot(xx, uki_θ_bar)
-        ax.plot(xx, uki_θ_bar + 3.0*uki_θθ_std)
-        ax.plot(xx, uki_θ_bar - 3.0*uki_θθ_std)
+        # ax.plot(xx, uki_θ_bar + 3.0*uki_θθ_std)
+        # ax.plot(xx, uki_θ_bar - 3.0*uki_θθ_std)
         
         # plot MCMC results 
         

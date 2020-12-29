@@ -60,7 +60,7 @@ function CUKIObj(algorithm::String,
                 θθ0_cov::Array{FT, 2},
                 g_t::Vector{FT}, # observation
                 obs_cov::Array{FT, 2},
-                UKF_modify::Boolean,
+                UKF_modify::Bool,
                 λ_reg::FT,
                 Δt0::Float64) where {FT<:AbstractFloat}
 
@@ -219,8 +219,9 @@ function update_ensemble!(cuki::CUKIObj{FT}, ens_func::Function) where {FT}
     γ = 2.0
     Σ_ν, Σ_ω = γ*cuki.obs_cov, 1/(γ-1)*θθ0_cov
 
-    ############# Prediction 
-    # Generate sigma points, and time step update 
+    λ_reg, Δt = cuki.λ_reg, cuki.Δt0
+
+    # @info "start θ_bar, θθ_cov: ", θ_bar, θθ_cov, Δt
     
 
     θ = construct_sigma_ensemble(cuki, θ_bar, θθ_cov)
@@ -232,10 +233,11 @@ function update_ensemble!(cuki::CUKIObj{FT}, ens_func::Function) where {FT}
 
 
     if algorithm == "UKICTL"
-        θ_bar  .=  (θ_bar + Δt * (λ_reg*θ0_bar + θg_cov*(Σ_ν\(exki.g_t - g_bar)))) /(1 + Δt*λ_reg)
+        # @show Δt, Σ_ω ,  θg_cov, Σ_ν,  θg_cov*(Σ_ν\θg_cov')
+        θ_bar  .=  (θ_bar + Δt * (λ_reg*θ0_bar + θg_cov*(Σ_ν\(cuki.g_t - g_bar)))) /(1 + Δt*λ_reg)
         θθ_cov .=  (θθ_cov + Δt * (Σ_ω -  θg_cov*(Σ_ν\θg_cov'))) /(1 + 2Δt*λ_reg)
-    else if algorithm == "UKS"
-        θ_bar  .=  (I + Δt*θθ_cov/θθ0_cov)\(θ_bar + Δt * (θg_cov*(Σ_ν\(exki.g_t - g_bar)) + λ_reg*θθ_cov*(θθ0_cov\θ0_bar))) 
+    elseif algorithm == "UKS"
+        θ_bar  .=  (I + Δt*θθ_cov/θθ0_cov)\(θ_bar + Δt * (θg_cov*(Σ_ν\(cuki.g_t - g_bar)) + λ_reg*θθ_cov*(θθ0_cov\θ0_bar))) 
         θθ_cov .=  (θθ_cov - 2Δt * (θg_cov*(Σ_ν\θg_cov') + θθ_cov*(θθ0_cov\θθ_cov)))/(1 - 2Δt)
     else
         error("algorithm is not recognized")
@@ -246,6 +248,9 @@ function update_ensemble!(cuki::CUKIObj{FT}, ens_func::Function) where {FT}
     push!(cuki.g_bar,   g_bar) # N_ens x N_data
     push!(cuki.θ_bar,   θ_bar) # N_ens x N_params
     push!(cuki.θθ_cov, θθ_cov) # N_ens x N_data
+
+
+    # @info "end θ_bar, θθ_cov: ", θ_bar, θθ_cov, Δt
 
     cuki.t += Δt
 
