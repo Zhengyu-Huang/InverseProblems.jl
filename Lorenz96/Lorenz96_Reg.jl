@@ -192,7 +192,7 @@ nθ = 12
 θ0_bar = zeros(Float64, nθ)  #rand(Normal(0, 1), nθ)                    # 
 θθ0_cov = Array(Diagonal(fill(1.0, nθ)))           # standard deviation
 Φ = ΦQP
-N_iter = 50
+N_iter = 20
 
 α_reg = 1.0
 

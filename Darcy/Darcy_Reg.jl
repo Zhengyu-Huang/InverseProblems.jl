@@ -305,7 +305,7 @@ function Compare_8()
     
     
     
-    fig_logk, ax_logk = PyPlot.subplots(ncols = 3, nrows=1, sharex=true, sharey=true, figsize=(12,4))
+    fig_logk, ax_logk = PyPlot.subplots(ncols = 4, nrows=1, sharex=true, sharey=true, figsize=(16,4))
     for ax in ax_logk ;  ax.set_xticks([]) ; ax.set_yticks([]) ; end
     clim = (minimum(darcy.logκ_2d), maximum(darcy.logκ_2d))
 
@@ -346,7 +346,7 @@ function Compare_8()
         close(fig)
     end
 
-    im = plot_field(darcy, darcy.logκ_2d, clim, ax_logk[3])
+    im = plot_field(darcy, darcy.logκ_2d, clim, ax_logk[4])
     
 
     fig_logk.tight_layout()
