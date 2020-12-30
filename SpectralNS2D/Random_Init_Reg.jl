@@ -41,17 +41,12 @@ function Random_Init_Test(method::String,
   mesh = Spectral_Mesh(phys_params.nx, phys_params.ny, phys_params.Lx, phys_params.Ly)
   
   if method == "ExKI"
-    label = "UKI+"
+    label = "UKI"
     kiobj = ExKI(phys_params,seq_pairs, t_mean, t_cov,  θ0_bar, θθ0_cov, α_reg, ω0_ref, N_iter)
     θ_bar = kiobj.θ_bar
     linestyle, marker = "-", "o"
-  elseif method =="UKI"
-    label = "UKI "
-    kiobj = UKI(phys_params, seq_pairs,t_mean, t_cov,  θ0_bar, θθ0_cov, α_reg, ω0_ref, N_iter)
-    θ_bar = kiobj.θ_bar
-    linestyle, marker = "--", "^"
   elseif method =="EnKI"
-    label = "EnKI"
+    label = "EKI"
     kiobj = EnKI(phys_params, seq_pairs,t_mean, t_cov,  θ0_bar, θθ0_cov, N_ens, α_reg, ω0_ref, N_iter)
     θ_bar = [dropdims(mean(kiobj.θ[i], dims=1), dims=1) for i = 1:N_iter ]  
     linestyle, marker = "--", "s" 
@@ -271,7 +266,7 @@ function Compare()
   ω0_ref, _ =  Generate_Data(phys_params, -1.0,  "Figs/NS-vor.")
 
 
-  fig_vor, ax_vor = PyPlot.subplots(ncols = 4, nrows=3, sharex=true, sharey=true, figsize=(16,12))
+  fig_vor, ax_vor = PyPlot.subplots(ncols = 3, nrows=3, sharex=true, sharey=true, figsize=(12,12))
   for ax in ax_vor ;  ax.set_xticks([]) ; ax.set_yticks([]) ; end
   
   
@@ -285,40 +280,35 @@ function Compare()
     
     fig, (ax1, ax2) = PyPlot.subplots(nrows=2, sharex=true, figsize=(8,12))
     α_reg = 1.0
-    ω0 = Random_Init_Test("EnKI", phys_params, seq_pairs, t_mean, t_cov, θ0_bar, θθ0_cov, N_ens, α_reg, ω0_ref, N_iter, ax1, ax2)
+
+    ω0 = Random_Init_Test("ExKI", phys_params, seq_pairs, t_mean, t_cov, θ0_bar, θθ0_cov, N_ens, α_reg, ω0_ref, N_iter, ax1, ax2)
     if noise_level_per == 0
       Plot_Field(mesh, ω0, ax_vor[1])
     end
-    
-    ω0 = Random_Init_Test("UKI", phys_params, seq_pairs, t_mean, t_cov, θ0_bar, θθ0_cov, N_ens, α_reg, ω0_ref, N_iter, ax1, ax2)
+
+
+    ω0 = Random_Init_Test("EnKI", phys_params, seq_pairs, t_mean, t_cov, θ0_bar, θθ0_cov, N_ens, α_reg, ω0_ref, N_iter, ax1, ax2)
     if noise_level_per == 0
       Plot_Field(mesh, ω0, ax_vor[4])
     end
     
-    ω0 = Random_Init_Test("ExKI", phys_params, seq_pairs, t_mean, t_cov, θ0_bar, θθ0_cov, N_ens, α_reg, ω0_ref, N_iter, ax1, ax2)
-    if noise_level_per == 0
-      Plot_Field(mesh, ω0, ax_vor[7])
-    end
+    
     
     
     α_reg = 0.9
-    ω0 = Random_Init_Test("EnKI", phys_params, seq_pairs, t_mean, t_cov, θ0_bar, θθ0_cov, N_ens, α_reg, ω0_ref, N_iter, ax1, ax2)
+    ω0 = Random_Init_Test("ExKI", phys_params, seq_pairs, t_mean, t_cov, θ0_bar, θθ0_cov, N_ens, α_reg, ω0_ref, N_iter, ax1, ax2)
     if noise_level_per != 0
       ax_id = (noise_level_per == 1 ? 2 : 3 ;)
       Plot_Field(mesh, ω0, ax_vor[ax_id])
     end
-    
-    ω0 = Random_Init_Test("UKI", phys_params, seq_pairs, t_mean, t_cov, θ0_bar, θθ0_cov, N_ens, α_reg, ω0_ref, N_iter, ax1, ax2)
+
+    ω0 = Random_Init_Test("EnKI", phys_params, seq_pairs, t_mean, t_cov, θ0_bar, θθ0_cov, N_ens, α_reg, ω0_ref, N_iter, ax1, ax2)
     if noise_level_per != 0
       ax_id = (noise_level_per == 1 ? 5 : 6 ;)
       Plot_Field(mesh, ω0, ax_vor[ax_id])
     end
     
-    ω0 = Random_Init_Test("ExKI", phys_params, seq_pairs, t_mean, t_cov, θ0_bar, θθ0_cov, N_ens, α_reg, ω0_ref, N_iter, ax1, ax2)
-    if noise_level_per != 0
-      ax_id = (noise_level_per == 1 ? 8 : 9 ;)
-      Plot_Field(mesh, ω0, ax_vor[ax_id])
-    end
+    
     
     
     fig.tight_layout()
@@ -328,9 +318,9 @@ function Compare()
   
 
   
-  Plot_Field(mesh, ω0_ref, ax_vor[10])
-  im = Plot_Field(mesh, ω0_ref, ax_vor[11])
-  Plot_Field(mesh, ω0_ref, ax_vor[12])
+  Plot_Field(mesh, ω0_ref, ax_vor[7])
+  im = Plot_Field(mesh, ω0_ref, ax_vor[8])
+  Plot_Field(mesh, ω0_ref, ax_vor[9])
   
   
   fig_vor.tight_layout()

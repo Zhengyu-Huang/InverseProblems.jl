@@ -1,6 +1,5 @@
 include("../Plot.jl")
 include("../RExKI.jl")
-include("../RUKI.jl")
 include("../REKI.jl")
 include("Darcy.jl")
 
@@ -139,17 +138,12 @@ function Darcy_Test(method::String, darcy::Param_Darcy, N_θ::Int64, α_reg::Flo
     
     θθ0_cov = Array(Diagonal(fill(1.0, N_θ)))
     if method == "ExKI"
-        label = "UKI+"
+        label = "UKI"
         kiobj = ExKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov, darcy,  α_reg, N_ite)
         θ_bar = kiobj.θ_bar
         linestyle, marker = "-", "o"
-    elseif method =="UKI"
-        label = "UKI "
-        kiobj = UKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov, darcy,  α_reg, N_ite)
-        θ_bar = kiobj.θ_bar
-        linestyle, marker = "--", "^"
     elseif method =="EnKI"
-        label = "EnKI"
+        label = "EKI"
         kiobj = EKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov, darcy,  N_ens, α_reg, N_ite)
         θ_bar = [dropdims(mean(kiobj.θ[i], dims=1), dims=1) for i = 1:N_ite ]  
         linestyle, marker = "--", "s" 
@@ -171,12 +165,12 @@ function Darcy_Test(method::String, darcy::Param_Darcy, N_θ::Int64, α_reg::Flo
     
     
     if (!isnothing(ax1)  &&  !isnothing(ax2))
-        ax1.semilogy(ites, errors[1, :], linestyle=linestyle, marker=marker, fillstyle="none", markevery=50, label= label)
+        ax1.semilogy(ites, errors[1, :], linestyle=linestyle, marker=marker, fillstyle="none", markevery=10, label= label)
         ax1.set_ylabel("Relative L₂ norm error")
         ax1.grid(true)
         
         
-        ax2.semilogy(ites, errors[2, :], linestyle=linestyle, marker = marker,fillstyle="none", markevery=50, label= label)
+        ax2.semilogy(ites, errors[2, :], linestyle=linestyle, marker = marker,fillstyle="none", markevery=10, label= label)
         ax2.set_xlabel("Iterations")
         ax2.set_ylabel("Optimization error")
         ax2.grid(true)
@@ -208,7 +202,7 @@ function Compare_32()
     τ = 3.0
     KL_trunc = 256
     darcy = Param_Darcy(N, obs_ΔN, L, KL_trunc, α, τ)
-    N_ite = 200
+    N_ite = 50
     
     κ_2d = exp.(darcy.logκ_2d)
     h_2d = solve_GWF(darcy, κ_2d)
@@ -218,53 +212,46 @@ function Compare_32()
     
     
     
-    
-    fig_logk, ax_logk = PyPlot.subplots(ncols = 4, nrows=3, sharex=true, sharey=true, figsize=(16,12))
+    # field plot
+    fig_logk, ax_logk = PyPlot.subplots(ncols = 3, nrows=3, sharex=true, sharey=true, figsize=(12,12))
     for ax in ax_logk ;  ax.set_xticks([]) ; ax.set_yticks([]) ; end
     clim = (minimum(darcy.logκ_2d), maximum(darcy.logκ_2d))
 
-    noise_level = 0.05
     for noise_level_per in [0, 1, 5]
         noise_level = noise_level_per/100.0
         N_ens = 100
         
-
+        # loss plot
         fig, (ax1, ax2) = PyPlot.subplots(nrows=2, sharex=true, figsize=(8,12))
         α_reg = 1.0
-        _, θ_bar = Darcy_Test("EnKI", darcy, N_θ, α_reg, N_ite, N_ens, noise_level, ax1, ax2)
+        
+        
+        _, θ_bar = Darcy_Test("ExKI", darcy, N_θ, α_reg, N_ite, N_ens, noise_level, ax1, ax2)
         if noise_level_per == 0
             plot_field(darcy, compute_logκ_2d(darcy, θ_bar), clim, ax_logk[1])
         end
 
-        _, θ_bar = Darcy_Test("UKI", darcy, N_θ, α_reg, N_ite, N_ens, noise_level, ax1, ax2)
+        _, θ_bar = Darcy_Test("EnKI", darcy, N_θ, α_reg, N_ite, N_ens, noise_level, ax1, ax2)
         if noise_level_per == 0
             plot_field(darcy, compute_logκ_2d(darcy, θ_bar), clim, ax_logk[4])
-        end
-        
-        _, θ_bar = Darcy_Test("ExKI", darcy, N_θ, α_reg, N_ite, N_ens, noise_level, ax1, ax2)
-        if noise_level_per == 0
-            plot_field(darcy, compute_logκ_2d(darcy, θ_bar), clim, ax_logk[7])
         end
 
 
         α_reg = 0.5
-        _, θ_bar = Darcy_Test("EnKI", darcy, N_θ, α_reg, N_ite, N_ens, noise_level, ax1, ax2)
+
+        _, θ_bar = Darcy_Test("ExKI", darcy, N_θ, α_reg, N_ite, N_ens, noise_level, ax1, ax2)
         if noise_level_per != 0
             ax_id = (noise_level_per == 1 ? 2 : 3 ;)
             plot_field(darcy, compute_logκ_2d(darcy, θ_bar), clim, ax_logk[ax_id])
         end
-        
-        _, θ_bar = Darcy_Test("UKI", darcy, N_θ, α_reg, N_ite, N_ens, noise_level, ax1, ax2)
+
+        _, θ_bar = Darcy_Test("EnKI", darcy, N_θ, α_reg, N_ite, N_ens, noise_level, ax1, ax2)
         if noise_level_per != 0
             ax_id = (noise_level_per == 1 ? 5 : 6 ;)
             plot_field(darcy, compute_logκ_2d(darcy, θ_bar), clim, ax_logk[ax_id])
         end
         
-        _, θ_bar = Darcy_Test("ExKI", darcy, N_θ, α_reg, N_ite, N_ens, noise_level, ax1, ax2)
-        if noise_level_per != 0
-            ax_id = (noise_level_per == 1 ? 8 : 9 ;)
-            plot_field(darcy, compute_logκ_2d(darcy, θ_bar), clim, ax_logk[ax_id])
-        end
+        
 
 
         fig.tight_layout()
@@ -272,9 +259,9 @@ function Compare_32()
         close(fig)
     end
 
-    plot_field(darcy, darcy.logκ_2d, clim, ax_logk[10])
-    im = plot_field(darcy, darcy.logκ_2d, clim, ax_logk[11])
-    plot_field(darcy, darcy.logκ_2d, clim, ax_logk[12])
+    plot_field(darcy, darcy.logκ_2d, clim, ax_logk[7])
+    im = plot_field(darcy, darcy.logκ_2d, clim, ax_logk[8])
+    plot_field(darcy, darcy.logκ_2d, clim, ax_logk[9])
     
 
     fig_logk.tight_layout()
@@ -307,7 +294,7 @@ function Compare_8()
     τ = 3.0
     KL_trunc = 256
     darcy = Param_Darcy(N, obs_ΔN, L, KL_trunc, α, τ)
-    N_ite = 200
+    N_ite = 50
     
     κ_2d = exp.(darcy.logκ_2d)
     h_2d = solve_GWF(darcy, κ_2d)
@@ -318,11 +305,10 @@ function Compare_8()
     
     
     
-    fig_logk, ax_logk = PyPlot.subplots(ncols = 4, nrows=1, sharex=true, sharey=true, figsize=(16,4))
+    fig_logk, ax_logk = PyPlot.subplots(ncols = 3, nrows=1, sharex=true, sharey=true, figsize=(12,4))
     for ax in ax_logk ;  ax.set_xticks([]) ; ax.set_yticks([]) ; end
     clim = (minimum(darcy.logκ_2d), maximum(darcy.logκ_2d))
 
-    noise_level = 0.05
     for noise_level_per in [0, 1, 5]
         noise_level = noise_level_per/100.0
         N_ens = 100
@@ -330,13 +316,12 @@ function Compare_8()
 
         fig, (ax1, ax2) = PyPlot.subplots(nrows=2, sharex=true, figsize=(8,12))
         α_reg = 1.0
-        _, θ_bar = Darcy_Test("EnKI", darcy, N_θ, α_reg, N_ite, N_ens, noise_level, ax1, ax2)
-       
-
-        _, θ_bar = Darcy_Test("UKI", darcy, N_θ, α_reg, N_ite, N_ens, noise_level, ax1, ax2)
-        
         
         _, θ_bar = Darcy_Test("ExKI", darcy, N_θ, α_reg, N_ite, N_ens, noise_level, ax1, ax2)
+
+        _, _ = Darcy_Test("EnKI", darcy, N_θ, α_reg, N_ite, N_ens, noise_level, ax1, ax2)
+       
+
         if noise_level_per == 0
             ax_id = 1
         elseif noise_level_per == 1
@@ -349,14 +334,11 @@ function Compare_8()
 
 
         α_reg = 0.5
-        _, θ_bar = Darcy_Test("EnKI", darcy, N_θ, α_reg, N_ite, N_ens, noise_level, ax1, ax2)
-        
-        
-        _, θ_bar = Darcy_Test("UKI", darcy, N_θ, α_reg, N_ite, N_ens, noise_level, ax1, ax2)
-      
         
         _, θ_bar = Darcy_Test("ExKI", darcy, N_θ, α_reg, N_ite, N_ens, noise_level, ax1, ax2)
       
+        _, _ = Darcy_Test("EnKI", darcy, N_θ, α_reg, N_ite, N_ens, noise_level, ax1, ax2)
+        
 
 
         fig.tight_layout()
@@ -364,7 +346,7 @@ function Compare_8()
         close(fig)
     end
 
-    im = plot_field(darcy, darcy.logκ_2d, clim, ax_logk[4])
+    im = plot_field(darcy, darcy.logκ_2d, clim, ax_logk[3])
     
 
     fig_logk.tight_layout()

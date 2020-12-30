@@ -2,7 +2,7 @@ using JLD2
 using Statistics
 using LinearAlgebra
 include("../Plot.jl")
-include("../UKI.jl")
+include("../RExKI.jl")
 
 # J = x_j[ix]^m + x_{j+1}[ix]^m + ... + x_{k}[ix]^m
 # x_1 = μ0
@@ -193,7 +193,7 @@ function adjoint_plot()
     filtered_x3_arr = copy(x3_arr)
     filtered_dx3_dr_arr = copy(dx3_dr_arr)
     
-    σr = sqrt(0.22714463033782045)
+    σr = sqrt(0.22125439674257907)
     filter_Δ = Int64(ceil(3*σr/dr))
     for i = 1:N_r
         if (i > filter_Δ && i < N_r - filter_Δ)
@@ -359,11 +359,12 @@ function UKI_Run(t_mean, t_cov, θ_bar, θθ_cov, Tobs::Float64 = 10.0, Tspinup:
     
     ens_func(θ_ens) = run_Lorenz_ensemble(θ_ens, Tobs, Tspinup, Δt)
     
-    ukiobj = UKIObj(parameter_names,
+    ukiobj = ExKIObj(parameter_names,
     θ_bar, 
     θθ_cov,
     t_mean, # observation
-    t_cov)
+    t_cov,
+    1.0)
     
     
     for i in 1:N_iter
@@ -410,7 +411,7 @@ else
     
     # initial distribution is 
     θ0_bar = [5.0;]          # mean 
-    θθ0_cov = reshape([0.5^2], (1,1))        # standard deviation
+    θθ0_cov = reshape([1.0^2], (1,1))        # standard deviation
     
     N_ite = 20 
     update_cov = 0

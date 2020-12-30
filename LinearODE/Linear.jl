@@ -3,8 +3,9 @@ using Statistics
 using LinearAlgebra
 
 include("../Plot.jl")
-include("../UKI.jl")
 include("../EKI.jl")
+include("../RExKI.jl")
+
 
 function run_linear_ensemble(params_i, G)
     
@@ -43,11 +44,12 @@ function UKI_Run(t_mean, t_cov, θ_bar, θθ_cov,  G,  N_iter::Int64 = 100,  upd
     #θθ_cov =[0.02 0.01; 0.01 0.03]
     ens_func(θ_ens) = run_linear_ensemble(θ_ens, G)
     
-    ukiobj = UKIObj(parameter_names,
+    ukiobj = ExKIObj(parameter_names,
     θ_bar, 
     θθ_cov,
     t_mean, # observation
-    t_cov)
+    t_cov,
+    1.0)
     
     
     for i in 1:N_iter
@@ -194,9 +196,9 @@ function Hilbert_Test(nθ::Int64 = 10, N_ite::Int64 = 1000)
     end
  
     
-    semilogy(ites, errors[1, :], "--o", fillstyle="none", markevery=50, label= "UKI")
-    semilogy(ites, errors[2, :], "--o", fillstyle="none", markevery=50, label= "EnKI (\$J=2N_{θ}+1)\$")
-    semilogy(ites, errors[3, :], "--o", fillstyle="none", markevery=50, label= "EnKI (\$J=100N_{θ}+1)\$")
+    semilogy(ites, errors[1, :], "--o", fillstyle="none", color="C1", markevery=50, label= "UKI")
+    semilogy(ites, errors[2, :], "--s", fillstyle="none", color="C2", markevery=50, label= "EKI (\$J=2N_{θ}+1)\$")
+    semilogy(ites, errors[3, :], "--^", fillstyle="none", color="C3", markevery=50, label= "EKI (\$J=100N_{θ}+1)\$")
     xlabel("Iterations")
     ylabel("\$L_2\$ norm error")
     #ylim((0.1,15))
@@ -212,10 +214,10 @@ end
 
 # mission : "2params" "Hilbert"
 # mission = "2params"
-  mission = "Hilbert"
+mission = "Hilbert"
 if mission == "2params"
-    ukiobj_ssub = Linear_Test(0, "square", 10000)
-    ukiobj_sopt = Linear_Test(5, "square", 10000)
+    ukiobj_ssub = Linear_Test(0, "square", 100)
+    ukiobj_sopt = Linear_Test(5, "square", 100)
     ukiobj_sopt.θθ_cov[1] = Array(Diagonal(fill(0.5^2, 2 )))
     θ_s = [1;1]
     
@@ -224,8 +226,8 @@ if mission == "2params"
     ukiobj_uopt.θθ_cov[1] = Array(Diagonal(fill(0.5^2, 2 )))
     θ_u = [0.6, 1.2]
     
-    ukiobj_osub = Linear_Test(0, "over-determined", 10000)
-    ukiobj_oopt = Linear_Test(5, "over-determined", 10000)
+    ukiobj_osub = Linear_Test(0, "over-determined", 100)
+    ukiobj_oopt = Linear_Test(5, "over-determined", 100)
     ukiobj_oopt.θθ_cov[1] = Array(Diagonal(fill(0.5^2, 2 )))
     θ_o = [1/3, 8.5/6]
 
@@ -243,16 +245,17 @@ if mission == "2params"
     end
     
     
-    semilogy(ites, errors[1, :], "--o", fillstyle="none", label="NS")
-    semilogy(ites, errors[2, :], "--o", fillstyle="none", label="NS (update)")
-    semilogy(ites, errors[3, :], "--o", fillstyle="none", label="UD")
-    semilogy(ites, errors[4, :], "--o", fillstyle="none", label="UD (update)")
-    semilogy(ites, errors[5, :], "--o", fillstyle="none", label="OD")
-    semilogy(ites, errors[6, :], "--o", fillstyle="none", label="OD (update)")
+    semilogy(ites, errors[1, :], "--o", fillstyle="none", color="C1", label="NS")
+    # semilogy(ites, errors[2, :], "--o", fillstyle="none", label="NS (update)")
+    semilogy(ites, errors[5, :], "--s", fillstyle="none", color="C2", label="OD")
+    # semilogy(ites, errors[6, :], "--o", fillstyle="none", label="OD (update)")
+    semilogy(ites, errors[3, :], "--^", fillstyle="none", color="C3", label="UD")
+    # semilogy(ites, errors[4, :], "--o", fillstyle="none", label="UD (update)")
+    
     xlabel("Iterations")
     ylabel("\$L_2\$ norm error")
     grid("on")
-    legend(bbox_to_anchor=(1.1, 1.05))
+    legend()
     tight_layout()
     savefig("Linear-para.pdf")
     close("all")
@@ -272,10 +275,10 @@ if mission == "2params"
     end
     
     
-    semilogy(ites, errors[1, :], "--o", fillstyle="none", label="NS")
-    semilogy(ites, errors[2, :], "--o", fillstyle="none", label="NS (update)")
-    semilogy(ites, errors[5, :], "--o", fillstyle="none", label="OD")
-    semilogy(ites, errors[6, :], "--o", fillstyle="none", label="OD (update)")
+    semilogy(ites, errors[1, :], "--o", fillstyle="none", color="C1", label="NS")
+    # semilogy(ites, errors[2, :], "--o", fillstyle="none", label="NS (update)")
+    semilogy(ites, errors[5, :], "--s", fillstyle="none", color="C2", label="OD")
+    # semilogy(ites, errors[6, :], "--o", fillstyle="none", label="OD (update)")
     xlabel("Iterations")
     ylabel("Frobenius norm error")
     grid("on")
@@ -300,8 +303,8 @@ if mission == "2params"
     end
     
     
-    semilogy(ites, errors[3, :], "--o", fillstyle="none", label="UD")
-    semilogy(ites, errors[4, :], "--o", fillstyle="none", label="UD (update)")
+    semilogy(ites, errors[3, :], "--^", fillstyle="none", color="C3", label="UD")
+    # semilogy(ites, errors[4, :], "--o", fillstyle="none", label="UD (update)")
     xlabel("Iterations")
     ylabel("Frobenius norm error")
     grid("on")

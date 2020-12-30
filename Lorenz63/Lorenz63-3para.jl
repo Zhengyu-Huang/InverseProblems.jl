@@ -526,9 +526,7 @@ t_mean, t_cov = Data_Gen(T, Tobs, Tspinup, Δt)
 
 # initial distribution is 
 θ0_bar = [5.0 ; 5.0;  5.0]          # mean 
-θθ0_cov = [0.5^2  0.0    0.0; 
-          0.0    0.5^2  0.0;        # standard deviation
-          0.0    0.0    0.5^2;]
+
 θθ0_cov = [1^2  0.0    0.0; 
           0.0    1^2  0.0;        # standard deviation
           0.0    0.0    1^2;]
