@@ -7,7 +7,7 @@ using LinearAlgebra
 ROM = true
 include("../Plot.jl")
 include("HS.jl")
-include("../RUKI.jl")
+include("../RExKI.jl")
 
 function HS_run(id::Int64, params::Array{Float64, 1})
   
@@ -76,7 +76,7 @@ function constraint_trans(θ_bar_raw_arr::Array{Float64, 2})
   return θ_bar_arr
 end
 
-function visualize(rukiobj::UKIObj{Float64}, θ_ref::Array{Float64, 1}, file_name::String)
+function visualize(rukiobj::ExKIObj{Float64}, θ_ref::Array{Float64, 1}, file_name::String)
   
   θ_bar_raw_arr = hcat(rukiobj.θ_bar...)
   θ_bar_arr = constraint_trans(θ_bar_raw_arr)
@@ -109,7 +109,7 @@ function HS_RUKI(t_mean::Array{Float64,1}, t_cov::Array{Float64,2}, θ_bar::Arra
   
   ens_func(θ_ens) = HS_ensemble(θ_ens, end_day, spinup_day, N_data)
   
-  rukiobj = UKIObj(parameter_names,
+  rukiobj = ExKIObj(parameter_names,
   θ_bar, 
   θθ_cov,
   t_mean, # observation
@@ -185,7 +185,7 @@ t_mean, t_cov = Comp_Mean_Cov()
 N_data = length(t_mean)
 
 # error("t_cov")
-t_cov = Array(Diagonal(fill(10.0, N_data))) 
+t_cov = Array(Diagonal(fill(9.0, N_data))) 
 # initial distribution is 
 # θ0_bar = [1.0; 1.0/40.0; 1.0/4.0-1.0/40.0; 60.0; 10.0]
 
