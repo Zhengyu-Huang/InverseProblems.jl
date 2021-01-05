@@ -207,16 +207,19 @@ function UQ_test()
 
   mesh = Spectral_Mesh(phys_params.nx, phys_params.ny, phys_params.Lx, phys_params.Ly)
   
-  ω0_ref, _, _ =  Generate_Data(phys_params, seq_pairs, -1.0,  "Figs/NS-vor.", 2*na)
   
-  
-  
-  
+  na_ref = 2*na
+  seq_pairs_ref = Compute_Seq_Pairs(2*na_ref)
+  ω0_ref, _, _ =  Generate_Data(phys_params, seq_pairs_ref, -1.0,  "Figs/NS-vor.", 2*na_ref)
   # data
   noise_level_per = 5
   noise_level = noise_level_per/100.0
-  ω0_ref, θ_ref, t_mean =  Generate_Data(phys_params, seq_pairs, noise_level, "None", 2*na)
-  
+  ω0_ref, θ_ref, t_mean =  Generate_Data(phys_params, seq_pairs_ref, noise_level, "None", 2*na_ref)
+  θ_ref = reshape(θ_ref, 2*na, 2)[1:na, :][:]
+
+
+
+
   α_reg = 1.0
   ω0, std_ω0 = Random_Init_Test("ExKI", phys_params, seq_pairs, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, θ_ref, ω0_ref, N_iter)
   
