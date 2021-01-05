@@ -44,7 +44,7 @@ end
 
 
 # Generate random numbers and initialize ω0 with all fourier modes
-function Initial_ω0_KL(mesh::Spectral_Mesh, Nθ::Int64, params::Params)
+function Initial_ω0_KL(mesh::Spectral_Mesh, Nθ::Int64, seq_pairs, params::Params)
     # consider C = -Δ^{-1}
     # C u = λ u  => -u = λ Δ u
     # u = e^{ik⋅x}, λ Δ u = -λ |k|^2 u = - u => λ = 1/|k|^2
@@ -116,6 +116,7 @@ function Initial_ω0_KL(mesh::Spectral_Mesh, θ::Array{Float64,1}, seq_pairs::Ar
     ω0_hat = zeros(ComplexF64, nx, ny)
     ω0 = zeros(Float64, nx, ny)
     abk = reshape(θ, Int64(length(θ)/2), 2)
+    
     trunc_KL = size(abk,1)
     for i = 1:trunc_KL
         kx, ky = seq_pairs[i,:]
@@ -208,7 +209,7 @@ end
 # observation are at frame 0, Δd_t, 2Δd_t, ... nt
 # with sparse points at Array(1:Δd_x:nx) × Array(1:Δd_y:ny)
 # add N(0, std=εy) to y,  here ε = noise_level
-function Generate_Data(params::Params, noise_level::Float64 = -1.0, save_file_name::String = "None", Nθ::Int64=100)
+function Generate_Data(params::Params, seq_pairs, noise_level::Float64 = -1.0, save_file_name::String = "None", Nθ::Int64=100)
     
     
     ν = params.ν
@@ -221,7 +222,7 @@ function Generate_Data(params::Params, noise_level::Float64 = -1.0, save_file_na
     
     
     mesh = Spectral_Mesh(nx, ny, Lx, Ly)
-    ω0, θ0 = Initial_ω0_KL(mesh, Nθ, params)
+    ω0, θ0 = Initial_ω0_KL(mesh, Nθ, seq_pairs, params)
     
     data = Foward_Helper(params, ω0, save_file_name)
     

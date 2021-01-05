@@ -80,7 +80,7 @@ function Random_Init_Test(method::String,
   ax3.legend()
   fig.tight_layout()
   fig.savefig("Figs/NS-UQ-Loss.pdf")
-  fig.close()
+  PyPlot.close(fig)
 
 
 
@@ -93,16 +93,13 @@ function Random_Init_Test(method::String,
   ax.plot(θ_ind , ki_θ_bar,"-*", color="red", fillstyle="none",  label="UKI")
   ax.plot(θ_ind , ki_θ_bar + 3.0*ki_θθ_std, color="red")
   ax.plot(θ_ind , ki_θ_bar - 3.0*ki_θθ_std, color="red")
-  Random.seed!(123);
-  nx, ny = mesh.nx, mesh.ny
-  θ_ref = rand(Normal(0, phys_params.σ), nx, ny, 2)
-  abk = reshape(θ, Int64(length(θ)/2), 2)
+  
   ax.plot(θ_ind , θ_ref, "--o", color="grey", fillstyle="none", label="Reference")
   ax.legend()
   ax.set_xlabel("θ indices")
   fig.tight_layout()
   fig.savefig("SpectralNS-2d-uq.png")
-  fig.close()
+  PyPlot.close(fig)
 
   
   return Initial_ω0_cov_KL(mesh, θ_bar[end], kiobj.θθ_cov[end], seq_pairs)
@@ -200,16 +197,17 @@ function UQ_test()
   
   # initial prior distribution is 
   na = 50
+
   seq_pairs = Compute_Seq_Pairs(na)
   t_cov = Array(Diagonal(fill(0.1^2, phys_params.n_data))) 
   θ0_bar = zeros(Float64, 2na)
   θθ0_cov = Array(Diagonal(fill(1.0, 2*na)))           # standard deviation
   
-  N_iter = 50 
-  
+  N_iter = 50
+
   mesh = Spectral_Mesh(phys_params.nx, phys_params.ny, phys_params.Lx, phys_params.Ly)
   
-  ω0_ref, _, _ =  Generate_Data(phys_params, -1.0,  "Figs/NS-vor.")
+  ω0_ref, _, _ =  Generate_Data(phys_params, seq_pairs, -1.0,  "Figs/NS-vor.", 2*na)
   
   
   
@@ -217,8 +215,7 @@ function UQ_test()
   # data
   noise_level_per = 5
   noise_level = noise_level_per/100.0
-  ω0_ref, θ_ref, t_mean =  Generate_Data(phys_params, noise_level, "None", 2*na)
-  
+  ω0_ref, θ_ref, t_mean =  Generate_Data(phys_params, seq_pairs, noise_level, "None", 2*na)
   
   α_reg = 1.0
   ω0, std_ω0 = Random_Init_Test("ExKI", phys_params, seq_pairs, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, θ_ref, ω0_ref, N_iter)
