@@ -44,7 +44,7 @@ end
 
 
 # Generate random numbers and initialize ω0 with all fourier modes
-function Initial_ω0_KL(mesh::Spectral_Mesh, params::Params)
+function Initial_ω0_KL(mesh::Spectral_Mesh, Nθ::Int64, params::Params)
     # consider C = -Δ^{-1}
     # C u = λ u  => -u = λ Δ u
     # u = e^{ik⋅x}, λ Δ u = -λ |k|^2 u = - u => λ = 1/|k|^2
@@ -54,55 +54,13 @@ function Initial_ω0_KL(mesh::Spectral_Mesh, params::Params)
     
     # the basis is ordered as 0,1,...,nx/2-1, -nx/2, -nx/2+1, ... -1
     
-    nx, ny = mesh.nx, mesh.ny
-    kxx, kyy = mesh.kxx, mesh.kyy
-    
     Random.seed!(123);
-    abk = rand(Normal(0, params.σ), nx, ny, 2)
+    θ0 = rand(Normal(0, params.σ), Nθ)
+
+    ω0 = Initial_ω0_KL(mesh, θ0, seq_pairs)
     
-    ω0_hat = zeros(ComplexF64, nx, ny)
-    ω0 = zeros(Float64, nx, ny)
-    for ix = 1:nx
-        for iy = 1:ny
-            kx, ky = kxx[ix], kyy[iy]
-            if Mode_Helper(kx, ky)
-                ak, bk = abk[ix, iy, 1], abk[ix, iy, 2]
-                ω0_hat[ix, iy] = (ak - bk*im)/(2*sqrt(2)*pi*(kx^2+ky^2))
-                # (ix=1 iy=1 => kx=0 ky=0) 1 => 1, i => n-i+2
-                ω0_hat[(ix==1 ? 1 : nx-ix+2), (iy==1 ? 1 : ny-iy+2)] = (ak + bk*im)/(2*sqrt(2)*pi*(kx^2+ky^2))
-                
-            end
-        end
-    end
-    ω0_hat .*= mesh.alias_filter
-    Trans_Spectral_To_Grid!(mesh, nx*ny * ω0_hat, ω0)
-    
-    
-    # ω0_test = zeros(Float64, nx, ny)
-    # X, Y = zeros(Float64, nx, ny), zeros(Float64, nx, ny)
-    # Δx, Δy = mesh.Δx, mesh.Δy
-    # for ix = 1:nx
-    #     for iy = 1:ny
-    #         X[ix, iy] = (ix-1)*Δx
-    #         Y[ix, iy] = (iy-1)*Δy
-    #     end
-    # end
-    
-    # for ix = 1:nx
-    #     for iy = 1:ny
-    #         kx, ky = kxx[ix], kyy[iy]
-    #         if (abs(kx) < nx/3 && abs(ky) < ny/3) && (kx + ky > 0 || (kx + ky == 0 && kx > 0)) 
-    #             ak, bk = abk[ix, iy, 1], abk[ix, iy, 2]
-    #             ω0_test .+= (ak * cos.(kx*X + ky*Y) + bk * sin.(kx*X + ky*Y))/(sqrt(2)*pi*(kx^2 + ky^2))
-    #         end
-    #     end
-    # end
-    # @info  "Error", norm(ω0 - ω0_test)
-    # error("Stop")
-    
-    
-    
-    ω0
+    return ω0, θ0
+
 end
 
 
@@ -250,7 +208,7 @@ end
 # observation are at frame 0, Δd_t, 2Δd_t, ... nt
 # with sparse points at Array(1:Δd_x:nx) × Array(1:Δd_y:ny)
 # add N(0, std=εy) to y,  here ε = noise_level
-function Generate_Data(params::Params, noise_level::Float64 = -1.0, save_file_name::String = "None")
+function Generate_Data(params::Params, noise_level::Float64 = -1.0, save_file_name::String = "None", Nθ::Int64=100)
     
     
     ν = params.ν
@@ -263,7 +221,7 @@ function Generate_Data(params::Params, noise_level::Float64 = -1.0, save_file_na
     
     
     mesh = Spectral_Mesh(nx, ny, Lx, Ly)
-    ω0 = Initial_ω0_KL(mesh, params)
+    ω0, θ0 = Initial_ω0_KL(mesh, Nθ, params)
     
     data = Foward_Helper(params, ω0, save_file_name)
     
@@ -278,7 +236,7 @@ function Generate_Data(params::Params, noise_level::Float64 = -1.0, save_file_na
     end
     
     
-    return ω0, data
+    return ω0, θ0, data
     
 end
 

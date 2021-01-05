@@ -36,6 +36,7 @@ function Random_Init_Test(method::String,
   t_mean::Array{Float64,1}, t_cov::Array{Float64,2}, 
   θ0_bar::Array{Float64,1}, θθ0_cov::Array{Float64,2}, 
   α_reg::Float64, 
+  θ_ref::Array{Float64,1},
   ω0_ref::Array{Float64,2}, N_iter::Int64)
   
   mesh = Spectral_Mesh(phys_params.nx, phys_params.ny, phys_params.Lx, phys_params.Ly)
@@ -79,9 +80,30 @@ function Random_Init_Test(method::String,
   ax3.legend()
   fig.tight_layout()
   fig.savefig("Figs/NS-UQ-Loss.pdf")
-  
-  
-  
+  fig.close()
+
+
+
+  # plot 3std for initial variables
+  fig, ax = PyPlot.subplots(figsize=(18,6))
+  ki_θ_bar  = kiobj.θ_bar[end]
+  ki_θθ_cov = kiobj.θθ_cov[end]
+  ki_θθ_std = sqrt.(diag(kiobj.θθ_cov[end]))
+  θ_ind = Array(1:length(ki_θ_bar))
+  ax.plot(θ_ind , ki_θ_bar,"-*", color="red", fillstyle="none",  label="UKI")
+  ax.plot(θ_ind , ki_θ_bar + 3.0*ki_θθ_std, color="red")
+  ax.plot(θ_ind , ki_θ_bar - 3.0*ki_θθ_std, color="red")
+  Random.seed!(123);
+  nx, ny = mesh.nx, mesh.ny
+  θ_ref = rand(Normal(0, phys_params.σ), nx, ny, 2)
+  abk = reshape(θ, Int64(length(θ)/2), 2)
+  ax.plot(θ_ind , θ_ref, "--o", color="grey", fillstyle="none", label="Reference")
+  ax.legend()
+  ax.set_xlabel("θ indices")
+  fig.tight_layout()
+  fig.savefig("SpectralNS-2d-uq.png")
+  fig.close()
+
   
   return Initial_ω0_cov_KL(mesh, θ_bar[end], kiobj.θθ_cov[end], seq_pairs)
   
@@ -187,7 +209,7 @@ function UQ_test()
   
   mesh = Spectral_Mesh(phys_params.nx, phys_params.ny, phys_params.Lx, phys_params.Ly)
   
-  ω0_ref, _ =  Generate_Data(phys_params, -1.0,  "Figs/NS-vor.")
+  ω0_ref, _, _ =  Generate_Data(phys_params, -1.0,  "Figs/NS-vor.")
   
   
   
@@ -195,11 +217,11 @@ function UQ_test()
   # data
   noise_level_per = 5
   noise_level = noise_level_per/100.0
-  ω0_ref, t_mean =  Generate_Data(phys_params, noise_level)
+  ω0_ref, θ_ref, t_mean =  Generate_Data(phys_params, noise_level, "None", 2*na)
   
   
   α_reg = 1.0
-  ω0, std_ω0 = Random_Init_Test("ExKI", phys_params, seq_pairs, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, ω0_ref, N_iter)
+  ω0, std_ω0 = Random_Init_Test("ExKI", phys_params, seq_pairs, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, θ_ref, ω0_ref, N_iter)
   
   PyPlot.close("all")
   Plot_Field(mesh, ω0_ref, "NS-UQ-ref.pdf")
