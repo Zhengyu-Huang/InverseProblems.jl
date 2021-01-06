@@ -502,21 +502,24 @@ function update_ensemble!(truki::TRUKIObj{FT}, ens_func::Function) where {FT}
     # Generate sigma points, and time step update 
     
     α_reg = truki.α_reg
+    # θθ_p_cov_sqr = [α_reg^2*θθ_cov_sqr  Z_ω]
+
     Z_ω, Σ_ν = truki.Z_ω, truki.Σ_ν
     
+    θθ_p_cov_sqr = [α_reg^2*θθ_cov_sqr  Z_ω]
 
     θ_p_bar  = α_reg*θ_bar + (1-α_reg)*truki.θ0_bar
 
-    nrank , N_r = size(Z_ω, 2), truki.N_r
+    # nrank , N_r = size(Z_ω, 2), truki.N_r
 
-    update_every = 1
-    col_start = mod1(div(truki.counter,update_every)*N_r + 1, nrank)
+    # update_every = 1
+    # col_start = mod1(div(truki.counter,update_every)*N_r + 1, nrank)
 
-    if col_start + N_r-1 <= nrank
-        θθ_p_cov_sqr = [α_reg^2*θθ_cov_sqr  Z_ω[:, col_start: col_start + N_r-1]]
-    else
-        θθ_p_cov_sqr = [α_reg^2*θθ_cov_sqr  Z_ω[:, col_start: nrank] Z_ω[:, 1:col_start+N_r-1-nrank]]
-    end
+    # if col_start + N_r-1 <= nrank
+    #     θθ_p_cov_sqr = [α_reg^2*θθ_cov_sqr  Z_ω[:, col_start: col_start + N_r-1]]
+    # else
+    #     θθ_p_cov_sqr = [α_reg^2*θθ_cov_sqr  Z_ω[:, col_start: nrank] Z_ω[:, 1:col_start+N_r-1-nrank]]
+    # end
 
 
     ############# Update
