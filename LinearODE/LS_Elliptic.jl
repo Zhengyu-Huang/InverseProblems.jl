@@ -156,7 +156,7 @@ function Linear_Test(problem_type::String, low_rank_prior::Bool = true, nθ::Int
     markevery = max(div(N_ite, 10),1)
 
     semilogy(ites, errors[4, :], "-o",  color="C1", fillstyle="none", markevery=markevery, label= "TUKI")
-    semilogy(ites, errors[1, :], ":h",  color="C3", fillstyle="none", markevery=markevery, label= "EnKI")
+    semilogy(ites, errors[1, :], ":h",  color="C3", fillstyle="none", markevery=markevery, label= "EKI")
     semilogy(ites, errors[2, :], "--s",  color="C4", fillstyle="none", markevery=markevery, label= "EAKI")
     semilogy(ites, errors[3, :], ":d",  color="C5", fillstyle="none", markevery=markevery, label= "ETKI")
 
