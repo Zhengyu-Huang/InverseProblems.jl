@@ -53,7 +53,7 @@ function UKI_Run(algorithm, t_mean, t_cov, θ_bar, θθ_cov,  G,  N_iter::Int64 
     elseif algorithm == "UKICTL" || algorithm == "UKS"
         UKF_modify = true
         λ_reg = 0.0
-        Δt0 = 1.0/N_iter
+        Δt0 = 10.0/N_iter
 
         ukiobj = CUKIObj(algorithm, parameter_names,
         θ_bar, 
@@ -76,7 +76,7 @@ function UKI_Run(algorithm, t_mean, t_cov, θ_bar, θθ_cov,  G,  N_iter::Int64 
         params_i = deepcopy(ukiobj.θ_bar[end])
         
         update_ensemble!(ukiobj, ens_func) 
-        @info norm(params_i)
+        @info i , " / ", N_iter
         
     end
     
@@ -221,7 +221,7 @@ if mission == "2params"
     
     # Linear_Test("UKICTL", "over-determined", 10000)
     # error("stop")
-    N_iter = 10000
+    N_iter = 100000
     ukiobj = Dict()
     for algorithm in algorithms
         for test in tests
@@ -246,15 +246,15 @@ if mission == "2params"
 
     
     
-    semilogy(ites, errors["UKI", "square"], "--o", fillstyle="none", label="UKI NS")
-    semilogy(ites, errors["UKICTL", "square"], "--o", fillstyle="none", label="UKICTL NS")
-    semilogy(ites, errors["UKS", "square"], "--o", fillstyle="none", label="UKS NS")
-    semilogy(ites, errors["UKI", "under-determined"], "--o", fillstyle="none", label="UKI UD")
-    semilogy(ites, errors["UKICTL", "under-determined"], "--o", fillstyle="none", label="UKICTL UD")
-    semilogy(ites, errors["UKS", "under-determined"], "--o", fillstyle="none", label="UKS UD")
-    semilogy(ites, errors["UKI", "over-determined"], "--o", fillstyle="none", label="UKI OD")
-    semilogy(ites, errors["UKICTL", "over-determined"], "--o", fillstyle="none", label="UKICTL OD")
-    semilogy(ites, errors["UKS", "over-determined"], "--o", fillstyle="none", label="UKS OD")
+    semilogy(ites, errors["UKI", "square"], "--", fillstyle="none", label="UKI NS")
+    semilogy(ites, errors["UKICTL", "square"], "--", fillstyle="none", label="UKICTL NS")
+    semilogy(ites, errors["UKS", "square"], "--", fillstyle="none", label="UKS NS")
+    semilogy(ites, errors["UKI", "under-determined"], "--", fillstyle="none", label="UKI UD")
+    semilogy(ites, errors["UKICTL", "under-determined"], "--", fillstyle="none", label="UKICTL UD")
+    semilogy(ites, errors["UKS", "under-determined"], "--", fillstyle="none", label="UKS UD")
+    semilogy(ites, errors["UKI", "over-determined"], "--", fillstyle="none", label="UKI OD")
+    semilogy(ites, errors["UKICTL", "over-determined"], "--", fillstyle="none", label="UKICTL OD")
+    semilogy(ites, errors["UKS", "over-determined"], "--", fillstyle="none", label="UKS OD")
     xlabel("Iterations")
     ylabel("\$L_2\$ norm error")
     grid("on")

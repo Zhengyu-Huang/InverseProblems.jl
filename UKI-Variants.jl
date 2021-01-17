@@ -227,18 +227,19 @@ function update_ensemble!(cuki::CUKIObj{FT}, ens_func::Function) where {FT}
     θ = construct_sigma_ensemble(cuki, θ_bar, θθ_cov)
     g = zeros(FT, N_ens, N_g)
     g .= ens_func(θ)
-    g_bar = construct_mean(cuki, g)
+    # g_bar = construct_mean(cuki, g)
+    g_bar = g[1, :]
     θg_cov = construct_cov(cuki, θ, θ_bar, g, g_bar)
 
-
+    Σ_0 = θθ0_cov
 
     if algorithm == "UKICTL"
         # @show Δt, Σ_ω ,  θg_cov, Σ_ν,  θg_cov*(Σ_ν\θg_cov')
         θ_bar  .=  (θ_bar + Δt * (λ_reg*θ0_bar + θg_cov*(Σ_ν\(cuki.g_t - g_bar)))) /(1 + Δt*λ_reg)
         θθ_cov .=  (θθ_cov + Δt * (Σ_ω -  θg_cov*(Σ_ν\θg_cov'))) /(1 + 2Δt*λ_reg)
     elseif algorithm == "UKS"
-        θ_bar  .=  (I + Δt*θθ_cov/θθ0_cov)\(θ_bar + Δt * (θg_cov*(Σ_ν\(cuki.g_t - g_bar)) + λ_reg*θθ_cov*(θθ0_cov\θ0_bar))) 
-        θθ_cov .=  (θθ_cov - 2Δt * (θg_cov*(Σ_ν\θg_cov') + θθ_cov*(θθ0_cov\θθ_cov)))/(1 - 2Δt)
+        θ_bar  .=  (I + Δt*λ_reg*θθ_cov/Σ_0)\(θ_bar + Δt * (θg_cov*(Σ_ν\(cuki.g_t - g_bar)) + λ_reg*θθ_cov*(Σ_0\θ0_bar))) 
+        θθ_cov .=  (θθ_cov - 2Δt * (θg_cov*(Σ_ν\θg_cov') + θθ_cov*(Σ_0\θθ_cov)))/(1 - 2Δt)
     else
         error("algorithm is not recognized")
     end
