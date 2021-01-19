@@ -100,9 +100,12 @@ function Map_Posterior_Plot(forward_func::Function, plot⁻::Bool = true)
     
     obs_cov = reshape([0.1^2], (1,1))
 
-    obs = forward_func([2.0;2.0], nothing) + rand(Normal(0, 0.1), 1)
-
+    obs = forward_func([2.0;2.0], nothing)
     @info "obs is :", obs
+    # force it the the paper choice
+    obs .= 0.1
+    
+    
     
     # prior distribution
     μ0,  cov_sqr0   = [1.0; 1.0], [1.0 0.0; 0.0 1.0]
@@ -136,6 +139,11 @@ function Map_Posterior_Plot(forward_func::Function, plot⁻::Bool = true)
     
     x_low, y_low = minimum(us[n_burn_in:end, :], dims=1)
     x_high, y_high = maximum(us[n_burn_in:end, :], dims=1)
+
+    mcmc_mean = sum(us[n_burn_in:end, :], dims=1)/size(us[n_burn_in:end, :],1)
+    mcmc_cov  = (us[n_burn_in:end, :] .- mcmc_mean)' *(us[n_burn_in:end, :] .- mcmc_mean) /(size(us[n_burn_in:end, :],1) - 1)
+    @info "MCMC mean = ", mcmc_mean
+    @info "MCMC cov = ", mcmc_cov
 
     # plot UKS results 
     Nx = 200; Ny = 200
