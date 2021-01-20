@@ -103,7 +103,7 @@ function Map_Posterior_Plot(forward_func::Function, plot⁻::Bool = true)
     obs = forward_func([2.0;2.0], nothing)
     @info "obs is :", obs
     # force it the the paper choice
-    obs .= 0.1
+    obs .= 0.08
     
     
     
