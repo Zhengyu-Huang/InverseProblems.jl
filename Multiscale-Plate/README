@@ -1,0 +1,51 @@
+nnutil.jl:
+ARGS[1]: idx
+         number of nn hidden layers 3(idx=0), 4(idx=1), 5(idx=2)
+
+
+1.  run GenerateData.sh with force_scale = 5.0
+
+
+2.  For point-to-point learning
+    run NNLearn.sh  
+    it has "julia NNLearn.jl 2",  The source file is in NNLearn.jl, and the number 2 (idx) determines nn layer number in nnutil
+
+3.  For indirect data learning
+    a) run NNPreLSfit.sh
+    it has "julia NNPreLSfit.jl 2", The source file is in NNPreLSfit.jl
+    b) run NNTrain.sh
+    it has "julia Train_NNPlatePull.jl 2", The source file is Train_NNPlatePull.jl, you can choose the restart output (restart_id=3) 
+    from the PreLSfit results
+
+4. For postprocess
+   a) julia Linear_Test_All_Save_Data.jl 2
+   Postprocess all paper linear results with idx=2
+   b) julia NN_Test_All_Save_Data.jl 2
+   Postprocess all paper linear results with idx=2
+
+
+The present setup is nntype=piecewise in all files. 
+
+
+The true parameters 
+Material 1: rho = 4500kg/m^3 = 4.5kg/m^2      E=100GPa   Lx=0.1m   Ly=0.05m   th=0.001m   T=0.2s  sigmaY=0.97GPa  
+Material 2: rho = 3200kg/m^3 = 3.2kg/m^2      E=400GPa 
+Force load on the edge:
+P1 = 1.6e8 N/m    P2 =  0.16e8 N/m   P3 = 0.6e8 N/m 
+
+
+
+
+we use unit 10g, dm, ms,  Pa=kg/m s^2 = 1/10^5[10g]/dm ms^2,   N = kg m/s^2 = 1/10^3[10g]dm /ms^2
+Hence, we have
+Material 1: rho = 4.5[10g]/dm^2     E=1e6 [10g]/dm ms^2   Lx= 1 dm   Ly=0.5 dm    T=200ms  sigmaY=0.97e4 [10g]/dm ms^2 
+Material 2: rho = 3.2[10g]/dm^2     E=4e6 [10g]/dm ms^2   Lx= 1 dm   Ly=0.5 dm    T=200ms  sigmaY=0.97e4 [10g]/dm ms^2     
+P1 = 16000 [10g]/ms^2    P2 =  1600 [10g]/ms^2    P3 = 16800 [10g]/ms^2  
+
+
+Scaling about NN
+strain_scale = 1  stress_scale = 1e5   (stress_scale/strain_scale ~ E)
+
+Transition function
+\tilde{sigmaY}=3.2e3  (sqrt{10^7})
+H = sigmoid((stress^2 - \tilde{sigmaY}^2)/10^6)  ~ (10)
