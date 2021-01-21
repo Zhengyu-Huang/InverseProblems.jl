@@ -51,7 +51,10 @@ function Foward(phys_params::Params, θ::Array{Float64,1})
     obs = zeros(Float64, n_data)
 
     for tid = 1:length(tids)
-        _, obs[(tid-1)*n_obs+1:tid*n_obs] = Run_Homogenized(θ, θ_scale, ρ, tids[tid], force_scale)
+        _, data = Run_Homogenized(θ, θ_scale, ρ, tids[tid], force_scale)
+        obs[(tid-1)*n_obs+1:tid*n_obs] = data[:]
+    end
+
     return obs
 end
 
@@ -170,17 +173,14 @@ function Multiscale_Test(phys_params::Params,
     tid = 300
     θ = kiobj.θ_bar[end]
     θ_scale, ρ, force_scale, n_tids, n_obs = phys_params.θ_scale, phys_params.ρ, phys_params.force_scale, phys_params.n_tids, phys_params.n_obs
-    domain, data = Run_Homogenized(θ, θ_scale, ρ, tid, force_scale)
+    domain, obs = Run_Homogenized(θ, θ_scale, ρ, tid, force_scale)
 
-    
-    # x1 y1, x2, y2 ...
-    data = reshape(data, div(n_obs,2*n_obs_point), 2*n_obs_point)
     
     # only visulize the first point
     NT, T = phys_params.NT, phys_params.T
     ts = LinRange(0, T, NT)
-    plot(ts, data[:,1], label="dx")
-    plot(ts, data[:,2], label="dy")
+    plot(ts, obs[:,1], label="dx")
+    plot(ts, obs[:,2], label="dy")
 end
 
 

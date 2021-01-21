@@ -115,18 +115,21 @@ end
 write_data("$(@__DIR__)/Data/order$porder/$(tid)_$(force_scale)_$(fiber_size).dat", domain)
 @save "Data/order$porder/domain$(tid)_$(force_scale)_$(fiber_size).jld2" domain
 
+obs = Get_Obs(domain, nx, ny, porder)
+@save "Data/order$porder/obs$(tid)_$(force_scale)_$(fiber_size).jld2" obs
+
 close("all")
 visσ(domain)
 axis("equal")
 savefig("Figs/order$porder/terminal$(tid)_$(force_scale)_$(fiber_size).png")
 
-close("all")
-ux = [reshape(domain.history["state"][i][1:(nx*porder+1)*(ny*porder+1)], ny*porder+1, nx*porder+1)[1,end] for i = 1:length(domain.history["state"])]
-plot(ux)
-savefig("Figs/order$porder/ux$(tid)_$(force_scale)_$(fiber_size).png")
+# close("all")
+# ux = [reshape(domain.history["state"][i][1:(nx*porder+1)*(ny*porder+1)], ny*porder+1, nx*porder+1)[1,end] for i = 1:length(domain.history["state"])]
+# plot(ux)
+# savefig("Figs/order$porder/ux$(tid)_$(force_scale)_$(fiber_size).png")
 
-close("all")
-uy = [reshape(domain.history["state"][i][(nx*porder+1)*(ny*porder+1)+1:end], ny*porder+1, nx*porder+1)[1,end] for i = 1:length(domain.history["state"])]
-plot(uy)
-savefig("Figs/order$porder/uy$(tid)_$(force_scale)_$(fiber_size).png")
+# close("all")
+# uy = [reshape(domain.history["state"][i][(nx*porder+1)*(ny*porder+1)+1:end], ny*porder+1, nx*porder+1)[1,end] for i = 1:length(domain.history["state"])]
+# plot(uy)
+# savefig("Figs/order$porder/uy$(tid)_$(force_scale)_$(fiber_size).png")
 
