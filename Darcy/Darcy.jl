@@ -54,6 +54,7 @@ function ind(darcy::Param_Darcy, ix::Int64, iy::Int64)
 end
 
 function plot_field(darcy::Param_Darcy, u_2d::Array{Float64, 2}, plot_obs::Bool,  filename::String = "None")
+    @info "start to plot and save to ", filename
     N = darcy.N
     xx = darcy.xx
     figure(123)
@@ -70,7 +71,7 @@ function plot_field(darcy::Param_Darcy, u_2d::Array{Float64, 2}, plot_obs::Bool,
     tight_layout()
     if filename != "None"
         savefig(filename)
-        close(123)
+        close("all")
     end
 end
 
