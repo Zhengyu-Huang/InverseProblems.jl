@@ -98,21 +98,17 @@ end
 
 
 
-function Plot_Field(mesh,  ω0,  filename, vmin=-5.0, vmax=5.0)
-  
-  
+function Plot_Field(mesh, ω0,  ax)
+  vmin, vmax = -5.0, 5.0
   
   nx, ny = mesh.nx, mesh.ny
   xx, yy = mesh.xx, mesh.yy
   X,Y = repeat(xx, 1, ny), repeat(yy, 1, nx)'
   
-  # fig, ax = PyPlot.subplots(figsize=(6,6))
-  PyPlot.pcolormesh(X, Y, ω0, shading= "gouraud", cmap="jet", vmin=vmin, vmax =vmax)
-  PyPlot.colorbar()
-  PyPlot.axis("off")
-  PyPlot.tight_layout()
-  PyPlot.savefig("Figs/"*filename)
-  PyPlot.close("all")
+  
+  ax.pcolormesh(X, Y, ω0, shading= "gouraud", cmap="jet", vmin=vmin, vmax =vmax)
+  
+  
 end
 
 
@@ -136,13 +132,11 @@ function UQ_test()
   
   # initial prior distribution is 
   na = 50
+  N_θ = 2na
   
   seq_pairs = Compute_Seq_Pairs(na)
-  t_cov = Array(Diagonal(fill(0.1^2, phys_params.n_data))) 
-  θ0_bar = zeros(Float64, 2na)
-  θθ0_cov = Array(Diagonal(fill(1.0, 2*na)))           # standard deviation
-  
-  N_iter = 50
+  # 30
+  N_iter = 30
   
   mesh = Spectral_Mesh(phys_params.nx, phys_params.ny, phys_params.Lx, phys_params.Ly)
   
@@ -151,37 +145,37 @@ function UQ_test()
   seq_pairs_ref = Compute_Seq_Pairs(2*na_ref)
   ω0_ref, _, _ =  Generate_Data(phys_params, seq_pairs_ref, -1.0,  "Figs/NS-vor.", 2*na_ref)
   
+  ω0_ref, θ_ref, t_mean_noiseless =  Generate_Data_Noiseless(phys_params, seq_pairs_ref, "None", 2*na_ref)
+  θ_ref = reshape(θ_ref, 2*na, 2)[1:na, :][:]
   
-  N_sample = 5
+  N_sample = 6
   
   fig_ite, ax_ite = PyPlot.subplots(ncols = 3, nrows=1, sharex=false, sharey=false, figsize=(18,6))
   fig_θ, ax_θ = PyPlot.subplots(ncols = 1, nrows=N_sample, sharex=true, sharey=true, figsize=(16,12))
-  
-  for ax in ax_ite ;  ax.set_xticks([]) ; ax.set_yticks([]) ; end
-  for ax in ax_θ ;    ax.set_xticks([]) ; ax.set_yticks([]) ; end
+  fig_omega0, ax_omega0 = PyPlot.subplots(ncols = 3, nrows=2, sharex=true, sharey=true, figsize=(18,12))
+  for ax in ax_omega0 ;  ax.set_xticks([]) ; ax.set_yticks([]) ; end
   
   # data
-  θ0_bar = zeros(Float64, N_θ)
-  θθ0_cov = Array(Diagonal(fill(1.0, N_θ)))
+  θ0_bar = zeros(Float64, 2*na)
+  θθ0_cov = Array(Diagonal(fill(1.0, 2*na)))
   α_reg = 1.0
   noise_level = 0.05
   
   
   
-  ω0_ref, θ_ref, t_mean_noiseless =  Generate_Data_Noiseless(phys_params, seq_pairs_ref, "None", 2*na_ref)
-  θ_ref = reshape(θ_ref, 2*na, 2)[1:na, :][:]
+  
   
   # observation
   t_cov = Array(Diagonal(noise_level^2 * t_mean_noiseless.^2))
   Random.seed!(123);
   
-  ites = Array(LinRange(1, N_ite, N_ite))
-  errors = zeros(Float64, (3, N_ite))
+  ites = Array(LinRange(1, N_iter, N_iter))
+  errors = zeros(Float64, (3, N_iter))
   
   for n = 1:N_sample
     t_mean = copy(t_mean_noiseless)
     for i = 1:length(t_mean)
-      noise = rand(Normal(0, noise_level*t_mean[i]))
+      noise = noise_level*t_mean[i] * rand(Normal(0, 1))
       t_mean[i] += noise
     end
     
@@ -190,7 +184,7 @@ function UQ_test()
     
     for i = 1:N_iter
       
-      ω0 = Initial_ω0_KL(mesh, θ_bar[i], seq_pairs)
+      ω0 = Initial_ω0_KL(mesh, kiobj.θ_bar[i], seq_pairs)
       
       errors[1, i] = norm(ω0_ref - ω0)/norm(ω0_ref)
       errors[2, i] = 0.5*(kiobj.g_bar[i] - kiobj.g_t)'*(kiobj.obs_cov\(kiobj.g_bar[i] - kiobj.g_t))
@@ -203,7 +197,11 @@ function UQ_test()
     ax_ite[2].semilogy(ites, errors[2, :], "-o", fillstyle="none", markevery=2 )
     ax_ite[3].semilogy(ites, errors[3, :], "-o", fillstyle="none", markevery=2 )
     
-    
+    θ_ind = Array(1:N_θ)
+
+    ax_θ[n].plot(θ_ind , θ_ref[1:N_θ], "--o", color="grey", fillstyle="none", label="Reference")
+
+
     ki_θ_bar  = kiobj.θ_bar[end]
     ki_θθ_cov = kiobj.θθ_cov[end]
     ki_θθ_std = sqrt.(diag(kiobj.θθ_cov[end]))
@@ -212,6 +210,10 @@ function UQ_test()
     ax_θ[n].plot(θ_ind , ki_θ_bar - 3.0*ki_θθ_std, color="red")
     ax_θ[n].grid(true)
     ax_θ[n].set_ylabel("θ")
+
+    ω0 = Initial_ω0_KL(mesh, kiobj.θ_bar[end], seq_pairs)
+    Plot_Field(mesh, ω0, ax_omega0[:][n])
+
   end
   
   ax_ite[1].set_xlabel("Iterations")
@@ -231,7 +233,8 @@ function UQ_test()
   fig_θ.tight_layout()
   fig_θ.savefig("NS-theta.png")
   
-  
+  fig_omega0.savefig("Figs/NS-omega0.pdf")
+
   
   
 end
