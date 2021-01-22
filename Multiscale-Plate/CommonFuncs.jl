@@ -383,8 +383,8 @@ function Get_Obs(domain, nx::Int64, ny::Int64, porder::Int64)
     obs = zeros(Float64, n_frame, 2*length(p_ids))
     for it = 1:n_frame
         for ip = 1:length(p_ids)
-            obs[it, 2*ip-1] = domain.history["state"][i][p_ids]  # x displacement
-            obs[it, 2*ip]   = domain.history["state"][i][p_ids + (nx*porder+1)*(ny*porder+1)]  # y displacement
+            obs[it, 2*ip-1] = domain.history["state"][it][p_ids[ip]]  # x displacement
+            obs[it, 2*ip]   = domain.history["state"][it][p_ids[ip] + (nx*porder+1)*(ny*porder+1)]  # y displacement
         end
     end
 

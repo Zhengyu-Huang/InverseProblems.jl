@@ -3,11 +3,7 @@ using JLD2
 using Statistics
 using LinearAlgebra
 
-stress_scale = 1.0e+5
-strain_scale = 1
 
-force_scale = 5.0
-tid = 300
 
 
 include("../Plot.jl")
@@ -183,6 +179,18 @@ function Multiscale_Test(phys_params::Params,
     plot(ts, obs[:,2], label="dy")
 end
 
+
+stress_scale = 1.0e+5
+strain_scale = 1
+force_scale = 5.0
+
+tid = 100
+@load "Data/order$porder/obs$(tid)_$(force_scale)_$(fiber_size).jld2" obs 
+obs_100 = obs[:]
+
+tid = 102
+@load "Data/order$porder/obs$(tid)_$(force_scale)_$(fiber_size).jld2" obs 
+obs_102 = obs[:]
 
 
 
