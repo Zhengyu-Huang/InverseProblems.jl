@@ -19,7 +19,7 @@ mutable struct Params
     
     NT::Int64
     T::Float64
-
+    
     n_tids::Int64
     n_obs_point::Int64
     n_obs::Int64
@@ -28,29 +28,29 @@ end
 
 function Params(tids::Array{Int64,1}, n_obs_point::Int64 = 2, n_obs_time::Int64 = 200, T::Float64 = 200.0, NT::Int64 = 200)
     θ_name = ["E", "nu", "sigmaY", "K"] 
-    θ_scale = [1.0e+5, 1, 1.0e+5, 1]
+    θ_scale = [1.0e+5, 0.02, 1.0e+3, 1.0e+4]
     
     fiber_fraction = 0.25
     ρ = 4.5*(1 - fiber_fraction) + 3.2*fiber_fraction
     
     force_scale = 5.0
     n_tids = length(tids)
-    n_data = n_obs_point * n_obs_time * n_tids
+    n_data = 2n_obs_point * n_obs_time * n_tids
     
     return Params(θ_name, θ_scale, ρ, tids, force_scale, NT, T,  n_tids, n_obs_point, n_obs_point * n_obs_time, n_data)
 end
 
 function Foward(phys_params::Params, θ::Array{Float64,1})
     θ_scale, ρ, tids, force_scale, n_data = phys_params.θ_scale, phys_params.ρ, phys_params.tids, phys_params.force_scale, phys_params.n_data
-
+    
     n_obs = div(n_data, length(tids))
     obs = zeros(Float64, n_data)
-
+    
     for tid = 1:length(tids)
         _, data = Run_Homogenized(θ, θ_scale, ρ, tids[tid], force_scale)
         obs[(tid-1)*n_obs+1:tid*n_obs] = data[:]
     end
-
+    
     return obs
 end
 
@@ -112,8 +112,6 @@ function Multiscale_Test(phys_params::Params,
     N_iter::Int64,
     ki_file = nothing)
     
-    # optimization related plots
-    fig_ite, ax_ite = PyPlot.subplots(ncols = 2, nrows=1, sharex=false, sharey=false, figsize=(12,6))
     
     if ki_file === nothing
         kiobj = ExKI(phys_params, t_mean, t_cov,  θ0_bar, θθ0_cov, α_reg, N_iter)
@@ -121,14 +119,17 @@ function Multiscale_Test(phys_params::Params,
     else
         @load "exkiobj.dat" kiobj
     end
-
-    ites = Array(LinRange(1, N_iter, N_iter))
+    
+    # optimization related plots
+    fig_ite, ax_ite = PyPlot.subplots(ncols = 2, nrows=1, sharex=false, sharey=false, figsize=(12,6))
+    
+    ites = Array(1:N_iter)
     errors = zeros(Float64, (3, N_iter))
-    for i = 1:N_iter
+    for i in ites
         errors[1, i] = NaN
         errors[2, i] = 0.5*(kiobj.g_bar[i] - kiobj.g_t)'*(kiobj.obs_cov\(kiobj.g_bar[i] - kiobj.g_t))
         errors[3, i] = norm(kiobj.θθ_cov[i])   
-      
+        
     end
     errors[3, 1] = norm(θθ0_cov) 
     ax_ite[1].semilogy(ites, errors[2, :], "-o", fillstyle="none", markevery=2 )
@@ -140,23 +141,28 @@ function Multiscale_Test(phys_params::Params,
     ax_ite[2].set_xlabel("Iterations")
     ax_ite[2].set_ylabel("Frobenius norm")
     ax_ite[2].grid(true)
-  
+    
     fig_ite.tight_layout()
     fig_ite.savefig("Plate-error.png")
-
-
+    close("all")
+    
     # parameter plot
     N_θ = length(θ0_bar)
+    θ_bar_arr = hcat(kiobj.θ_bar...)
     θθ_std = zeros(Float64, (N_θ, N_iter+1))
     for i = 1:N_iter+1
         for j = 1:N_θ
             θθ_std[j, i] = sqrt(kiobj.θθ_cov[i][j,j])
         end
     end
-    errorbar(ites, θ_bar_arr[1,:], yerr=3.0*θθ_std[1,:], fmt="--o",fillstyle="none", label="E")
-    errorbar(ites, θ_bar_arr[2,:], yerr=3.0*θθ_std[2,:], fmt="--o",fillstyle="none", label="ν")
-    errorbar(ites, θ_bar_arr[3,:], yerr=3.0*θθ_std[3,:], fmt="--o",fillstyle="none", label="σY")
-    errorbar(ites, θ_bar_arr[4,:], yerr=3.0*θθ_std[4,:], fmt="--o",fillstyle="none", label="K")
+    θ_scale = phys_params.θ_scale
+    θ_bar_arr = θ_bar_arr.*θ_scale
+    θθ_std = θθ_std.*θ_scale
+    
+    errorbar(ites, θ_bar_arr[1,ites], yerr=3.0*θθ_std[1,ites], fmt="--o",fillstyle="none", label="E")
+    errorbar(ites, θ_bar_arr[2,ites], yerr=3.0*θθ_std[2,ites], fmt="--o",fillstyle="none", label="ν")
+    errorbar(ites, θ_bar_arr[3,ites], yerr=3.0*θθ_std[3,ites], fmt="--o",fillstyle="none", label=L"σ_Y")
+    errorbar(ites, θ_bar_arr[4,ites], yerr=3.0*θθ_std[4,ites], fmt="--o",fillstyle="none", label="K")
     semilogy()
     xlabel("Iterations")
     legend()
@@ -164,33 +170,99 @@ function Multiscale_Test(phys_params::Params,
     tight_layout()
     savefig("Plate_theta.png")
     close("all")
-
+    
+    return kiobj
+end
+function prediction(phys_params, θ_mean, θθ_cov, porder::Int64=2, tid::Int64=300, force_scale::Float64=0.5, fiber_size::Int64=5)
     # test on 300
-    tid = 300
-    θ = kiobj.θ_bar[end]
+    
+    @load "Data/order$porder/obs$(tid)_$(force_scale)_$(fiber_size).jld2" obs
+    obs_ref = copy(obs)
+    
+    
     θ_scale, ρ, force_scale, n_tids, n_obs = phys_params.θ_scale, phys_params.ρ, phys_params.force_scale, phys_params.n_tids, phys_params.n_obs
-    domain, obs = Run_Homogenized(θ, θ_scale, ρ, tid, force_scale)
-
     
     # only visulize the first point
     NT, T = phys_params.NT, phys_params.T
-    ts = LinRange(0, T, NT)
-    plot(ts, obs[:,1], label="dx")
-    plot(ts, obs[:,2], label="dy")
+    ts = LinRange(0, T, NT+1)
+    
+    # optimization related plots
+    fig_disp, ax_disp = PyPlot.subplots(ncols = 2, nrows=1, sharex=false, sharey=false, figsize=(12,6))
+    
+    ax_disp[1].plot(ts[2:end], obs_ref[end-NT+1:end,1], "--o", color="grey", fillstyle="none", label="Reference")
+    ax_disp[2].plot(ts[2:end], obs_ref[end-NT+1:end,2], "--o", color="grey", fillstyle="none", label="Reference")
+    
+
+    domain, obs = Run_Homogenized(θ_mean, θ_scale, ρ, tid, force_scale)
+    ax_disp[1].plot(ts[2:end], obs[end-NT+1:end,1])
+    ax_disp[2].plot(ts[2:end], obs[end-NT+1:end,2])
+
+    N_Sample = 10
+    Random.seed!(123)
+    for i = 2:N_Sample
+        θ = rand(MvNormal(θ_mean, θθ_cov))
+        @info "θ mean is ", θ_mean,  "θ is ", θ
+        domain, obs = Run_Homogenized(θ, θ_scale, ρ, tid, force_scale)
+        ax_disp[1].plot(ts[2:end], obs[end-NT+1:end,1])
+        ax_disp[2].plot(ts[2:end], obs[end-NT+1:end,2])
+    end
+    
+    ax_disp[1].set_xlabel("Time")
+    ax_disp[1].set_ylabel("x-Disp")
+    ax_disp[1].grid("on")
+    ax_disp[1].legend()
+    
+    
+    
+    ax_disp[2].set_xlabel("Time")
+    ax_disp[2].set_ylabel("y-Disp")
+    ax_disp[2].grid("on")
+    ax_disp[2].legend()
+    
+    fig_disp.tight_layout()
+    fig_disp.savefig("Plate_disp.png")
+    close(fig_disp)
 end
 
 
-stress_scale = 1.0e+5
-strain_scale = 1
+tids = [100; 102]
+porder = 2
+fiber_size = 2
 force_scale = 5.0
-
-tid = 100
-@load "Data/order$porder/obs$(tid)_$(force_scale)_$(fiber_size).jld2" obs 
-obs_100 = obs[:]
-
-tid = 102
-@load "Data/order$porder/obs$(tid)_$(force_scale)_$(fiber_size).jld2" obs 
-obs_102 = obs[:]
+T = 200.0
+NT = 200
+n_obs_time = NT
+n_obs_point = 2 # top left and right corners
+phys_params = Params(tids, n_obs_point, n_obs_time, T, NT)
 
 
+@load "Data/order$porder/obs$(tids[1])_$(force_scale)_$(fiber_size).jld2" obs 
+obs_100 = obs[end-NT+1:end, :][:]
 
+@load "Data/order$porder/obs$(tids[2])_$(force_scale)_$(fiber_size).jld2" obs 
+obs_102 = obs[end-NT+1:end, :][:]
+
+t_mean_noiseless = [obs_100; obs_102]
+
+noise_level = 0.05
+
+t_cov = Array(Diagonal(noise_level^2 * t_mean_noiseless.^2))
+Random.seed!(123); 
+
+t_mean = copy(t_mean_noiseless)
+for i = 1:length(t_mean)
+    noise = noise_level*t_mean[i] * rand(Normal(0, 1))
+    t_mean[i] += noise
+end
+
+α_reg = 1.0
+N_θ = 4
+θ0_bar = [1e+6; 0.2; 0.97e+4; 1e+5] ./ phys_params.θ_scale
+θθ0_cov = Array(Diagonal(fill(1.0, N_θ))) 
+
+#todo 
+N_iter = 30
+kiobj = Multiscale_Test(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter)
+
+tid = 300
+prediction(phys_params, kiobj.θ_bar[end], kiobj.θθ_cov[end], porder, tid, force_scale, fiber_size)

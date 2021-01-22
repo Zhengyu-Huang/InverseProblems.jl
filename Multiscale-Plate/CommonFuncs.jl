@@ -380,11 +380,11 @@ function Get_Obs(domain, nx::Int64, ny::Int64, porder::Int64)
     p_ids = [(nx*porder+1)*(ny*porder+1); (nx*porder+1)*(ny*porder) + 1]
     n_frame = length(domain.history["state"])
     @info "n_frame is ", n_frame
-    obs = zeros(Float64, n_frame, 2*length(p_ids))
-    for it = 1:n_frame
+    obs = zeros(Float64, n_frame-1, 2*length(p_ids))
+    for it = 2:n_frame
         for ip = 1:length(p_ids)
-            obs[it, 2*ip-1] = domain.history["state"][it][p_ids[ip]]  # x displacement
-            obs[it, 2*ip]   = domain.history["state"][it][p_ids[ip] + (nx*porder+1)*(ny*porder+1)]  # y displacement
+            obs[it-1, 2*ip-1] = domain.history["state"][it][p_ids[ip]]  # x displacement
+            obs[it-1, 2*ip]   = domain.history["state"][it][p_ids[ip] + (nx*porder+1)*(ny*porder+1)]  # y displacement
         end
     end
 
@@ -393,6 +393,7 @@ end
 
 function Run_Homogenized(θ::Array{Float64,1}, θ_scale::Array{Float64,1}, ρ::Float64, tid::Int64, force_scale::Float64; 
     T::Float64 = 200.0, NT::Int64 = 200, nx::Int64 = 10, ny::Int64 = 5, porder::Int64 = 2)
+
     # "E"=> 1e+6, "nu"=> 0.2,"sigmaY"=>0.97e+4, "K"=>1e+5
     E, nu, sigmaY, K = θ .* θ_scale
     
