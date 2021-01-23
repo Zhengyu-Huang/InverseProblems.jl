@@ -20,7 +20,6 @@ font0 = Dict(
         "legend.fontsize" => 16,
 )
 merge!(rcParams, font0)
-np = pyimport("numpy")
 
 
 
@@ -185,7 +184,7 @@ function ComputeLoad(L, ne, porder, ngp, type,  args)
     @assert(ngp <= 4)
     dx = L/ne
 
-    xx = np.linspace(0, L, ne*porder + 1)
+    xx = Array(LinRange(0, L, ne*porder + 1))
     
     Ft, Fn = zeros(Float64, ne*porder + 1), zeros(Float64, ne*porder + 1)
 
@@ -233,15 +232,29 @@ function ComputeLoad(L, ne, porder, ngp, type,  args)
     return Ft, Fn
 end
 
+function meshgrid(x::Array{Float64,1}, y::Array{Float64,1})
+    nx, ny = length(x), length(y)
+    X = zeros(Float64, ny, nx)
+    Y = zeros(Float64, ny, nx)
+    for i = 1:ny
+        X[i, :] .= x
+    end
+    for i = 1:nx
+        Y[:, i] .= y
+    end
+
+    return X, Y
+
+end
 
 function BoundaryCondition(tid, nx, ny, porder=2, Lx = 1.0, Ly = 0.5; force_scale=5.0)
     nnodes, neles = (nx*porder + 1)*(ny*porder + 1), nx*ny
     
-    x = np.linspace(0.0, Lx, nx*porder + 1)
-    y = np.linspace(0.0, Ly, ny*porder + 1)
+    x = Array(LinRange(0.0, Lx, nx*porder + 1))
+    y = Array(LinRange(0.0, Ly, ny*porder + 1))
 
 
-    X, Y = np.meshgrid(x, y)
+    X, Y = meshgrid(x, y)
     nodes = zeros(nnodes,2)
     nodes[:,1], nodes[:,2] = X'[:], Y'[:]
     ndofs = 2
@@ -379,7 +392,6 @@ function Get_Obs(domain, nx::Int64, ny::Int64, porder::Int64)
     # observation is the top left and top right
     p_ids = [(nx*porder+1)*(ny*porder+1); (nx*porder+1)*(ny*porder) + 1]
     n_frame = length(domain.history["state"])
-    @info "n_frame is ", n_frame
     obs = zeros(Float64, n_frame-1, 2*length(p_ids))
     for it = 2:n_frame
         for ip = 1:length(p_ids)
@@ -404,9 +416,7 @@ function Run_Homogenized(θ::Array{Float64,1}, θ_scale::Array{Float64,1}, ρ::F
     # nx_f, ny_f = 12, 4
     # homogenized computaional domain
     # number of elements in each directions
-    
     nodes, EBC, g, gt, FBC, fext, ft = BoundaryCondition(tid, nx, ny, porder; force_scale=force_scale)
-    
     ndofs=2
     elements = []
     for j = 1:ny
@@ -432,7 +442,7 @@ function Run_Homogenized(θ::Array{Float64,1}, θ_scale::Array{Float64,1}, ρ::F
     end
     
     
-    
+
     domain = Domain(nodes, elements, ndofs, EBC, g, FBC, fext)
     state = zeros(domain.neqs)
     ∂u = zeros(domain.neqs)

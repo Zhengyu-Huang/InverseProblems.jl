@@ -93,7 +93,6 @@ function ExKI(phys_params::Params,
     update_cov = 1
     for i in 1:N_iter
         
-        
         update_ensemble!(exkiobj, ens_func) 
         
         if (update_cov > 0) && (i%update_cov == 0) 
@@ -111,7 +110,6 @@ function Multiscale_Test(phys_params::Params,
     α_reg::Float64, 
     N_iter::Int64,
     ki_file = nothing)
-    
     
     if ki_file === nothing
         kiobj = ExKI(phys_params, t_mean, t_cov,  θ0_bar, θθ0_cov, α_reg, N_iter)
@@ -227,7 +225,7 @@ end
 
 tids = [100; 102]
 porder = 2
-fiber_size = 2
+fiber_size = 5
 force_scale = 5.0
 T = 200.0
 NT = 200

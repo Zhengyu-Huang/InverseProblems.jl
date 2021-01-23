@@ -97,9 +97,7 @@ updateStates!(domain, globdat)
 αf = ρ_oo/(ρ_oo + 1)
 
 for i = 1:NT
-    @info i, "/" , NT
 
-    
     solver = NewmarkSolver(Δt, globdat, domain, αm, αf, 1e-4, 1e-6, 10)
 end
 
