@@ -146,7 +146,7 @@ function UQ_test()
   ω0_ref, _, _ =  Generate_Data(phys_params, seq_pairs_ref, -1.0,  "Figs/NS-vor-perfect.", 2*na_ref)
   
   ω0_ref, θ_ref, t_mean_noiseless =  Generate_Data_Noiseless(phys_params, seq_pairs_ref, "None", 2*na_ref)
-  θ_ref = reshape(θ_ref, 2*na, 2)[1:na, :][:]
+  θ_ref = reshape(θ_ref, na_ref, 2)[1:na, :][:]
   
   N_sample = 6
   
