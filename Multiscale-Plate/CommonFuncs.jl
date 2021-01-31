@@ -389,7 +389,7 @@ function BoundaryCondition(tid, nx, ny, porder=2, Lx = 1.0, Ly = 0.5; force_scal
 end
 
 function Get_Obs(domain, nx::Int64, ny::Int64, porder::Int64)
-    # observation is the top left and top right
+    # observation is the top right and top left
     p_ids = [(nx*porder+1)*(ny*porder+1); (nx*porder+1)*(ny*porder) + 1]
     n_frame = length(domain.history["state"])
     obs = zeros(Float64, n_frame-1, 2*length(p_ids))

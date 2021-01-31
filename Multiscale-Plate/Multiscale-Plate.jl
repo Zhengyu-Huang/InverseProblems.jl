@@ -171,7 +171,7 @@ function Multiscale_Test(phys_params::Params,
     
     return kiobj
 end
-function prediction(phys_params, θ_mean, θθ_cov, porder::Int64=2, tid::Int64=300, force_scale::Float64=0.5, fiber_size::Int64=5)
+function prediction(phys_params, kiobj, θ_mean, θθ_cov, porder::Int64=2, tid::Int64=300, force_scale::Float64=0.5, fiber_size::Int64=5)
     # test on 300
     
     @load "Data/order$porder/obs$(tid)_$(force_scale)_$(fiber_size).jld2" obs
@@ -191,19 +191,43 @@ function prediction(phys_params, θ_mean, θθ_cov, porder::Int64=2, tid::Int64=
     ax_disp[2].plot(ts[2:end], obs_ref[end-NT+1:end,2], "--o", color="grey", fillstyle="none", label="Reference")
     
 
-    domain, obs = Run_Homogenized(θ_mean, θ_scale, ρ, tid, force_scale)
-    ax_disp[1].plot(ts[2:end], obs[end-NT+1:end,1])
-    ax_disp[2].plot(ts[2:end], obs[end-NT+1:end,2])
+    θθ_cov = (θθ_cov+θθ_cov')/2 
+    θ_p = construct_sigma_ensemble(kiobj, θ_mean, θθ_cov)
+    N_ens = kiobj.N_ens
 
-    N_Sample = 10
-    Random.seed!(123)
-    for i = 2:N_Sample
-        θ = rand(MvNormal(θ_mean, θθ_cov))
-        @info "θ mean is ", θ_mean,  "θ is ", θ
-        domain, obs = Run_Homogenized(θ, θ_scale, ρ, tid, force_scale)
-        ax_disp[1].plot(ts[2:end], obs[end-NT+1:end,1])
-        ax_disp[2].plot(ts[2:end], obs[end-NT+1:end,2])
+    n_tids, n_obs_point, n_data = phys_params.n_tids, phys_params.n_obs_point, phys_params.n_data
+    
+    n_obs_time = div(n_data, 2n_obs_point * n_tids)
+
+    obs = zeros(Float64, N_ens, n_obs_time * 2n_obs_point)
+
+    for i = 1:N_ens
+        
+
+        θ = θ_p[i, :]
+
+        @info "θ is ", θ
+        
+        obs[i, :] = Run_Homogenized(θ, θ_scale, ρ, tid, force_scale)[2][:]
     end
+
+    obs_mean = obs[1, :]
+
+    obs_cov  = construct_cov(kiobj,  obs, obs_mean)
+    obs_std = sqrt.(diag(obs_cov))
+
+    obs_mean = reshape(obs_mean, n_obs_time , 2n_obs_point)
+    obs_std = reshape(obs_std, n_obs_time , 2n_obs_point)
+
+    ax_disp[1].plot(ts[2:end], obs_mean[end-NT+1:end,1])
+    ax_disp[1].plot(ts[2:end], obs_mean[end-NT+1:end,1] + 3obs_std[end-NT+1:end,1])
+    ax_disp[1].plot(ts[2:end], obs_mean[end-NT+1:end,1] - 3obs_std[end-NT+1:end,1])
+
+    ax_disp[2].plot(ts[2:end], obs_mean[end-NT+1:end,2])
+    ax_disp[2].plot(ts[2:end], obs_mean[end-NT+1:end,2]+ 3obs_std[end-NT+1:end,2])
+    ax_disp[2].plot(ts[2:end], obs_mean[end-NT+1:end,2]- 3obs_std[end-NT+1:end,2])
+    
+
     
     ax_disp[1].set_xlabel("Time")
     ax_disp[1].set_ylabel("x-Disp")
@@ -260,7 +284,8 @@ N_θ = 4
 
 #todo 
 N_iter = 30
-kiobj = Multiscale_Test(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter)
+# kiobj = Multiscale_Test(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter)
 
-tid = 300
-prediction(phys_params, kiobj.θ_bar[end], kiobj.θθ_cov[end], porder, tid, force_scale, fiber_size)
+@load "exkiobj.dat" kiobj
+tid = 100
+prediction(phys_params, kiobj, kiobj.θ_bar[end], kiobj.θθ_cov[end], porder, tid, force_scale, fiber_size)
