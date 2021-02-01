@@ -564,7 +564,7 @@ errorbar(ites, θ_bar_arr[3,:], yerr=3.0*θθ_cov_arr[3,:], fmt="--o",fillstyle=
 plot(ites, fill(8.0/3.0, N_ite+1), "--", color="gray")
 
 xlabel("Iterations")
-legend()
+legend("lower right")
 grid("on")
 tight_layout()
 savefig("Lorenz_inverse-3para.pdf")

@@ -393,8 +393,8 @@ end
 
 # mission is  "adjoint_plt" or "UKI"
 
-# mission  =  "UKI"
-mission = "adjoint_plt"
+mission  =  "UKI"
+# mission = "adjoint_plt"
 
 if mission == "adjoint_plt"
     #adjoint_demo()
@@ -435,8 +435,8 @@ else
     plot(ites, fill(28.0, N_ite+1), "--", color="gray")
     
     xlabel("Iterations")
-    legend()
-    grid("on")
+    legend(loc="lower right")
+    # grid("on")
     tight_layout()
     savefig("Lorenz_inverse-1para.pdf")
     close("all")
