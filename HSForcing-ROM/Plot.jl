@@ -1,6 +1,6 @@
 using JLD2
 using LinearAlgebra
-using NNGCM
+# using NNGCM
 include("../Plot.jl")
 include("../RUKI.jl")
 
@@ -62,27 +62,29 @@ function visualize(uki, θ_ref::Array{Float64, 1}, file_name::String)
     end
     
     @info "final result is ", θ_bar_arr[:,end],  θθ_cov[end]
+
+    figure(figsize = (7.5, 4.8))
     
-    errorbar(ites, θ_bar_arr[1,:], yerr=3.0*θθ_cov_arr[1,:], fmt="--o",fillstyle="none", label=L"k_a")
+    errorbar(ites, θ_bar_arr[1,:], yerr=3.0*θθ_cov_arr[1,:], fmt="--o",fillstyle="none", label=L"k_a\ (day^{-1})")
     #semilogy(ites, θ_bar_arr[1,:], "--o", fillstyle="none", label=L"k_a")
     semilogy(ites, fill(θ_ref[1], N_ite+1), "--", color="gray")
     
-    errorbar(ites, θ_bar_arr[2,:], yerr=3.0*θθ_cov_arr[2,:], fmt="--o",fillstyle="none", label=L"k_s")
+    errorbar(ites, θ_bar_arr[2,:], yerr=3.0*θθ_cov_arr[2,:], fmt="--o",fillstyle="none", label=L"k_s\ (day^{-1})")
     #semilogy(ites, θ_bar_arr[2,:], "--o", fillstyle="none", label=L"k_s")
     semilogy(ites, fill(θ_ref[2], N_ite+1), "--", color="gray")
     
-    errorbar(ites, θ_bar_arr[3,:], yerr=3.0*θθ_cov_arr[3,:], fmt="--o",fillstyle="none", label=L"\Delta T_y")
+    errorbar(ites, θ_bar_arr[3,:], yerr=3.0*θθ_cov_arr[3,:], fmt="--o",fillstyle="none", label=L"\Delta T_y\ (K)")
     #semilogy(ites, θ_bar_arr[3,:], "--o", fillstyle="none", label=L"ΔT_y")
     semilogy(ites, fill(θ_ref[3], N_ite+1), "--", color="gray")
     
-    errorbar(ites, θ_bar_arr[4,:], yerr=3.0*θθ_cov_arr[4,:], fmt="--o",fillstyle="none", label=L"\Delta \theta_y")
+    errorbar(ites, θ_bar_arr[4,:], yerr=3.0*θθ_cov_arr[4,:], fmt="--o",fillstyle="none", label=L"\Delta \theta_y\ (K)")
     #semilogy(ites, θ_bar_arr[4,:], "--o", fillstyle="none", label=L"Δθ_z")
     semilogy(ites, fill(θ_ref[4], N_ite+1), "--", color="gray")
     
     
     xlabel("Iterations")
-    legend()
-    grid("on")
+    legend(bbox_to_anchor=(0.95, 0.8))
+    # grid("on")
     tight_layout()
     savefig(file_name)
     close("all")
@@ -108,7 +110,7 @@ function contourf()
     
     
 end
-contourf()
+# contourf()
 
 θ_ref = [1.0/40.0; 1.0/4.0; 60.0; 10.0]
 visualize(rukiobj, θ_ref, "GCM_Obj.pdf") 
