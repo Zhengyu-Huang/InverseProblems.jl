@@ -283,9 +283,19 @@ N_θ = 4
 θθ0_cov = Array(Diagonal(fill(1.0, N_θ))) 
 
 #todo 
-N_iter = 30
+N_iter = 10
 # kiobj = Multiscale_Test(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter)
 
 @load "exkiobj.dat" kiobj
+
+# update t_cov
+
+data_misfit = kiobj.g_bar[end] - t_mean
+data_misfit .= maximum(abs.(data_misfit))
+t_cov = Array(Diagonal(data_misfit.^2))
+
+kiobj = Multiscale_Test(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter)
+
+
 tid = 100
 prediction(phys_params, kiobj, kiobj.θ_bar[end], kiobj.θθ_cov[end], porder, tid, force_scale, fiber_size)
