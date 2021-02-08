@@ -247,7 +247,7 @@ function meshgrid(x::Array{Float64,1}, y::Array{Float64,1})
 
 end
 
-function BoundaryCondition(tid, nx, ny, porder=2, Lx = 1.0, Ly = 0.5; force_scale=5.0)
+function BoundaryCondition(tid, T, nx, ny, porder=2, Lx = 1.0, Ly = 0.5; force_scale=5.0)
     nnodes, neles = (nx*porder + 1)*(ny*porder + 1), nx*ny
     
     x = Array(LinRange(0.0, Lx, nx*porder + 1))
@@ -389,8 +389,8 @@ function BoundaryCondition(tid, nx, ny, porder=2, Lx = 1.0, Ly = 0.5; force_scal
 end
 
 function Get_Obs(domain, nx::Int64, ny::Int64, porder::Int64)
-    # observation is the top right and top left
-    p_ids = [(nx*porder+1)*(ny*porder+1); (nx*porder+1)*(ny*porder) + 1]
+    # observation is the top right and middle right
+    p_ids = [(nx*porder+1)*(ny*porder+1); (nx*porder+1)*(div(ny*porder, 2)+1)]
     n_frame = length(domain.history["state"])
     obs = zeros(Float64, n_frame-1, 2*length(p_ids))
     for it = 2:n_frame
@@ -403,20 +403,23 @@ function Get_Obs(domain, nx::Int64, ny::Int64, porder::Int64)
     return obs
 end
 
-function Run_Homogenized(θ::Array{Float64,1}, θ_scale::Array{Float64,1}, ρ::Float64, tid::Int64, force_scale::Float64; 
+function Run_Homogenized(θ::Array{Float64,1}, θ_func::Function, matlaw::String, ρ::Float64, tid::Int64, force_scale::Float64; 
     T::Float64 = 200.0, NT::Int64 = 200, nx::Int64 = 10, ny::Int64 = 5, porder::Int64 = 2)
 
-    # "E"=> 1e+6, "nu"=> 0.2,"sigmaY"=>0.97e+4, "K"=>1e+5
-    E, nu, sigmaY, K = θ .* θ_scale
     
-    
-    prop = Dict("name"=> "PlaneStressPlasticity","rho"=> ρ, "E"=> E, "nu"=> nu, "sigmaY"=>sigmaY, "K"=>K)
+    if matlaw == "PlaneStressPlasticity"
+        # "E"=> 1e+6, "nu"=> 0.2,"sigmaY"=>0.97e+4, "K"=>1e+5
+        E, nu, sigmaY, K = θ_func(θ)
+        prop = Dict("name"=> matlaw, "rho"=> ρ, "E"=> E, "nu" => nu, "sigmaY"=>sigmaY, "K"=>K)
+    else
+        error("unrecognized matlaw :", matlaw)
+    end
     
     
     # nx_f, ny_f = 12, 4
     # homogenized computaional domain
     # number of elements in each directions
-    nodes, EBC, g, gt, FBC, fext, ft = BoundaryCondition(tid, nx, ny, porder; force_scale=force_scale)
+    nodes, EBC, g, gt, FBC, fext, ft = BoundaryCondition(tid, T,  nx, ny, porder; force_scale=force_scale)
     ndofs=2
     elements = []
     for j = 1:ny

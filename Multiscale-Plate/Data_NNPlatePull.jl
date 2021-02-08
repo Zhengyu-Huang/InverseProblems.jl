@@ -46,8 +46,7 @@ ele_type = generateEleType(nxc, nyc, fiber_size, fiber_fraction, fiber_distribut
 @show "fiber fraction: ",  sum(ele_type)/(nx*ny)
 
 
-
-nodes, EBC, g, gt, FBC, fext, ft, npoints, node_to_point = BoundaryCondition(tid, nx, ny, porder; force_scale=force_scale)
+nodes, EBC, g, gt, FBC, fext, ft, npoints, node_to_point = BoundaryCondition(tid, T, nx, ny, porder; force_scale=force_scale)
 elements = []
 for j = 1:ny
     for i = 1:nx 
@@ -111,7 +110,7 @@ if !isdir("$(@__DIR__)/Figs/order$porder")
 end
 
 write_data("$(@__DIR__)/Data/order$porder/$(tid)_$(force_scale)_$(fiber_size).dat", domain)
-@save "Data/order$porder/domain$(tid)_$(force_scale)_$(fiber_size).jld2" domain
+# @save "Data/order$porder/domain$(tid)_$(force_scale)_$(fiber_size).jld2" domain
 
 obs = Get_Obs(domain, nx, ny, porder)
 @save "Data/order$porder/obs$(tid)_$(force_scale)_$(fiber_size).jld2" obs

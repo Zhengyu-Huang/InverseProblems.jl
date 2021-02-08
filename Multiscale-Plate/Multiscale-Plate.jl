@@ -1,8 +1,9 @@
 using NNFEM
 using JLD2
 using Statistics
+using Random
 using LinearAlgebra
-
+using Distributions
 
 
 
@@ -12,7 +13,11 @@ include("../RExKI.jl")
 
 mutable struct Params
     θ_name::Array{String, 1}
-    θ_scale::Array{Float64,1}
+    θ_func::Function
+    dθ_func::Function
+    θ_func_inv::Function
+    matlaw::String
+
     ρ::Float64
     tids::Array{Int64,1}
     force_scale::Float64
@@ -26,10 +31,20 @@ mutable struct Params
     n_data::Int64
 end
 
-function Params(tids::Array{Int64,1}, n_obs_point::Int64 = 2, n_obs_time::Int64 = 200, T::Float64 = 200.0, NT::Int64 = 200)
-    θ_name = ["E", "nu", "sigmaY", "K"] 
-    θ_scale = [1.0e+5, 0.02, 1.0e+3, 1.0e+4]
-    
+function Params(matlaw::String, tids::Array{Int64,1}, n_obs_point::Int64 = 2, n_obs_time::Int64 = 200, T::Float64 = 200.0, NT::Int64 = 200)
+    if matlaw == "PlaneStressPlasticity"
+        θ_name = ["E",   "nu",  "sigmaY", "K"] 
+        θ_func = (θ)-> [θ[1]*1.0e+5, 1/(2+3exp(θ[2])),  θ[3]*1.0e+3, θ[4]*1.0e+4]
+        θ_func_inv = (θ)-> [θ[1]/1.0e+5, log((1 - 2θ[2])/(3θ[2])),  θ[3]/1.0e+3, θ[4]/1.0e+4]
+        dθ_func = (θ)-> [1.0e+5        0                             0            0;
+                         0      -3exp(θ[2])/(2+3exp(θ[2]))^2         0            0;
+                         0             0                           1.0e+3         0;
+                         0             0                              0         1.0e+4]
+
+    else
+        error("unrecognized matlaw: ", matlaw)
+    end
+
     fiber_fraction = 0.25
     ρ = 4.5*(1 - fiber_fraction) + 3.2*fiber_fraction
     
@@ -37,17 +52,17 @@ function Params(tids::Array{Int64,1}, n_obs_point::Int64 = 2, n_obs_time::Int64 
     n_tids = length(tids)
     n_data = 2n_obs_point * n_obs_time * n_tids
     
-    return Params(θ_name, θ_scale, ρ, tids, force_scale, NT, T,  n_tids, n_obs_point, n_obs_point * n_obs_time, n_data)
+    return Params(θ_name, θ_func, dθ_func, θ_func_inv, matlaw, ρ, tids, force_scale, NT, T,  n_tids, n_obs_point, n_obs_point * n_obs_time, n_data)
 end
 
 function Foward(phys_params::Params, θ::Array{Float64,1})
-    θ_scale, ρ, tids, force_scale, n_data = phys_params.θ_scale, phys_params.ρ, phys_params.tids, phys_params.force_scale, phys_params.n_data
-    
+    θ_func, ρ, tids, force_scale, n_data = phys_params.θ_func, phys_params.ρ, phys_params.tids, phys_params.force_scale, phys_params.n_data
+    matlaw = phys_params.matlaw
     n_obs = div(n_data, length(tids))
     obs = zeros(Float64, n_data)
     
     for tid = 1:length(tids)
-        _, data = Run_Homogenized(θ, θ_scale, ρ, tids[tid], force_scale)
+        _, data = Run_Homogenized(θ, θ_func, matlaw, ρ, tids[tid], force_scale)
         obs[(tid-1)*n_obs+1:tid*n_obs] = data[:]
     end
     
@@ -91,12 +106,55 @@ function ExKI(phys_params::Params,
     α_reg)
     
     update_cov = 1
+    PLOT = true
     for i in 1:N_iter
-        
+        @info size(exkiobj.g_t),  phys_params.NT, 4
         update_ensemble!(exkiobj, ens_func) 
+        @info "θ: ", exkiobj.θ_bar[end]
+        @info "θθ_cov: ", exkiobj.θθ_cov[end]
+        @info "norm(θ) :", norm(exkiobj.θ_bar[end]), "norm(θθ_cov) :", norm(exkiobj.θθ_cov[end]) 
+        
+        @info "F error of data_mismatch :", (exkiobj.g_bar[end] - exkiobj.g_t)'*(exkiobj.obs_cov\(exkiobj.g_bar[end] - exkiobj.g_t))
+        
         
         if (update_cov > 0) && (i%update_cov == 0) 
             exkiobj.θθ_cov[1] = copy(exkiobj.θθ_cov[end])
+        end
+
+
+        if PLOT 
+
+            T, NT, n_tids, matlaw = phys_params.T, phys_params.NT, phys_params.n_tids, phys_params.matlaw
+         
+            n_obs_time = NT
+            n_obs_point = 2 # top left and right corners
+            obs_ref = reshape(exkiobj.g_t,    n_obs_time ,  2n_obs_point, n_tids)
+            obs = reshape(exkiobj.g_bar[end], n_obs_time ,  2n_obs_point, n_tids)
+    
+            fig_disp, ax_disp = PyPlot.subplots(nrows=2, ncols = 4,  sharex=true, sharey=true, figsize=(24,12))
+            ts = LinRange(0, T, NT+1)
+    
+
+            for disp_id = 1:2
+                # first tid first point
+                ax_disp[disp_id,1].plot(ts[2:end], obs_ref[end-NT+1:end,disp_id, 1], "-o", label = "Ref")
+                ax_disp[disp_id,1].plot(ts[2:end], obs[ end-NT+1:end,   disp_id, 1], label = matlaw)
+                # first tid second point
+                ax_disp[disp_id,2].plot(ts[2:end], obs_ref[end-NT+1:end,disp_id+2, 1], "-o", label = "Ref")
+                ax_disp[disp_id,2].plot(ts[2:end], obs[end-NT+1:end,    disp_id+2, 1], label = matlaw)
+
+                # second tid first point
+                ax_disp[disp_id,3].plot(ts[2:end], obs_ref[end-NT+1:end,disp_id, 2], "-o", label = "Ref")
+                ax_disp[disp_id,3].plot(ts[2:end], obs[ end-NT+1:end,   disp_id, 2], label = matlaw)
+                 # second tid second point
+                ax_disp[disp_id,4].plot(ts[2:end], obs_ref[end-NT+1:end,disp_id+2, 2], "-o", label = "Ref")
+                ax_disp[disp_id,4].plot(ts[2:end], obs[end-NT+1:end,    disp_id+2, 2], label = matlaw)
+
+            end
+            
+            fig_disp.tight_layout()
+            fig_disp.savefig("Plate_disp_test"*string(i)*".png")
+            close(fig_disp)
         end
         
     end
@@ -149,18 +207,19 @@ function Multiscale_Test(phys_params::Params,
     θ_bar_arr = hcat(kiobj.θ_bar...)
     θθ_std = zeros(Float64, (N_θ, N_iter+1))
     for i = 1:N_iter+1
+        θ_bar_arr[:,i] = phys_params.θ_func(θ_bar_arr[:,i])
+        θθ_cov = phys_params.dθ_func(θ_bar_arr[:,i]) * kiobj.θθ_cov[i] * phys_params.dθ_func(θ_bar_arr[:,i])' 
         for j = 1:N_θ
-            θθ_std[j, i] = sqrt(kiobj.θθ_cov[i][j,j])
+            θθ_std[j, i] = sqrt(θθ_cov[j,j])
         end
     end
-    θ_scale = phys_params.θ_scale
-    θ_bar_arr = θ_bar_arr.*θ_scale
-    θθ_std = θθ_std.*θ_scale
+
     
-    errorbar(ites, θ_bar_arr[1,ites], yerr=3.0*θθ_std[1,ites], fmt="--o",fillstyle="none", label="E")
-    errorbar(ites, θ_bar_arr[2,ites], yerr=3.0*θθ_std[2,ites], fmt="--o",fillstyle="none", label="ν")
+
+    errorbar(ites, θ_bar_arr[1,ites], yerr=3.0*θθ_std[1,ites], fmt="--o",fillstyle="none", label=L"E")
+    errorbar(ites, θ_bar_arr[2,ites], yerr=3.0*θθ_std[2,ites], fmt="--o",fillstyle="none", label=L"ν") 
     errorbar(ites, θ_bar_arr[3,ites], yerr=3.0*θθ_std[3,ites], fmt="--o",fillstyle="none", label=L"σ_Y")
-    errorbar(ites, θ_bar_arr[4,ites], yerr=3.0*θθ_std[4,ites], fmt="--o",fillstyle="none", label="K")
+    errorbar(ites, θ_bar_arr[4,ites], yerr=3.0*θθ_std[4,ites], fmt="--o",fillstyle="none", label=L"K")
     semilogy()
     xlabel("Iterations")
     legend()
@@ -171,6 +230,67 @@ function Multiscale_Test(phys_params::Params,
     
     return kiobj
 end
+
+# function driver_test()
+#     tids = [100; 102]
+#     porder = 2
+#     fiber_size = 5
+#     force_scale = 5.0
+#     T = 200.0
+#     NT = 200
+#     n_obs_time = NT
+#     n_obs_point = 2 # top left and right corners
+#     phys_params = Params(tids, n_obs_point, n_obs_time, T, NT)
+    
+#     θ_func, matlaw, ρ, force_scale, n_tids, n_obs = phys_params.θ_func, phys_params.matlaw, phys_params.ρ, phys_params.force_scale, phys_params.n_tids, phys_params.n_obs
+    
+#     E, ν = 1e+6, 0.2
+#     tid = tids[1]
+#     obs = Dict()
+#     @info "Run PlaneStressPlasticity"
+#     matlaw = "PlaneStressPlasticity"
+#     θ_scale = [1.0e+5 ,  0.02 ,  1.0e+3 , 1.0e+4]
+#     θ = [E ;  ν ; 0.97e+4 ; 1e+5] ./ θ_scale
+#     obs[matlaw] = Run_Homogenized(θ, θ_scale, matlaw, ρ, tid, force_scale)[2][:]
+    
+#     @info "Run PlanePlasticity"
+#     matlaw = "PlanePlasticity"
+#     θ_scale = [1.0e+5,  1.0e+5, 1.0e+5, 1.0e+5,  1.0e+3, 1.0e+4]
+#     H11 = E/(1. -ν*ν)
+#     H12 = ν*E/(1. -ν*ν)
+#     H22 = H11
+#     H33 = E/(2.0*(1.0+ν))
+
+#     θ = [H11; H12; H22; H33; 0.97e+4; 1e+5]  ./ θ_scale
+#     obs[matlaw] = Run_Homogenized(θ, θ_scale, matlaw, ρ, tid, force_scale)[2][:]
+    
+#     fig_disp, ax_disp = PyPlot.subplots(ncols = 2, nrows=1, sharex=false, sharey=false, figsize=(12,6))
+#     ts = LinRange(0, T, NT+1)
+    
+#     for matlaw in ("PlaneStressPlasticity", "PlanePlasticity")
+        
+#         obs_mean = reshape(obs[matlaw], n_obs_time , 2n_obs_point)
+        
+#         ax_disp[1].plot(ts[2:end], obs_mean[end-NT+1:end,1], label = matlaw)
+        
+#         ax_disp[2].plot(ts[2:end], obs_mean[end-NT+1:end,2], label = matlaw)
+        
+#         ax_disp[1].set_xlabel("Time")
+#         ax_disp[1].set_ylabel("x-Disp")
+#         ax_disp[1].grid("on")
+#         ax_disp[1].legend()
+        
+#         ax_disp[2].set_xlabel("Time")
+#         ax_disp[2].set_ylabel("y-Disp")
+#         ax_disp[2].grid("on")
+#         ax_disp[2].legend()
+        
+#         fig_disp.tight_layout()
+#         fig_disp.savefig("Plate_disp_test.png")
+#         close(fig_disp)
+#     end
+# end
+
 function prediction(phys_params, kiobj, θ_mean, θθ_cov, porder::Int64=2, tid::Int64=300, force_scale::Float64=0.5, fiber_size::Int64=5)
     # test on 300
     
@@ -178,7 +298,7 @@ function prediction(phys_params, kiobj, θ_mean, θθ_cov, porder::Int64=2, tid:
     obs_ref = copy(obs)
     
     
-    θ_scale, ρ, force_scale, n_tids, n_obs = phys_params.θ_scale, phys_params.ρ, phys_params.force_scale, phys_params.n_tids, phys_params.n_obs
+    θ_scale, matlaw, ρ, force_scale, n_tids, n_obs = phys_params.θ_func, phys_params.matlaw, phys_params.ρ, phys_params.force_scale, phys_params.n_tids, phys_params.n_obs
     
     # only visulize the first point
     NT, T = phys_params.NT, phys_params.T
@@ -201,14 +321,16 @@ function prediction(phys_params, kiobj, θ_mean, θθ_cov, porder::Int64=2, tid:
 
     obs = zeros(Float64, N_ens, n_obs_time * 2n_obs_point)
 
-    for i = 1:N_ens
+    Threads.@threads for i = 1:N_ens
         
 
         θ = θ_p[i, :]
 
         @info "θ is ", θ
+
         
-        obs[i, :] = Run_Homogenized(θ, θ_scale, ρ, tid, force_scale)[2][:]
+        
+        obs[i, :] = Run_Homogenized(θ, phys_params.θ_func, matlaw, ρ, tid, force_scale)[2][:]
     end
 
     obs_mean = obs[1, :]
@@ -246,6 +368,9 @@ function prediction(phys_params, kiobj, θ_mean, θθ_cov, porder::Int64=2, tid:
     close(fig_disp)
 end
 
+# driver_test()
+
+# error("stop")
 
 tids = [100; 102]
 porder = 2
@@ -255,7 +380,6 @@ T = 200.0
 NT = 200
 n_obs_time = NT
 n_obs_point = 2 # top left and right corners
-phys_params = Params(tids, n_obs_point, n_obs_time, T, NT)
 
 
 @load "Data/order$porder/obs$(tids[1])_$(force_scale)_$(fiber_size).jld2" obs 
@@ -266,36 +390,58 @@ obs_102 = obs[end-NT+1:end, :][:]
 
 t_mean_noiseless = [obs_100; obs_102]
 
-noise_level = 0.05
 
-t_cov = Array(Diagonal(noise_level^2 * t_mean_noiseless.^2))
+
+# first choice of the observation covariance
+t_cov = Array(Diagonal(fill(0.0005, length(t_mean_noiseless))))
+
+# add 5 percents observation noise
 Random.seed!(123); 
-
+noise_level = 0.05
 t_mean = copy(t_mean_noiseless)
 for i = 1:length(t_mean)
-    noise = noise_level*t_mean[i] * rand(Normal(0, 1))
+    noise = noise_level*t_mean[i] * (rand(Uniform(0, 2))-1) # rand(Normal(0, 1))
     t_mean[i] += noise
 end
 
-α_reg = 1.0
-N_θ = 4
-θ0_bar = [1e+6; 0.2; 0.97e+4; 1e+5] ./ phys_params.θ_scale
-θθ0_cov = Array(Diagonal(fill(1.0, N_θ))) 
 
-#todo 
-N_iter = 10
+
+α_reg = 1.0
+N_iter = 20
+matlaw = "PlaneStressPlasticity"
+
+if matlaw == "PlaneStressPlasticity"
+
+    phys_params = Params("PlaneStressPlasticity", tids, n_obs_point, n_obs_time, T, NT)
+    N_θ = 4
+    E, ν = 1e+6, 0.2
+    θ0_bar =  phys_params.θ_func_inv([E; ν; 0.97e+4; 1e+5])
+    θθ0_cov = Array(Diagonal(fill(1.0, N_θ))) 
+    kiobj = Multiscale_Test(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter)
+
+else
+    error("unrecognized matlaw: ", matlaw)
+end
+
+
+# @load "exkiobj.dat" kiobj
+# update t_cov
+data_misfit = (kiobj.g_bar[end] - t_mean)
+n_dm = length(kiobj.g_bar[end] - t_mean)
+@info "Mean error : ", sum(data_misfit)/n_dm, " Cov error : ", sum(data_misfit.^2)/n_dm
+
+
+data_misfit = (kiobj.g_bar[end] - t_mean_noiseless)
+n_dm = length(kiobj.g_bar[end] - t_mean_noiseless)
+@info "Noiseless, Mean error : ", sum(data_misfit)/n_dm, " Cov error : ", sum(data_misfit.^2)/n_dm
+
+
+# @info length(data_misfit)
+
+# t_cov = length(data_misfit)*Array(Diagonal(data_misfit.^2))
+
 # kiobj = Multiscale_Test(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter)
 
-@load "exkiobj.dat" kiobj
 
-# update t_cov
-
-data_misfit = kiobj.g_bar[end] - t_mean
-data_misfit .= maximum(abs.(data_misfit))
-t_cov = Array(Diagonal(data_misfit.^2))
-
-kiobj = Multiscale_Test(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter)
-
-
-tid = 100
+tid = 300
 prediction(phys_params, kiobj, kiobj.θ_bar[end], kiobj.θθ_cov[end], porder, tid, force_scale, fiber_size)
