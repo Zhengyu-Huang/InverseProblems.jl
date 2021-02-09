@@ -34,12 +34,18 @@ end
 function Params(matlaw::String, tids::Array{Int64,1}, n_obs_point::Int64 = 2, n_obs_time::Int64 = 200, T::Float64 = 200.0, NT::Int64 = 200)
     if matlaw == "PlaneStressPlasticity"
         θ_name = ["E",   "nu",  "sigmaY", "K"] 
-        θ_func = (θ)-> [θ[1]*1.0e+5, 1/(2+3exp(θ[2])),  θ[3]*1.0e+3, θ[4]*1.0e+4]
-        θ_func_inv = (θ)-> [θ[1]/1.0e+5, log((1 - 2θ[2])/(3θ[2])),  θ[3]/1.0e+3, θ[4]/1.0e+4]
-        dθ_func = (θ)-> [1.0e+5        0                             0            0;
-                         0      -3exp(θ[2])/(2+3exp(θ[2]))^2         0            0;
-                         0             0                           1.0e+3         0;
-                         0             0                              0         1.0e+4]
+        # θ_func = (θ)-> [θ[1]*1.0e+5, 1/(2+3exp(θ[2])),  θ[3]*1.0e+3, θ[4]*1.0e+4]
+        # θ_func_inv = (θ)-> [θ[1]/1.0e+5, log((1 - 2θ[2])/(3θ[2])),  θ[3]/1.0e+3, θ[4]/1.0e+4]
+        # dθ_func = (θ)-> [1.0e+5        0                             0            0;
+        #                  0      -3exp(θ[2])/(2+3exp(θ[2]))^2         0            0;
+        #                  0             0                           1.0e+3         0;
+        #                  0             0                              0         1.0e+4]
+        θ_func = (θ)-> [θ[1]*1.0e+5, θ[2]*0.02,  θ[3]*1.0e+3, θ[4]*1.0e+4]
+        θ_func_inv = (θ)-> [θ[1]/1.0e+5, θ[2]/0.02,  θ[3]/1.0e+3, θ[4]/1.0e+4]
+        dθ_func = (θ)-> [1.0e+5        0               0            0;
+                            0         0.02             0            0;
+                            0             0         1.0e+3          0;
+                            0             0            0         1.0e+4]
 
     else
         error("unrecognized matlaw: ", matlaw)
@@ -166,7 +172,7 @@ function Multiscale_Test(phys_params::Params,
     t_mean::Array{Float64,1}, t_cov::Array{Float64,2}, 
     θ0_bar::Array{Float64,1}, θθ0_cov::Array{Float64,2}, 
     α_reg::Float64, 
-    N_iter::Int64,
+    N_iter::Int64;
     ki_file = nothing)
     
     if ki_file === nothing
@@ -291,7 +297,7 @@ end
 #     end
 # end
 
-function prediction(phys_params, kiobj, θ_mean, θθ_cov, porder::Int64=2, tid::Int64=300, force_scale::Float64=0.5, fiber_size::Int64=5)
+function prediction(phys_params, kiobj, θ_mean, θθ_cov, obs_noise_level, porder::Int64=2, tid::Int64=300, force_scale::Float64=0.5, fiber_size::Int64=5)
     # test on 300
     
     @load "Data/order$porder/obs$(tid)_$(force_scale)_$(fiber_size).jld2" obs
@@ -322,20 +328,16 @@ function prediction(phys_params, kiobj, θ_mean, θθ_cov, porder::Int64=2, tid:
     obs = zeros(Float64, N_ens, n_obs_time * 2n_obs_point)
 
     Threads.@threads for i = 1:N_ens
-        
-
         θ = θ_p[i, :]
 
         @info "θ is ", θ
-
-        
         
         obs[i, :] = Run_Homogenized(θ, phys_params.θ_func, matlaw, ρ, tid, force_scale)[2][:]
     end
 
     obs_mean = obs[1, :]
 
-    obs_cov  = construct_cov(kiobj,  obs, obs_mean)
+    obs_cov  = construct_cov(kiobj,  obs, obs_mean)  + Array(Diagonal( obs_noise_level^2 * obs_mean.^2)) 
     obs_std = sqrt.(diag(obs_cov))
 
     obs_mean = reshape(obs_mean, n_obs_time , 2n_obs_point)
@@ -364,7 +366,7 @@ function prediction(phys_params, kiobj, θ_mean, θθ_cov, porder::Int64=2, tid:
     ax_disp[2].legend()
     
     fig_disp.tight_layout()
-    fig_disp.savefig("Plate_disp.png")
+    fig_disp.savefig("Plate_disp-$(tid).png")
     close(fig_disp)
 end
 
@@ -372,7 +374,7 @@ end
 
 # error("stop")
 
-tids = [100; 102]
+tids = [200; 202]
 porder = 2
 fiber_size = 5
 force_scale = 5.0
@@ -380,27 +382,26 @@ T = 200.0
 NT = 200
 n_obs_time = NT
 n_obs_point = 2 # top left and right corners
+obs_noise_level = 0.05
+t_mean_noiseless = []
+for i = 1:length(tids)
+    @load "Data/order$porder/obs$(tids[i])_$(force_scale)_$(fiber_size).jld2" obs 
+    obs = obs[end-NT+1:end, :][:]
+    push!(t_mean_noiseless, obs)
+end
+
+t_mean_noiseless = vcat(t_mean_noiseless...)
 
 
-@load "Data/order$porder/obs$(tids[1])_$(force_scale)_$(fiber_size).jld2" obs 
-obs_100 = obs[end-NT+1:end, :][:]
 
-@load "Data/order$porder/obs$(tids[2])_$(force_scale)_$(fiber_size).jld2" obs 
-obs_102 = obs[end-NT+1:end, :][:]
-
-t_mean_noiseless = [obs_100; obs_102]
-
-
-
-# first choice of the observation covariance
-t_cov = Array(Diagonal(fill(0.0005, length(t_mean_noiseless))))
+# first choice of the observation covariance, only observation error 
+t_cov = Array(Diagonal(obs_noise_level^2 * t_mean_noiseless.^2))
 
 # add 5 percents observation noise
 Random.seed!(123); 
-noise_level = 0.05
 t_mean = copy(t_mean_noiseless)
 for i = 1:length(t_mean)
-    noise = noise_level*t_mean[i] * (rand(Uniform(0, 2))-1) # rand(Normal(0, 1))
+    noise = obs_noise_level*t_mean[i] * (rand(Uniform(0, 2))-1) # rand(Normal(0, 1))
     t_mean[i] += noise
 end
 
@@ -429,19 +430,16 @@ end
 data_misfit = (kiobj.g_bar[end] - t_mean)
 n_dm = length(kiobj.g_bar[end] - t_mean)
 @info "Mean error : ", sum(data_misfit)/n_dm, " Cov error : ", sum(data_misfit.^2)/n_dm
+@info "Mean max : ", maximum(abs.(data_misfit)), " Cov max : ", maximum(data_misfit.^2)
+
+ 
+# estimation of the constant model error, and re-train
+t_cov = Array(Diagonal( obs_noise_level^2 * t_mean_noiseless.^2  .+  sum(data_misfit.^2)/n_dm))
+kiobj = Multiscale_Test(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter)
 
 
-data_misfit = (kiobj.g_bar[end] - t_mean_noiseless)
-n_dm = length(kiobj.g_bar[end] - t_mean_noiseless)
-@info "Noiseless, Mean error : ", sum(data_misfit)/n_dm, " Cov error : ", sum(data_misfit.^2)/n_dm
-
-
-# @info length(data_misfit)
-
-# t_cov = length(data_misfit)*Array(Diagonal(data_misfit.^2))
-
-# kiobj = Multiscale_Test(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter)
-
+tid = 203
+prediction(phys_params, kiobj, kiobj.θ_bar[end], kiobj.θθ_cov[end], obs_noise_level, porder, tid, force_scale, fiber_size)
 
 tid = 300
-prediction(phys_params, kiobj, kiobj.θ_bar[end], kiobj.θθ_cov[end], porder, tid, force_scale, fiber_size)
+prediction(phys_params, kiobj, kiobj.θ_bar[end], kiobj.θθ_cov[end], obs_noise_level, porder, tid, force_scale, fiber_size)

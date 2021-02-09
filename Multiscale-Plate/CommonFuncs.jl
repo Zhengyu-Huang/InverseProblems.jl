@@ -388,7 +388,7 @@ function BoundaryCondition(tid, T, nx, ny, porder=2, Lx = 1.0, Ly = 0.5; force_s
     return nodes, EBC, g, gt, FBC, fext, ft, npoints, node_to_point
 end
 
-function Get_Obs(domain, nx::Int64, ny::Int64, porder::Int64)
+function Get_Obs(domain::Domain, nx::Int64, ny::Int64, porder::Int64)
     # observation is the top right and middle right
     p_ids = [(nx*porder+1)*(ny*porder+1); (nx*porder+1)*(div(ny*porder, 2)+1)]
     n_frame = length(domain.history["state"])
@@ -397,6 +397,22 @@ function Get_Obs(domain, nx::Int64, ny::Int64, porder::Int64)
         for ip = 1:length(p_ids)
             obs[it-1, 2*ip-1] = domain.history["state"][it][p_ids[ip]]  # x displacement
             obs[it-1, 2*ip]   = domain.history["state"][it][p_ids[ip] + (nx*porder+1)*(ny*porder+1)]  # y displacement
+        end
+    end
+
+    return obs
+end
+
+
+function Get_Obs(state::Array, nx::Int64, ny::Int64, porder::Int64)
+    # observation is the top right and middle right
+    p_ids = [(nx*porder+1)*(ny*porder+1); (nx*porder+1)*(div(ny*porder, 2)+1)]
+    n_frame = length(state)
+    obs = zeros(Float64, n_frame-1, 2*length(p_ids))
+    for it = 2:n_frame
+        for ip = 1:length(p_ids)
+            obs[it-1, 2*ip-1] = state[it][p_ids[ip]]  # x displacement
+            obs[it-1, 2*ip]   = state[it][p_ids[ip] + (nx*porder+1)*(ny*porder+1)]  # y displacement
         end
     end
 
