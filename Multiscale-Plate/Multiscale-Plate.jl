@@ -383,7 +383,7 @@ end
 
 # error("stop")
 
-tids = [200; 202]
+tids = [100; 102]
 porder = 2
 fiber_size = 5
 force_scale = 5.0
@@ -428,7 +428,8 @@ if matlaw == "PlaneStressPlasticity"
     θ0_bar =  phys_params.θ_func_inv([E; ν; 0.97e+4; 1e+5])
     θθ0_cov = Array(Diagonal(fill(1.0, N_θ))) 
     # todo remove ki_file = "exkData/exkiobj.dat"
-    kiobj = Multiscale_Test(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter; ki_file = "exkData/exkiobj.dat")
+    # kiobj = Multiscale_Test(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter; ki_file = "exkData/exkiobj.dat")
+    kiobj = Multiscale_Test(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter)
 
 else
     error("unrecognized matlaw: ", matlaw)
@@ -446,7 +447,7 @@ new_cov =  sum(data_misfit.^2)/n_dm    # maximum(data_misfit.^2)
 # estimation of the constant model error, and re-train
 # t_cov = Array(Diagonal( obs_noise_level^2 * t_mean_noiseless.^2  .+  sum(data_misfit.^2)/n_dm))
 t_cov = Array(Diagonal(fill(new_cov, length(data_misfit))))
-
+θ0_bar, θθ0_cov = kiobj.θ_bar[end], kiobj.θθ_cov[end]
 # todo use the commented line
 kiobj = Multiscale_Test(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter)
 kiobj = Multiscale_Test_Plot(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter; ki_file = "exkiobj.dat")
