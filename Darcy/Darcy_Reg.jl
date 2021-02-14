@@ -153,7 +153,6 @@ function Compare_32()
         ax_θ[n].plot(θ_ind , ki_θ_bar,"-*", color="red", fillstyle="none")
         ax_θ[n].plot(θ_ind , ki_θ_bar + 3.0*ki_θθ_std, color="red")
         ax_θ[n].plot(θ_ind , ki_θ_bar - 3.0*ki_θθ_std, color="red")
-        ax_θ[n].grid(true)
         ax_θ[n].set_ylabel("θ")
 
 
