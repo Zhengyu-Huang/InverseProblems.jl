@@ -34,18 +34,18 @@ end
 function Params(matlaw::String, tids::Array{Int64,1}, n_obs_point::Int64 = 2, n_obs_time::Int64 = 200, T::Float64 = 200.0, NT::Int64 = 200)
     if matlaw == "PlaneStressPlasticity"
         θ_name = ["E",   "nu",  "sigmaY", "K"] 
-        # θ_func = (θ)-> [θ[1]*1.0e+5, 1/(2+3exp(θ[2])),  θ[3]*1.0e+3, θ[4]*1.0e+4]
-        # θ_func_inv = (θ)-> [θ[1]/1.0e+5, log((1 - 2θ[2])/(3θ[2])),  θ[3]/1.0e+3, θ[4]/1.0e+4]
-        # dθ_func = (θ)-> [1.0e+5        0                             0            0;
-        #                  0      -3exp(θ[2])/(2+3exp(θ[2]))^2         0            0;
-        #                  0             0                           1.0e+3         0;
-        #                  0             0                              0         1.0e+4]
-        θ_func = (θ)-> [θ[1]*1.0e+5, θ[2]*0.02,  θ[3]*1.0e+3, θ[4]*1.0e+4]
-        θ_func_inv = (θ)-> [θ[1]/1.0e+5, θ[2]/0.02,  θ[3]/1.0e+3, θ[4]/1.0e+4]
-        dθ_func = (θ)-> [1.0e+5        0               0            0;
-                            0         0.02             0            0;
-                            0             0         1.0e+3          0;
-                            0             0            0         1.0e+4]
+        θ_func = (θ)-> [θ[1]*1.0e+5, 1/(2+3exp(θ[2])),  θ[3]*1.0e+3, θ[4]*1.0e+4]
+        θ_func_inv = (θ)-> [θ[1]/1.0e+5, log((1 - 2θ[2])/(3θ[2])),  θ[3]/1.0e+3, θ[4]/1.0e+4]
+        dθ_func = (θ)-> [1.0e+5        0                             0            0;
+                         0      -3exp(θ[2])/(2+3exp(θ[2]))^2         0            0;
+                         0             0                           1.0e+3         0;
+                         0             0                              0         1.0e+4]
+        # θ_func = (θ)-> [θ[1]*1.0e+5, θ[2]*0.02,  θ[3]*1.0e+3, θ[4]*1.0e+4]
+        # θ_func_inv = (θ)-> [θ[1]/1.0e+5, θ[2]/0.02,  θ[3]/1.0e+3, θ[4]/1.0e+4]
+        # dθ_func = (θ)-> [1.0e+5        0               0            0;
+        #                     0         0.02             0            0;
+        #                     0             0         1.0e+3          0;
+        #                     0             0            0         1.0e+4]
 
     else
         error("unrecognized matlaw: ", matlaw)
@@ -323,9 +323,6 @@ function prediction(phys_params, kiobj, θ_mean, θθ_cov, obs_noise_level, pord
     # optimization related plots
     fig_disp, ax_disp = PyPlot.subplots(ncols = 2, nrows=1, sharex=false, sharey=false, figsize=(12,6))
     
-    markevery = 20
-    ax_disp[1].plot(ts[2:end], obs_ref[end-NT+1:end,1], "--o", color="grey", fillstyle="none", label="Reference", markevery = markevery)
-    ax_disp[2].plot(ts[2:end], obs_ref[end-NT+1:end,2], "--o", color="grey", fillstyle="none", label="Reference", markevery = markevery)
     
 
     θθ_cov = (θθ_cov+θθ_cov')/2 
@@ -354,15 +351,27 @@ function prediction(phys_params, kiobj, θ_mean, θθ_cov, obs_noise_level, pord
     obs_mean = reshape(obs_mean, n_obs_time , 2n_obs_point)
     obs_std = reshape(obs_std, n_obs_time , 2n_obs_point)
 
+    markevery = 20
+    ax_disp[1].plot(ts[2:end], obs_ref[end-NT+1:end,1], "--o", color="grey", fillstyle="none", label="Reference", markevery = markevery)
     ax_disp[1].plot(ts[2:end], obs_mean[end-NT+1:end,1], "-r*", markevery = markevery, label="UKI")
     ax_disp[1].plot(ts[2:end], obs_mean[end-NT+1:end,1] + 3obs_std[end-NT+1:end,1], "--r")
     ax_disp[1].plot(ts[2:end], obs_mean[end-NT+1:end,1] - 3obs_std[end-NT+1:end,1], "--r")
 
+    ax_disp[1].plot(ts[2:end], obs_ref[end-NT+1:end, 3], "--o", color="grey", fillstyle="none", label="Reference", markevery = markevery)
+    ax_disp[1].plot(ts[2:end], obs_mean[end-NT+1:end,3], "-r*", markevery = markevery, label="UKI")
+    ax_disp[1].plot(ts[2:end], obs_mean[end-NT+1:end,3] + 3obs_std[end-NT+1:end,3], "--r")
+    ax_disp[1].plot(ts[2:end], obs_mean[end-NT+1:end,3] - 3obs_std[end-NT+1:end,3], "--r")
+
+    ax_disp[2].plot(ts[2:end], obs_ref[end-NT+1:end,2], "--o", color="grey", fillstyle="none", label="Reference", markevery = markevery)
     ax_disp[2].plot(ts[2:end], obs_mean[end-NT+1:end,2], "-r*", markevery = markevery, label="UKI")
     ax_disp[2].plot(ts[2:end], obs_mean[end-NT+1:end,2]+ 3obs_std[end-NT+1:end,2], "--r")
     ax_disp[2].plot(ts[2:end], obs_mean[end-NT+1:end,2]- 3obs_std[end-NT+1:end,2], "--r")
-    
 
+    ax_disp[2].plot(ts[2:end], obs_ref[end-NT+1:end, 4], "--o", color="grey", fillstyle="none", label="Reference", markevery = markevery)
+    ax_disp[2].plot(ts[2:end], obs_mean[end-NT+1:end,4], "-r*", markevery = markevery, label="UKI")
+    ax_disp[2].plot(ts[2:end], obs_mean[end-NT+1:end,4]+ 3obs_std[end-NT+1:end,4], "--r")
+    ax_disp[2].plot(ts[2:end], obs_mean[end-NT+1:end,4]- 3obs_std[end-NT+1:end,4], "--r")
+    
     
     ax_disp[1].set_xlabel("Time")
     ax_disp[1].set_ylabel("x-Disp")
@@ -405,7 +414,6 @@ t_mean_noiseless = vcat(t_mean_noiseless...)
 
 # first choice of the observation covariance, only observation error 
 t_cov = Array(Diagonal(obs_noise_level^2 * t_mean_noiseless.^2))
-
 # add 5 percents observation noise
 Random.seed!(123); 
 t_mean = copy(t_mean_noiseless)
@@ -413,6 +421,11 @@ for i = 1:length(t_mean)
     noise = obs_noise_level*t_mean[i] * (rand(Uniform(0, 2))-1) # rand(Normal(0, 1))
     t_mean[i] += noise
 end
+
+# todo misspecified observation covariance estimation
+# first choice of the observation covariance, only observation error 
+t_cov = Array(Diagonal(   fill(0.001^2, length(t_mean))   ))
+# add 5 percents observation noise
 
 
 
@@ -452,7 +465,7 @@ t_cov = Array(Diagonal(fill(new_cov, length(data_misfit))))
 kiobj = Multiscale_Test(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter)
 kiobj = Multiscale_Test_Plot(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter; ki_file = "exkiobj.dat")
 
-Ny_Nθ = n_dm/length(kiobj.θθ_cov[end])
+Ny_Nθ = n_dm/length(kiobj.θ_bar[end])
 tid = 203
 prediction(phys_params, kiobj, kiobj.θ_bar[end], kiobj.θθ_cov[end]*Ny_Nθ, obs_noise_level, porder, tid, force_scale, fiber_size)
 
