@@ -56,7 +56,7 @@ function Params(matlaw::String, tids::Array{Int64,1}, n_obs_point::Int64 = 2, n_
     
     force_scale = 5.0
     n_tids = length(tids)
-    n_data = 2n_obs_point * n_obs_time * n_tids
+    n_data = 2n_obs_point * div(n_obs_time, ΔNT) * n_tids
     
     return Params(θ_name, θ_func, dθ_func, θ_func_inv, matlaw, ρ, tids, force_scale, NT, T,  n_tids, n_obs_point, n_obs_point * n_obs_time, n_data)
 end
@@ -69,7 +69,7 @@ function Foward(phys_params::Params, θ::Array{Float64,1})
     
     for tid = 1:length(tids)
         _, data = Run_Homogenized(θ, θ_func, matlaw, ρ, tids[tid], force_scale)
-        obs[(tid-1)*n_obs+1:tid*n_obs] = data[:]
+        obs[(tid-1)*n_obs+1:tid*n_obs] = data[:][ΔNT:ΔNT:end]
     end
     
     return obs
@@ -138,10 +138,11 @@ function ExKI(phys_params::Params,
 end
 
 function ExKI_Plot(phys_params, exkiobj, i)
-    T, NT, n_tids, matlaw = phys_params.T, phys_params.NT, phys_params.n_tids, phys_params.matlaw
+    T, NT, n_tids, n_data, matlaw = phys_params.T, phys_params.NT, phys_params.n_tids, phys_params.n_data, phys_params.matlaw
          
-    n_obs_time = NT
     n_obs_point = 2 # top left and right corners
+    n_obs_time = div(n_data, 2n_obs_point*n_tids)
+    
     obs_ref = reshape(exkiobj.g_t,    n_obs_time ,  2n_obs_point, n_tids)
     obs_init = reshape(exkiobj.g_bar[1], n_obs_time ,  2n_obs_point, n_tids)
     obs = reshape(exkiobj.g_bar[i], n_obs_time ,  2n_obs_point, n_tids)
@@ -150,25 +151,26 @@ function ExKI_Plot(phys_params, exkiobj, i)
     ts = LinRange(0, T, NT+1)
     L_scale, t_scale = scales[1], scales[3]
 
+
     for disp_id = 1:2
         # first tid first point
-        ax_disp[disp_id,1].plot(ts[2:end]*t_scale, obs_ref[end-NT+1:end,disp_id, 1]*L_scale, "-o", color="grey",fillstyle="none", label = "Observation")
-        ax_disp[disp_id,1].plot(ts[2:end]*t_scale, obs_init[ end-NT+1:end,   disp_id, 1]*L_scale, "-g",label = "UKI (initial)", markevery=20)
-        ax_disp[disp_id,1].plot(ts[2:end]*t_scale, obs[ end-NT+1:end,   disp_id, 1]*L_scale, "-r*",label = "UKI", markevery=20)
+        ax_disp[disp_id,1].plot(ts[ΔNT+1:ΔNT:end]*t_scale, obs_ref[:,disp_id, 1]*L_scale, "-o", color="grey",fillstyle="none", label = "Observation")
+        ax_disp[disp_id,1].plot(ts[ΔNT+1:ΔNT:end]*t_scale, obs_init[:,   disp_id, 1]*L_scale, "-g",label = "UKI (initial)", markevery=20)
+        ax_disp[disp_id,1].plot(ts[ΔNT+1:ΔNT:end]*t_scale, obs[ :,   disp_id, 1]*L_scale, "-r*",label = "UKI", markevery=20)
         ax_disp[disp_id,1].set
         # first tid second point
-        ax_disp[disp_id,2].plot(ts[2:end]*t_scale, obs_ref[end-NT+1:end,disp_id+2, 1]*L_scale, "-o", color="grey",fillstyle="none", label = "Observation")
-        ax_disp[disp_id,2].plot(ts[2:end]*t_scale, obs_init[end-NT+1:end,    disp_id+2, 1]*L_scale, "-g",label = "UKI (initial)", markevery=20)
-        ax_disp[disp_id,2].plot(ts[2:end]*t_scale, obs[end-NT+1:end,    disp_id+2, 1]*L_scale, "-r*",label = "UKI", markevery=20)
+        ax_disp[disp_id,2].plot(ts[ΔNT+1:ΔNT:end]*t_scale, obs_ref[:,disp_id+2, 1]*L_scale, "-o", color="grey",fillstyle="none", label = "Observation")
+        ax_disp[disp_id,2].plot(ts[ΔNT+1:ΔNT:end]*t_scale, obs_init[:,    disp_id+2, 1]*L_scale, "-g",label = "UKI (initial)", markevery=20)
+        ax_disp[disp_id,2].plot(ts[ΔNT+1:ΔNT:end]*t_scale, obs[:,    disp_id+2, 1]*L_scale, "-r*",label = "UKI", markevery=20)
 
         # second tid first point
-        ax_disp[disp_id,3].plot(ts[2:end]*t_scale, obs_ref[end-NT+1:end,disp_id, 2]*L_scale, "-o", color="grey",fillstyle="none", label = "Observation")
-        ax_disp[disp_id,3].plot(ts[2:end]*t_scale, obs_init[ end-NT+1:end,   disp_id, 2]*L_scale, "-g", label = "UKI (initial)", markevery=20)
-        ax_disp[disp_id,3].plot(ts[2:end]*t_scale, obs[ end-NT+1:end,   disp_id, 2]*L_scale, "-r*", label = "UKI", markevery=20)
+        ax_disp[disp_id,3].plot(ts[ΔNT+1:ΔNT:end]*t_scale, obs_ref[:,disp_id, 2]*L_scale, "-o", color="grey",fillstyle="none", label = "Observation")
+        ax_disp[disp_id,3].plot(ts[ΔNT+1:ΔNT:end]*t_scale, obs_init[ :,   disp_id, 2]*L_scale, "-g", label = "UKI (initial)", markevery=20)
+        ax_disp[disp_id,3].plot(ts[ΔNT+1:ΔNT:end]*t_scale, obs[ :,   disp_id, 2]*L_scale, "-r*", label = "UKI", markevery=20)
          # second tid second point
-        ax_disp[disp_id,4].plot(ts[2:end]*t_scale, obs_ref[end-NT+1:end,disp_id+2, 2]*L_scale, "-o", color="grey",fillstyle="none", label = "Observation")
-        ax_disp[disp_id,4].plot(ts[2:end]*t_scale, obs_init[end-NT+1:end,    disp_id+2, 2]*L_scale, "-g", label = "UKI (initial)", markevery=20)
-        ax_disp[disp_id,4].plot(ts[2:end]*t_scale, obs[end-NT+1:end,    disp_id+2, 2]*L_scale, "-r*", label = "UKI", markevery=20)
+        ax_disp[disp_id,4].plot(ts[ΔNT+1:ΔNT:end]*t_scale, obs_ref[:,disp_id+2, 2]*L_scale, "-o", color="grey",fillstyle="none", label = "Observation")
+        ax_disp[disp_id,4].plot(ts[ΔNT+1:ΔNT:end]*t_scale, obs_init[:,    disp_id+2, 2]*L_scale, "-g", label = "UKI (initial)", markevery=20)
+        ax_disp[disp_id,4].plot(ts[ΔNT+1:ΔNT:end]*t_scale, obs[:,    disp_id+2, 2]*L_scale, "-r*", label = "UKI", markevery=20)
 
         
     end
@@ -329,7 +331,7 @@ function prediction(phys_params, kiobj, θ_mean, θθ_cov, obs_noise_level, pord
     # test on 300
     
     @load "Data/order$porder/obs$(tid)_$(force_scale)_$(fiber_size).jld2" obs
-    obs_ref = copy(obs)
+    obs_ref = obs[ΔNT:ΔNT:end, :]
     
     
     θ_scale, matlaw, ρ, force_scale, n_tids, n_obs = phys_params.θ_func, phys_params.matlaw, phys_params.ρ, phys_params.force_scale, phys_params.n_tids, phys_params.n_obs
@@ -364,7 +366,7 @@ function prediction(phys_params, kiobj, θ_mean, θθ_cov, obs_noise_level, pord
         @info "θ is ", θ
         
         obs[i, :] = Run_Homogenized(θ, phys_params.θ_func, matlaw, ρ, tid, force_scale; 
-                                    T=200.0, NT=200, nx=nx, ny=ny, porder=2, p_ids=p_ids)[2][:]
+                                    T=200.0, NT=200, nx=nx, ny=ny, porder=2, p_ids=p_ids)[2][ΔNT:ΔNT:end]
     end
 
     obs_mean = obs[1, :]
@@ -377,26 +379,28 @@ function prediction(phys_params, kiobj, θ_mean, θθ_cov, obs_noise_level, pord
 
     markevery = 20
     L_scale, t_scale = scales[1], scales[3]
+
+    @info size(ts[ΔNT+1:ΔNT:end]), size(obs_ref)
     # top right x
-    ax_disp[1,1].plot(ts[2:end]*t_scale, obs_ref[end-NT+1:end,1]*L_scale, "--o", color="grey", fillstyle="none", label="Reference", markevery = markevery)
-    ax_disp[1,1].plot(ts[2:end]*t_scale, obs_mean[end-NT+1:end,1]*L_scale, "-*r",  markevery = markevery, label="UKI")
-    ax_disp[1,1].plot(ts[2:end]*t_scale, (obs_mean[end-NT+1:end,1] + 3obs_std[end-NT+1:end,1])*L_scale,  "--r")
-    ax_disp[1,1].plot(ts[2:end]*t_scale, (obs_mean[end-NT+1:end,1] - 3obs_std[end-NT+1:end,1])*L_scale,  "--r")
+    ax_disp[1,1].plot(ts[ΔNT+1:ΔNT:end]*t_scale, obs_ref[:,1]*L_scale, "--o", color="grey", fillstyle="none", label="Reference", markevery = markevery)
+    ax_disp[1,1].plot(ts[ΔNT+1:ΔNT:end]*t_scale, obs_mean[:,1]*L_scale, "-*r",  markevery = markevery, label="UKI")
+    ax_disp[1,1].plot(ts[ΔNT+1:ΔNT:end]*t_scale, (obs_mean[:,1] + 3obs_std[:,1])*L_scale,  "--r")
+    ax_disp[1,1].plot(ts[ΔNT+1:ΔNT:end]*t_scale, (obs_mean[:,1] - 3obs_std[:,1])*L_scale,  "--r")
     # top middle x
-    ax_disp[1,2].plot(ts[2:end]*t_scale, obs_ref[end-NT+1:end, 3]*L_scale, "--o", color="grey", fillstyle="none", label="Reference", markevery = markevery)
-    ax_disp[1,2].plot(ts[2:end]*t_scale, obs_mean[end-NT+1:end,3]*L_scale, "-*r",  markevery = markevery, label="UKI")
-    ax_disp[1,2].plot(ts[2:end]*t_scale, (obs_mean[end-NT+1:end,3] + 3obs_std[end-NT+1:end,3])*L_scale,   "--r")
-    ax_disp[1,2].plot(ts[2:end]*t_scale, (obs_mean[end-NT+1:end,3] - 3obs_std[end-NT+1:end,3])*L_scale,   "--r")
+    ax_disp[1,2].plot(ts[ΔNT+1:ΔNT:end]*t_scale, obs_ref[:, 3]*L_scale, "--o", color="grey", fillstyle="none", label="Reference", markevery = markevery)
+    ax_disp[1,2].plot(ts[ΔNT+1:ΔNT:end]*t_scale, obs_mean[:,3]*L_scale, "-*r",  markevery = markevery, label="UKI")
+    ax_disp[1,2].plot(ts[ΔNT+1:ΔNT:end]*t_scale, (obs_mean[:,3] + 3obs_std[:,3])*L_scale,   "--r")
+    ax_disp[1,2].plot(ts[ΔNT+1:ΔNT:end]*t_scale, (obs_mean[:,3] - 3obs_std[:,3])*L_scale,   "--r")
     # top right y
-    ax_disp[2,1].plot(ts[2:end]*t_scale, obs_ref[end-NT+1:end,2]*L_scale, "--o", color="grey", fillstyle="none", label="Reference", markevery = markevery)
-    ax_disp[2,1].plot(ts[2:end]*t_scale, obs_mean[end-NT+1:end,2]*L_scale, "-*r",  markevery = markevery, label="UKI")
-    ax_disp[2,1].plot(ts[2:end]*t_scale, (obs_mean[end-NT+1:end,2]+ 3obs_std[end-NT+1:end,2])*L_scale,   "--r")
-    ax_disp[2,1].plot(ts[2:end]*t_scale, (obs_mean[end-NT+1:end,2]- 3obs_std[end-NT+1:end,2])*L_scale,   "--r")
+    ax_disp[2,1].plot(ts[ΔNT+1:ΔNT:end]*t_scale, obs_ref[:,2]*L_scale, "--o", color="grey", fillstyle="none", label="Reference", markevery = markevery)
+    ax_disp[2,1].plot(ts[ΔNT+1:ΔNT:end]*t_scale, obs_mean[:,2]*L_scale, "-*r",  markevery = markevery, label="UKI")
+    ax_disp[2,1].plot(ts[ΔNT+1:ΔNT:end]*t_scale, (obs_mean[:,2]+ 3obs_std[:,2])*L_scale,   "--r")
+    ax_disp[2,1].plot(ts[ΔNT+1:ΔNT:end]*t_scale, (obs_mean[:,2]- 3obs_std[:,2])*L_scale,   "--r")
     # top middle y
-    ax_disp[2,2].plot(ts[2:end]*t_scale, obs_ref[end-NT+1:end, 4]*L_scale, "--o", color="grey",  fillstyle="none", label="Reference", markevery = markevery)
-    ax_disp[2,2].plot(ts[2:end]*t_scale, obs_mean[end-NT+1:end,4]*L_scale, "-*r",    markevery = markevery, label="UKI")
-    ax_disp[2,2].plot(ts[2:end]*t_scale, (obs_mean[end-NT+1:end,4]+ 3obs_std[end-NT+1:end,4])*L_scale,   "--r")
-    ax_disp[2,2].plot(ts[2:end]*t_scale, (obs_mean[end-NT+1:end,4]- 3obs_std[end-NT+1:end,4])*L_scale,  "--r")
+    ax_disp[2,2].plot(ts[ΔNT+1:ΔNT:end]*t_scale, obs_ref[:, 4]*L_scale, "--o", color="grey",  fillstyle="none", label="Reference", markevery = markevery)
+    ax_disp[2,2].plot(ts[ΔNT+1:ΔNT:end]*t_scale, obs_mean[:,4]*L_scale, "-*r",    markevery = markevery, label="UKI")
+    ax_disp[2,2].plot(ts[ΔNT+1:ΔNT:end]*t_scale, (obs_mean[:,4]+ 3obs_std[:,4])*L_scale,   "--r")
+    ax_disp[2,2].plot(ts[ΔNT+1:ΔNT:end]*t_scale, (obs_mean[:,4]- 3obs_std[:,4])*L_scale,  "--r")
     
     
     ax_disp[2,1].set_xlabel("Time (s)")
@@ -427,7 +431,11 @@ obs_noise_level = 0.05
 t_mean_noiseless = []
 for i = 1:length(tids)
     @load "Data/order$porder/obs$(tids[i])_$(force_scale)_$(fiber_size).jld2" obs 
-    obs = obs[end-NT+1:end, :][:]
+    obs = obs[:, :][:]
+
+    # todo skip some
+    obs = obs[ΔNT:ΔNT:end]
+
     push!(t_mean_noiseless, obs)
 end
 
@@ -493,3 +501,6 @@ prediction(phys_params, kiobj, kiobj.θ_bar[end], kiobj.θθ_cov[end]*Ny_Nθ, ob
 
 tid = 300
 prediction(phys_params, kiobj, kiobj.θ_bar[end], kiobj.θθ_cov[end]*Ny_Nθ, obs_noise_level, porder, tid, force_scale, fiber_size)
+
+
+#todo change ΔNT = 1 or 5 in CommonFuncs, to change the observation freqency 
