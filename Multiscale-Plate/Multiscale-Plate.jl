@@ -148,28 +148,42 @@ function ExKI_Plot(phys_params, exkiobj, i)
 
     fig_disp, ax_disp = PyPlot.subplots(nrows=2, ncols = 4,  sharex=true, sharey=true, figsize=(24,12))
     ts = LinRange(0, T, NT+1)
-
+    L_scale, t_scale = scales[1], scales[3]
 
     for disp_id = 1:2
         # first tid first point
-        ax_disp[disp_id,1].plot(ts[2:end], obs_ref[end-NT+1:end,disp_id, 1], "-o", color="grey",fillstyle="none", label = "Observation")
-        ax_disp[disp_id,1].plot(ts[2:end], obs_init[ end-NT+1:end,   disp_id, 1], "-g",label = "UKI (1)", markevery=20)
-        ax_disp[disp_id,1].plot(ts[2:end], obs[ end-NT+1:end,   disp_id, 1], "-r*",label = "UKI ($(i))", markevery=20)
+        ax_disp[disp_id,1].plot(ts[2:end]*t_scale, obs_ref[end-NT+1:end,disp_id, 1]*L_scale, "-o", color="grey",fillstyle="none", label = "Observation")
+        ax_disp[disp_id,1].plot(ts[2:end]*t_scale, obs_init[ end-NT+1:end,   disp_id, 1]*L_scale, "-g",label = "UKI (initial)", markevery=20)
+        ax_disp[disp_id,1].plot(ts[2:end]*t_scale, obs[ end-NT+1:end,   disp_id, 1]*L_scale, "-r*",label = "UKI", markevery=20)
+        ax_disp[disp_id,1].set
         # first tid second point
-        ax_disp[disp_id,2].plot(ts[2:end], obs_ref[end-NT+1:end,disp_id+2, 1], "-o", color="grey",fillstyle="none", label = "Observation")
-        ax_disp[disp_id,2].plot(ts[2:end], obs_init[end-NT+1:end,    disp_id+2, 1], "-g",label = "UKI $(1)", markevery=20)
-        ax_disp[disp_id,2].plot(ts[2:end], obs[end-NT+1:end,    disp_id+2, 1], "-r*",label = "UKI ($(i))", markevery=20)
+        ax_disp[disp_id,2].plot(ts[2:end]*t_scale, obs_ref[end-NT+1:end,disp_id+2, 1]*L_scale, "-o", color="grey",fillstyle="none", label = "Observation")
+        ax_disp[disp_id,2].plot(ts[2:end]*t_scale, obs_init[end-NT+1:end,    disp_id+2, 1]*L_scale, "-g",label = "UKI (initial)", markevery=20)
+        ax_disp[disp_id,2].plot(ts[2:end]*t_scale, obs[end-NT+1:end,    disp_id+2, 1]*L_scale, "-r*",label = "UKI", markevery=20)
 
         # second tid first point
-        ax_disp[disp_id,3].plot(ts[2:end], obs_ref[end-NT+1:end,disp_id, 2], "-o", color="grey",fillstyle="none", label = "Observation")
-        ax_disp[disp_id,3].plot(ts[2:end], obs_init[ end-NT+1:end,   disp_id, 2], "-g", label = "UKI $(1)", markevery=20)
-        ax_disp[disp_id,3].plot(ts[2:end], obs[ end-NT+1:end,   disp_id, 2], "-r*", label = "UKI ($(i))", markevery=20)
+        ax_disp[disp_id,3].plot(ts[2:end]*t_scale, obs_ref[end-NT+1:end,disp_id, 2]*L_scale, "-o", color="grey",fillstyle="none", label = "Observation")
+        ax_disp[disp_id,3].plot(ts[2:end]*t_scale, obs_init[ end-NT+1:end,   disp_id, 2]*L_scale, "-g", label = "UKI (initial)", markevery=20)
+        ax_disp[disp_id,3].plot(ts[2:end]*t_scale, obs[ end-NT+1:end,   disp_id, 2]*L_scale, "-r*", label = "UKI", markevery=20)
          # second tid second point
-        ax_disp[disp_id,4].plot(ts[2:end], obs_ref[end-NT+1:end,disp_id+2, 2], "-o", color="grey",fillstyle="none", label = "Observation")
-        ax_disp[disp_id,4].plot(ts[2:end], obs_init[end-NT+1:end,    disp_id+2, 2], "-g", label = "UKI $(1)", markevery=20)
-        ax_disp[disp_id,4].plot(ts[2:end], obs[end-NT+1:end,    disp_id+2, 2], "-r*", label = "UKI ($(i))", markevery=20)
+        ax_disp[disp_id,4].plot(ts[2:end]*t_scale, obs_ref[end-NT+1:end,disp_id+2, 2]*L_scale, "-o", color="grey",fillstyle="none", label = "Observation")
+        ax_disp[disp_id,4].plot(ts[2:end]*t_scale, obs_init[end-NT+1:end,    disp_id+2, 2]*L_scale, "-g", label = "UKI (initial)", markevery=20)
+        ax_disp[disp_id,4].plot(ts[2:end]*t_scale, obs[end-NT+1:end,    disp_id+2, 2]*L_scale, "-r*", label = "UKI", markevery=20)
 
+        
     end
+    
+    ax_disp[1, 1].set_ylabel("X-Displacement (cm)")
+    ax_disp[2, 1].set_ylabel("Y-Displacement (cm)")
+    ax_disp[2,1].set_xlabel("Time (s)")
+    ax_disp[2,2].set_xlabel("Time (s)")
+    ax_disp[2,3].set_xlabel("Time (s)")
+    ax_disp[2,4].set_xlabel("Time (s)")
+
+
+
+
+
     ax_disp[1,1].legend()
     fig_disp.tight_layout()
     fig_disp.savefig("Plate_disp_test"*string(i)*".png")
@@ -227,12 +241,13 @@ function Multiscale_Test(phys_params::Params,
         end
     end
 
-    
 
-    errorbar(ites, θ_bar_arr[1,ites], yerr=3.0*θθ_std[1,ites], fmt="--o",fillstyle="none", label=L"E")
+    stress_scale = scales[2]
+
+    errorbar(ites, θ_bar_arr[1,ites] * stress_scale, yerr=3.0*θθ_std[1,ites]* stress_scale, fmt="--o",fillstyle="none", label=L"E (GPa)")
     errorbar(ites, θ_bar_arr[2,ites], yerr=3.0*θθ_std[2,ites], fmt="--o",fillstyle="none", label=L"ν") 
-    errorbar(ites, θ_bar_arr[3,ites], yerr=3.0*θθ_std[3,ites], fmt="--o",fillstyle="none", label=L"σ_Y")
-    errorbar(ites, θ_bar_arr[4,ites], yerr=3.0*θθ_std[4,ites], fmt="--o",fillstyle="none", label=L"K")
+    errorbar(ites, θ_bar_arr[3,ites] * stress_scale, yerr=3.0*θθ_std[3,ites]* stress_scale, fmt="--o",fillstyle="none", label=L"σ_Y (GPa)")
+    errorbar(ites, θ_bar_arr[4,ites] * stress_scale, yerr=3.0*θθ_std[4,ites]* stress_scale, fmt="--o",fillstyle="none", label=L"K (GPa)")
     semilogy()
     xlabel("Iterations")
     legend()
@@ -292,11 +307,12 @@ function Multiscale_Test_Plot(phys_params::Params,
     end
 
     
+    stress_scale = scales[2]
 
-    errorbar(ites, θ_bar_arr[1,ites], yerr=3.0*θθ_std[1,ites], fmt="--o",fillstyle="none", label=L"E")
+    errorbar(ites, θ_bar_arr[1,ites] * stress_scale, yerr=3.0*θθ_std[1,ites]* stress_scale, fmt="--o",fillstyle="none", label=L"E (GPa)")
     errorbar(ites, θ_bar_arr[2,ites], yerr=3.0*θθ_std[2,ites], fmt="--o",fillstyle="none", label=L"ν") 
-    errorbar(ites, θ_bar_arr[3,ites], yerr=3.0*θθ_std[3,ites], fmt="--o",fillstyle="none", label=L"σ_Y")
-    errorbar(ites, θ_bar_arr[4,ites], yerr=3.0*θθ_std[4,ites], fmt="--o",fillstyle="none", label=L"K")
+    errorbar(ites, θ_bar_arr[3,ites] * stress_scale, yerr=3.0*θθ_std[3,ites]* stress_scale, fmt="--o",fillstyle="none", label=L"σ_Y (GPa)")
+    errorbar(ites, θ_bar_arr[4,ites] * stress_scale, yerr=3.0*θθ_std[4,ites]* stress_scale, fmt="--o",fillstyle="none", label=L"K (GPa)")
     semilogy()
     xlabel("Iterations")
     legend()
@@ -306,6 +322,8 @@ function Multiscale_Test_Plot(phys_params::Params,
     
     return kiobj
 end
+
+
 
 function prediction(phys_params, kiobj, θ_mean, θθ_cov, obs_noise_level, porder::Int64=2, tid::Int64=300, force_scale::Float64=0.5, fiber_size::Int64=5)
     # test on 300
@@ -321,7 +339,7 @@ function prediction(phys_params, kiobj, θ_mean, θθ_cov, obs_noise_level, pord
     ts = LinRange(0, T, NT+1)
     
     # optimization related plots
-    fig_disp, ax_disp = PyPlot.subplots(ncols = 2, nrows=1, sharex=false, sharey=false, figsize=(12,6))
+    fig_disp, ax_disp = PyPlot.subplots(ncols = 2, nrows=2, sharex=true, sharey=true, figsize=(12,8))
     
     
 
@@ -335,12 +353,18 @@ function prediction(phys_params, kiobj, θ_mean, θθ_cov, obs_noise_level, pord
 
     obs = zeros(Float64, N_ens, n_obs_time * 2n_obs_point)
 
+    # todo hard code
+    nx, ny = 10, 5
+    p_ids = [(nx*porder+1)*(ny*porder+1); (nx*porder+1)*(ny*porder) + div(nx*porder, 2) + 1]
+    
+
     Threads.@threads for i = 1:N_ens
         θ = θ_p[i, :]
 
         @info "θ is ", θ
         
-        obs[i, :] = Run_Homogenized(θ, phys_params.θ_func, matlaw, ρ, tid, force_scale)[2][:]
+        obs[i, :] = Run_Homogenized(θ, phys_params.θ_func, matlaw, ρ, tid, force_scale; 
+                                    T=200.0, NT=200, nx=nx, ny=ny, porder=2, p_ids=p_ids)[2][:]
     end
 
     obs_mean = obs[1, :]
@@ -352,36 +376,35 @@ function prediction(phys_params, kiobj, θ_mean, θθ_cov, obs_noise_level, pord
     obs_std = reshape(obs_std, n_obs_time , 2n_obs_point)
 
     markevery = 20
-    ax_disp[1].plot(ts[2:end], obs_ref[end-NT+1:end,1], "--o", color="grey", fillstyle="none", label="Reference", markevery = markevery)
-    ax_disp[1].plot(ts[2:end], obs_mean[end-NT+1:end,1], "-r*", markevery = markevery, label="UKI")
-    ax_disp[1].plot(ts[2:end], obs_mean[end-NT+1:end,1] + 3obs_std[end-NT+1:end,1], "--r")
-    ax_disp[1].plot(ts[2:end], obs_mean[end-NT+1:end,1] - 3obs_std[end-NT+1:end,1], "--r")
-
-    ax_disp[1].plot(ts[2:end], obs_ref[end-NT+1:end, 3], "--o", color="grey", fillstyle="none", label="Reference", markevery = markevery)
-    ax_disp[1].plot(ts[2:end], obs_mean[end-NT+1:end,3], "-r*", markevery = markevery, label="UKI")
-    ax_disp[1].plot(ts[2:end], obs_mean[end-NT+1:end,3] + 3obs_std[end-NT+1:end,3], "--r")
-    ax_disp[1].plot(ts[2:end], obs_mean[end-NT+1:end,3] - 3obs_std[end-NT+1:end,3], "--r")
-
-    ax_disp[2].plot(ts[2:end], obs_ref[end-NT+1:end,2], "--o", color="grey", fillstyle="none", label="Reference", markevery = markevery)
-    ax_disp[2].plot(ts[2:end], obs_mean[end-NT+1:end,2], "-r*", markevery = markevery, label="UKI")
-    ax_disp[2].plot(ts[2:end], obs_mean[end-NT+1:end,2]+ 3obs_std[end-NT+1:end,2], "--r")
-    ax_disp[2].plot(ts[2:end], obs_mean[end-NT+1:end,2]- 3obs_std[end-NT+1:end,2], "--r")
-
-    ax_disp[2].plot(ts[2:end], obs_ref[end-NT+1:end, 4], "--o", color="grey", fillstyle="none", label="Reference", markevery = markevery)
-    ax_disp[2].plot(ts[2:end], obs_mean[end-NT+1:end,4], "-r*", markevery = markevery, label="UKI")
-    ax_disp[2].plot(ts[2:end], obs_mean[end-NT+1:end,4]+ 3obs_std[end-NT+1:end,4], "--r")
-    ax_disp[2].plot(ts[2:end], obs_mean[end-NT+1:end,4]- 3obs_std[end-NT+1:end,4], "--r")
+    L_scale, t_scale = scales[1], scales[3]
+    # top right x
+    ax_disp[1,1].plot(ts[2:end]*t_scale, obs_ref[end-NT+1:end,1]*L_scale, "--o", color="grey", fillstyle="none", label="Reference", markevery = markevery)
+    ax_disp[1,1].plot(ts[2:end]*t_scale, obs_mean[end-NT+1:end,1]*L_scale, "-*r",  markevery = markevery, label="UKI")
+    ax_disp[1,1].plot(ts[2:end]*t_scale, (obs_mean[end-NT+1:end,1] + 3obs_std[end-NT+1:end,1])*L_scale,  "--r")
+    ax_disp[1,1].plot(ts[2:end]*t_scale, (obs_mean[end-NT+1:end,1] - 3obs_std[end-NT+1:end,1])*L_scale,  "--r")
+    # top middle x
+    ax_disp[1,2].plot(ts[2:end]*t_scale, obs_ref[end-NT+1:end, 3]*L_scale, "--o", color="grey", fillstyle="none", label="Reference", markevery = markevery)
+    ax_disp[1,2].plot(ts[2:end]*t_scale, obs_mean[end-NT+1:end,3]*L_scale, "-*r",  markevery = markevery, label="UKI")
+    ax_disp[1,2].plot(ts[2:end]*t_scale, (obs_mean[end-NT+1:end,3] + 3obs_std[end-NT+1:end,3])*L_scale,   "--r")
+    ax_disp[1,2].plot(ts[2:end]*t_scale, (obs_mean[end-NT+1:end,3] - 3obs_std[end-NT+1:end,3])*L_scale,   "--r")
+    # top right y
+    ax_disp[2,1].plot(ts[2:end]*t_scale, obs_ref[end-NT+1:end,2]*L_scale, "--o", color="grey", fillstyle="none", label="Reference", markevery = markevery)
+    ax_disp[2,1].plot(ts[2:end]*t_scale, obs_mean[end-NT+1:end,2]*L_scale, "-*r",  markevery = markevery, label="UKI")
+    ax_disp[2,1].plot(ts[2:end]*t_scale, (obs_mean[end-NT+1:end,2]+ 3obs_std[end-NT+1:end,2])*L_scale,   "--r")
+    ax_disp[2,1].plot(ts[2:end]*t_scale, (obs_mean[end-NT+1:end,2]- 3obs_std[end-NT+1:end,2])*L_scale,   "--r")
+    # top middle y
+    ax_disp[2,2].plot(ts[2:end]*t_scale, obs_ref[end-NT+1:end, 4]*L_scale, "--o", color="grey",  fillstyle="none", label="Reference", markevery = markevery)
+    ax_disp[2,2].plot(ts[2:end]*t_scale, obs_mean[end-NT+1:end,4]*L_scale, "-*r",    markevery = markevery, label="UKI")
+    ax_disp[2,2].plot(ts[2:end]*t_scale, (obs_mean[end-NT+1:end,4]+ 3obs_std[end-NT+1:end,4])*L_scale,   "--r")
+    ax_disp[2,2].plot(ts[2:end]*t_scale, (obs_mean[end-NT+1:end,4]- 3obs_std[end-NT+1:end,4])*L_scale,  "--r")
     
     
-    ax_disp[1].set_xlabel("Time")
-    ax_disp[1].set_ylabel("x-Disp")
-    ax_disp[1].legend()
+    ax_disp[2,1].set_xlabel("Time (s)")
+    ax_disp[2,2].set_xlabel("Time (s)")
+    ax_disp[1,1].set_ylabel("X-Displacement (cm)")
+    ax_disp[2,1].set_ylabel("Y-Displacement (cm)")
+    ax_disp[1,1].legend()
     
-    
-    
-    ax_disp[2].set_xlabel("Time")
-    ax_disp[2].set_ylabel("y-Disp")
-    ax_disp[2].legend()
     
     fig_disp.tight_layout()
     fig_disp.savefig("Plate_disp-$(tid).png")
@@ -418,7 +441,7 @@ t_cov = Array(Diagonal(obs_noise_level^2 * t_mean_noiseless.^2))
 Random.seed!(123); 
 t_mean = copy(t_mean_noiseless)
 for i = 1:length(t_mean)
-    noise = obs_noise_level*t_mean[i] * (rand(Uniform(0, 2))-1) # rand(Normal(0, 1))
+    noise = obs_noise_level*t_mean[i] *  (rand(Uniform(0, 2))-1) #
     t_mean[i] += noise
 end
 
@@ -441,18 +464,17 @@ if matlaw == "PlaneStressPlasticity"
     θ0_bar =  phys_params.θ_func_inv([E; ν; 0.97e+4; 1e+5])
     θθ0_cov = Array(Diagonal(fill(1.0, N_θ))) 
     # todo remove ki_file = "exkData/exkiobj.dat"
-    # kiobj = Multiscale_Test(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter; ki_file = "exkData/exkiobj.dat")
-    kiobj = Multiscale_Test(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter)
+    # kiobj_perf = Multiscale_Test(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter; ki_file = "exkData/exkiobj.dat")
+    kiobj_perf = Multiscale_Test(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter)
 
 else
     error("unrecognized matlaw: ", matlaw)
 end
 
 
-# @load "exkiobj.dat" kiobj
 # update t_cov
-data_misfit = (kiobj.g_bar[end] - t_mean)
-n_dm = length(kiobj.g_bar[end] - t_mean)
+data_misfit = (kiobj_perf.g_bar[end] - t_mean)
+n_dm = length(kiobj_perf.g_bar[end] - t_mean)
 @info "Mean error : ", sum(data_misfit)/n_dm, " Cov error : ", sum(data_misfit.^2)/n_dm
 @info "Mean max : ", maximum(abs.(data_misfit)), " Cov max : ", maximum(data_misfit.^2)
 
@@ -460,7 +482,7 @@ new_cov =  sum(data_misfit.^2)/n_dm    # maximum(data_misfit.^2)
 # estimation of the constant model error, and re-train
 # t_cov = Array(Diagonal( obs_noise_level^2 * t_mean_noiseless.^2  .+  sum(data_misfit.^2)/n_dm))
 t_cov = Array(Diagonal(fill(new_cov, length(data_misfit))))
-θ0_bar, θθ0_cov = kiobj.θ_bar[end], kiobj.θθ_cov[end]
+# θ0_bar, θθ0_cov = kiobj_perf.θ_bar[end], kiobj_perf.θθ_cov[end]
 # todo use the commented line
 kiobj = Multiscale_Test(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter)
 kiobj = Multiscale_Test_Plot(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter; ki_file = "exkiobj.dat")

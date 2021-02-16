@@ -21,7 +21,9 @@ font0 = Dict(
 )
 merge!(rcParams, font0)
 
-
+#scale  length uses cm, stress uses     GPa,     time uses  s, 
+#       current is 10cm    and      10-4GPa              ms  
+scales = [10.0, 1.0e-4, 1.0e-3] 
 
 """
 Feyel, Frédéric, and Jean-Louis Chaboche. 
@@ -388,9 +390,10 @@ function BoundaryCondition(tid, T, nx, ny, porder=2, Lx = 1.0, Ly = 0.5; force_s
     return nodes, EBC, g, gt, FBC, fext, ft, npoints, node_to_point
 end
 
-function Get_Obs(domain::Domain, nx::Int64, ny::Int64, porder::Int64)
-    # observation is the top right and middle right
-    p_ids = [(nx*porder+1)*(ny*porder+1); (nx*porder+1)*(div(ny*porder, 2)+1)]
+function Get_Obs(domain::Domain, nx::Int64, ny::Int64, porder::Int64,
+                 p_ids::Array{Int64, 1} = [(nx*porder+1)*(ny*porder+1); (nx*porder+1)*(div(ny*porder, 2)+1)])
+    # default observation is the top right and middle right
+    # p_ids = [(nx*porder+1)*(ny*porder+1); (nx*porder+1)*(div(ny*porder, 2)+1)]
     n_frame = length(domain.history["state"])
     obs = zeros(Float64, n_frame-1, 2*length(p_ids))
     for it = 2:n_frame
@@ -404,9 +407,9 @@ function Get_Obs(domain::Domain, nx::Int64, ny::Int64, porder::Int64)
 end
 
 
-function Get_Obs(state::Array, nx::Int64, ny::Int64, porder::Int64)
-    # observation is the top right and middle right
-    p_ids = [(nx*porder+1)*(ny*porder+1); (nx*porder+1)*(div(ny*porder, 2)+1)]
+function Get_Obs(state::Array, nx::Int64, ny::Int64, porder::Int64, 
+                 p_ids::Array{Int64, 1} = [(nx*porder+1)*(ny*porder+1); (nx*porder+1)*(div(ny*porder, 2)+1)])
+    # default observation is the top right and middle right
     n_frame = length(state)
     obs = zeros(Float64, n_frame-1, 2*length(p_ids))
     for it = 2:n_frame
@@ -420,7 +423,8 @@ function Get_Obs(state::Array, nx::Int64, ny::Int64, porder::Int64)
 end
 
 function Run_Homogenized(θ::Array{Float64,1}, θ_func::Function, matlaw::String, ρ::Float64, tid::Int64, force_scale::Float64; 
-    T::Float64 = 200.0, NT::Int64 = 200, nx::Int64 = 10, ny::Int64 = 5, porder::Int64 = 2)
+    T::Float64 = 200.0, NT::Int64 = 200, nx::Int64 = 10, ny::Int64 = 5, porder::Int64 = 2, 
+    p_ids::Array{Int64, 1} = [(nx*porder+1)*(ny*porder+1); (nx*porder+1)*(div(ny*porder, 2)+1)])
 
     
     if matlaw == "PlaneStressPlasticity"
@@ -482,7 +486,7 @@ function Run_Homogenized(θ::Array{Float64,1}, θ_func::Function, matlaw::String
     
     
     
-    obs = Get_Obs(domain, nx, ny, porder)
+    obs = Get_Obs(domain, nx, ny, porder, p_ids)
 
     return domain, obs
     
