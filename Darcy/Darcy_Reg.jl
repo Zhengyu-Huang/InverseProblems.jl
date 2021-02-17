@@ -90,7 +90,7 @@ function Compare_32()
     N_sample = 6
     
     fig_ite, ax_ite = PyPlot.subplots(ncols = 3, nrows=1, sharex=false, sharey=false, figsize=(18,6))
-    fig_θ, ax_θ = PyPlot.subplots(ncols = 1, nrows=N_sample, sharex=true, sharey=true, figsize=(16,16))
+    fig_θ, ax_θ = PyPlot.subplots(ncols = 1, nrows=N_sample, sharex=true, sharey=true, figsize=(18,12))
     
     fig_logk, ax_logk = PyPlot.subplots(ncols = 3, nrows=2, sharex=true, sharey=true, figsize=(18,12))
     for ax in ax_logk ;  ax.set_xticks([]) ; ax.set_yticks([]) ; end
@@ -151,8 +151,8 @@ function Compare_32()
         ki_θθ_cov = kiobj.θθ_cov[end]
         ki_θθ_std = sqrt.(diag(kiobj.θθ_cov[end]))
         ax_θ[n].plot(θ_ind , ki_θ_bar,"-*", color="red", fillstyle="none")
-        ax_θ[n].plot(θ_ind , ki_θ_bar + 3.0*ki_θθ_std, color="red")
-        ax_θ[n].plot(θ_ind , ki_θ_bar - 3.0*ki_θθ_std, color="red")
+        ax_θ[n].plot(θ_ind , ki_θ_bar + 3.0*ki_θθ_std, "--", color="red")
+        ax_θ[n].plot(θ_ind , ki_θ_bar - 3.0*ki_θθ_std, "--", color="red")
         ax_θ[n].set_ylabel("θ")
 
 
