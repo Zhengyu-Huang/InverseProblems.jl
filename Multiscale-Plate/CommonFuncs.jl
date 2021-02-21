@@ -25,7 +25,7 @@ merge!(rcParams, font0)
 #       current is 10cm    and      10-4GPa              ms  
 scales = [10.0, 1.0e-4, 1.0e-3] 
 
-ΔNT = 1
+ΔNT = 5
 """
 Feyel, Frédéric, and Jean-Louis Chaboche. 
 "FE2 multiscale approach for modelling the elastoviscoplastic behaviour of long fibre SiC/Ti composite materials." 
