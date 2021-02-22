@@ -198,7 +198,7 @@ function update_ensemble!(enki::EnKIObj{FT}, ens_func::Function) where {FT<:Abst
 
 
     
-    θ_bar = θ_p_bar + Z_p_t' * (C *( Γ .\ (C' * (V_p_t * (Σ_ν\(enki.g_t - g_bar))))))
+    θ_bar = θ_p_bar + Z_p_t' * (C *( (Γ .+ 1.0) .\ (C' * (V_p_t * (Σ_ν\(enki.g_t - g_bar))))))
 
     filter_type = enki.filter_type
     
@@ -211,7 +211,7 @@ function update_ensemble!(enki::EnKIObj{FT}, ens_func::Function) where {FT<:Abst
         
         θ = copy(θ_p) 
         for j = 1:N_ens
-            θ[j,:] += Z_p_t' * (C *( Γ .\ (C' * (V_p_t * (Σ_ν\((enki.g_t - y[j, :]))))))) # N_ens x N_θ
+            θ[j,:] += Z_p_t' * (C *( (Γ .+ 1.0) .\ (C' * (V_p_t * (Σ_ν\((enki.g_t - y[j, :]))))))) # N_ens x N_θ
         end
         
     elseif filter_type == "EAKI"
