@@ -98,11 +98,11 @@ function TRUKIObj(parameter_names::Vector{String},
     cov_weights[1] = λ/(N_r + λ) + 1 - α^2 + β
     cov_weights[2:N_ens] .= 1/(2(N_r + λ))
 
-    Σ_ω, Σ_ν =  (2-α_reg^2)*θθ0_cov_sqr, 2*obs_cov
+    Z_ω, Σ_ν =  sqrt(2-α_reg^2)*θθ0_cov_sqr, 2*obs_cov
     
 
     TRUKIObj{FT,IT}(parameter_names, θ_bar, θθ_cov_sqr, g_t, obs_cov, g_bar, N_r, N_θ, N_g, 
-                  sample_weights, μ_weights, cov_weights, α_reg, Σ_ω, Σ_ν)
+                  sample_weights, μ_weights, cov_weights, α_reg, Z_ω, Σ_ν)
 
 end
 
@@ -210,7 +210,7 @@ function update_ensemble!(truki::TRUKIObj{FT}, ens_func::Function) where {FT}
     
 
     θ_p_bar  = α_reg*θ_bar + (1-α_reg)*truki.θ_bar[1]
-    θθ_p_cov_sqr = [α_reg^2*θθ_cov_sqr  Z_ω]
+    θθ_p_cov_sqr = [α_reg*θθ_cov_sqr  Z_ω]
     
 
 

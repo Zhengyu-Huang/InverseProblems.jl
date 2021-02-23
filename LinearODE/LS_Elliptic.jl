@@ -122,8 +122,8 @@ function Linear_Test(problem_type::String, low_rank_prior::Bool = true, nθ::Int
     θ0_bar = zeros(Float64, nθ)  # mean 
     
     if !low_rank_prior
-        θθ0_cov = Diagonal(fill(10.0^2, nθ))    # covariance
-        Z0_cov = Array(Diagonal(fill(10.0, nθ)))       # square root of the covariance
+        θθ0_cov = Diagonal(fill(1.0^2, nθ))    # covariance
+        Z0_cov = Array(Diagonal(fill(1.0, nθ)))       # square root of the covariance
         
     else
         Z0_cov = ones(Float64, nθ, N_r)
