@@ -20,22 +20,24 @@ Let's start! (⚠️ under construction)
 * What are inverse problems, why are they important?
 
 * Inverse methods
+    * Bayesian inversion, Bayesian inference, and Bayesian calibration 
     * Markov Chain Monte Carlo method
     * Sequential Monte Carlo method
+    * Gaussian approximation algorithm
     * Unsented Kalman inversion and its variants
     * Ensemble Kalman inversion and its variants
+    * All models are wrong
 
 * Linear inverse problems
     * [Well-determined, under-determined, and over-determined inverse problems](Linear/Linear-2-parameter.ipynb)
     * [Ill-conditioned matrix: inverse of Hilbert matrix](Linear/Hilbert-matrix.ipynb)
-    * [High-dimensional inverse problem :1-D elliptic equation](Linear/Elliptic.ipynb)
-    * [High-dimensional inverse problem :Bernoulli random vector](Linear/Bernoulli.ipynb)
+    * [High-dimensional inverse problem: 1-D elliptic equation](Linear/Elliptic.ipynb)
+    * [High-dimensional inverse problem: Bernoulli random vector](Linear/Bernoulli.ipynb)
 
-* Bayesian approach
-    * Bayesian inversion, Bayesian inference, and Bayesian calibration 
-    * All models are wrong
+* Posterior distribution estimation
     * Some nonlinear maps
     * Elliptic equation
+    * 1D Darcy flow
 
 * Chaotic system (Runge Kutta method)
     * Chaos and butterfly effects
@@ -47,7 +49,6 @@ Let's start! (⚠️ under construction)
     * Consitutive modeling of a multiscale fiber-reinforced plate
  
 * Fluid mechanics problems (Finite difference and spectral methods)
-    * 1D Darcy flow
     * 2D Darcy flow
     * Navier-Stokes initial condition recovery 
 
