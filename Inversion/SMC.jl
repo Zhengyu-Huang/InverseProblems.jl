@@ -7,7 +7,7 @@ using StatsBase
 The implementation follows
 
 @article{kantas2014sequential,
-  tInt64le={Sequential Monte Carlo methods for high-dimensional inverse problems: A case study for the Navier--Stokes equations},
+  tITle={Sequential Monte Carlo methods for high-dimensional inverse problems: A case study for the Navier--Stokes equations},
   author={Kantas, Nikolas and Beskos, Alexandros and Jasra, Ajay},
   journal={SIAM/ASA Journal on Uncertainty Quantification},
   volume={2},
@@ -19,7 +19,7 @@ The implementation follows
 
 
 @article{beskos2015sequential,
-  tInt64le={Sequential Monte Carlo methods for Bayesian elliptic inverse problems},
+  tITle={Sequential Monte Carlo methods for Bayesian elliptic inverse problems},
   author={Beskos, Alexandros and Jasra, Ajay and Muzaffer, Ege A and Stuart, Andrew M},
   journal={Statistics and Computing},
   volume={25},
@@ -29,136 +29,126 @@ The implementation follows
   publisher={Springer}
 }
 
-When the densInt64y function is Φ/Z, 
-The f_densInt64y function return log(Φ) instead of Φ
+When the densITy function is Φ/Z, 
+The f_densITy function return log(Φ) instead of Φ
 """
 
 
 
-mutable struct SMCObj
+mutable struct SMCObj{FT<:AbstractFloat, IT<:Int}
     "vector of parameter names"
-    unames::Vector{String}
-    "a vector of arrays of size N_ensemble x N_parameters containing the parameters (in each SMC Int64eration a new array of parameters is added)"
-    θ::Vector{Array{Float64, 2}}
+    θ_names::Vector{String}
+    "a vector of arrays of size N_ensemble x N_parameters containing the parameters (in each SMC ITeration a new array of parameters is added)"
+    θ::Vector{Array{FT, 2}}
     "weights for each particles"
-    weights::Vector{Array{Float64, 1}}
-    "Prior mean"
-    θ0_bar::Array{Float64,1}
-    "Prior convariance"
-    θθ0_cov::Array{Float64, 2}
+    weights::Vector{Array{FT, 1}}
     "observation"
-    g_t::Vector{Float64}
+    y::Vector{FT}
     "covariance of the observational noise, which is assumed to be normally distributed"
-    obs_cov::Array{Float64, 2}
+    Σ_η
     "function -1/2 (θ-θ₀)^T Σ₀^{-1} (y-θ₀)"   
-    f_log_prior::Function
+    log_prior::Function
     "parameter size"   
-    N_θ::Int64
+    N_θ::IT
     "ensemble size"
-    N_ens::Int64
+    N_ens::IT
     "step_length for random walk MCMC"
-    step_length
+    step_length::FT
     "threshold for resampling"
-    M_threshold
+    M_threshold::FT
     "time step"
-    Δt::Float64
+    Δt::FT
     "current time"
-    t::Float64
+    t::FT
 end
 
 # outer constructors
 function SMCObj(
-    parameter_names::Vector{String},
-    θ0_bar::Array{Float64,1},
-    θθ0_cov::Array{Float64,2},
-    g_t::Array{Float64,1},
-    obs_cov::Array{Float64,2},
-    N_ens::Int64,
-    step_length::Float64,
-    M_threshold::Float64,
-    N_t::Int64,
-    T::Float64 = 1.0) 
+    θ_names::Vector{String},
+    # assume the prior is Gaussian 
+    θ0_mean::Array{FT,1},
+    θθ0_cov::Array{FT,2},
+    y::Array{FT,1},
+    Σ_η::Array{FT,2},
+    N_ens::IT,
+    step_length::FT,
+    M_threshold::FT,
+    N_t::IT;
+    T::FT = 1.0) where {FT<:AbstractFloat, IT<:Int}
     
     Δt = T/N_t
     t = 0.0
-
-    Int64 = typeof(N_ens)
-    # parameters
-    θ = Array{Float64, 2}[] # array of Array{Float64, 2}'s
-
-    N_θ = length(θ0_bar)
-   
-    θ0 = rand(MvNormal(θ0_bar, θθ0_cov), N_ens)'
-    push!(θ, θ0) # insert parameters at end of array (in this case just 1st entry)
-
-    f_log_prior = (θ::Array{Float64,1}) -> (-0.5*(θ - θ0_bar)'/θθ0_cov*(θ - θ0_bar))
-    weights = Array{Float64,1}[]  # array of Array{Float64, 2}'s
-    weights0 = zeros(Float64, N_ens)
-    fill!(weights0, 1.0/N_ens)
-
-    push!(weights, weights0)
-
     
-    SMCObj(parameter_names, θ, weights, θ0_bar, θθ0_cov,  g_t, obs_cov, f_log_prior, N_θ, N_ens, step_length, M_threshold,  Δt, t)
+    N_θ = length(θ0_mean)
+    θ = Array{FT, 2}[] # array of Array{FT, 2}'s
+    θ0 = rand(MvNormal(θ0_mean, θθ0_cov), N_ens)'
+    push!(θ, θ0) # insert parameters at end of array (in this case just 1st entry)
+    
+    
+    weights = Array{FT,1}[]  # array of Array{FT, 2}'s
+    weights0 = zeros(FT, N_ens)
+    fill!(weights0, 1.0/N_ens)
+    push!(weights, weights0)
+    
+    log_prior = (θ::Array{FT,1}) -> (-0.5*(θ - θ0_mean)'/θθ0_cov*(θ - θ0_mean))
+    
+    
+    SMCObj(θ_names, θ, weights, y, Σ_η, log_prior, N_θ, N_ens, step_length, M_threshold,  Δt, t)
 end
 
 
 
 
-function time_advance!(smc::SMCObj, ens_func::Function, Δt::Float64=smc.Δt)
+function update_ensemble!(smc::SMCObj, ens_func::Function, Δt::FT=smc.Δt) where {FT<:AbstractFloat}
     t = smc.t
     
     N_θ, N_ens = smc.N_θ, smc.N_ens
     step_length = smc.step_length
-    g_t, obs_cov, f_log_prior = smc.g_t, smc.obs_cov, smc.f_log_prior
-    # prepare to update states and weights
-    θ_p = smc.θ[end]
-    weights_p  = smc.weights[end]
-    θ_n = copy(θ_p)
-    weights_n = copy(weights_p)
+    y, Σ_η, log_prior = smc.y, smc.Σ_η, smc.log_prior
     
-
-    g_p = ens_func(θ_p)
+    
+    # prepare to update states and weights
+    θ = smc.θ[end]
+    weights  = smc.weights[end]
+    θ_n = copy(θ)
+    weights_n = copy(weights)
+    
+    # update weights: ω̂ᵐ_n = l_{n-1}(uᵐ_{n-1}) ω̂ᵐ_{n-1}
+    g = ens_func(θ)
     for i = 1:N_ens
-        θ_n[i, :] = θ_p[i, :] + step_length * rand(Normal(0, 1), N_θ)
-    end
-    g_n = ens_func(θ_n)
-
-    # update weights
-    for i = 1:N_ens
-        weights_n[i] = weights_p[i] * exp(-0.5*(g_t - g_p[i,:])'/obs_cov*(g_t - g_p[i,:]) * Δt)
+        weights_n[i] = weights[i] * exp(-0.5*(y - g[i,:])'/Σ_η*(y - g[i,:]) * Δt)
     end 
     weights_n .= weights_n/sum(weights_n)
     
     
+    # sample uᵐ_{n} from K_n(uᵐ_{n-1}, ⋅)
     for i = 1:N_ens
-
-        f_p = (t+Δt)*(-0.5*(g_t - g_p[i,:])'/obs_cov*(g_t - g_p[i,:])) + f_log_prior(θ_p[i, :])  
-        f_n = (t+Δt)*(-0.5*(g_t - g_n[i,:])'/obs_cov*(g_t - g_n[i,:])) + f_log_prior(θ_n[i, :]) 
-        α = min(1.0, exp(f_n - f_p))
-
-        # @info i, θ_p[i, :], θ_n[i, :], α, step_length, (t+Δt), (t+Δt)*(-0.5*(g_t - g_p[i,:])'/obs_cov*(g_t - g_p[i,:])), f_log_prior(θ_p[i, :]) ,  
-        # f_p, (t+Δt)*(-0.5*(g_t - g_n[i,:])'/obs_cov*(g_t - g_n[i,:])), f_log_prior(θ_n[i, :]),  f_n
-
-        θ_n[i, :] = (rand(Bernoulli(α)) ? θ_n[i, :] : θ_p[i, :])
+        θ_n[i, :] = θ[i, :] + step_length * rand(Normal(0, 1), N_θ)
+    end
+    g_n = ens_func(θ_n)
+    
+    for i = 1:N_ens
+        
+        f = (t+Δt)*(-0.5*(y - g[i,:])'/Σ_η*(y - g[i,:])) + log_prior(θ[i, :])  
+        f_n = (t+Δt)*(-0.5*(y - g_n[i,:])'/Σ_η*(y - g_n[i,:])) + log_prior(θ_n[i, :]) 
+        α = min(1.0, exp(f_n - f))
+        
+        θ_n[i, :] = (rand(Bernoulli(α)) ? θ_n[i, :] : θ[i, :])
         
     end
-
-    # error("stop")
     
-
     
     # Update and Analysis and Resample
     ESS = sum(weights_n)^2/sum(weights_n.^2)
     if ESS < smc.M_threshold
-        θ_p = copy(θ_n)
+        θ = copy(θ_n)
         for i = 1:N_ens
-            θ_n[i, :] .= θ_p[sample(Weights(weights_n)), :]
+            θ_n[i, :] .= θ[sample(Weights(weights_n)), :]
         end
-
+        
         weights_n .= 1/N_ens
     end
-
+    
     # update 
     smc.t += Δt
     push!(smc.θ, θ_n) 
@@ -167,3 +157,31 @@ function time_advance!(smc::SMCObj, ens_func::Function, Δt::Float64=smc.Δt)
 end
 
 
+function SMC_Run(s_param, forward::Function,
+    θ0_mean::Array{FT,1}, θθ0_cov::Array{FT,2}, 
+    y::Array{FT,1}, Σ_η,
+    N_ens::IT, 
+    step_length::FT,
+    M_threshold::FT,
+    N_t::IT;
+    T::FT = 1.0) where {FT<:AbstractFloat, IT<:Int}
+    
+    θ_names = s_param.θ_names
+    
+    smcobj = SMCObj(θ_names , 
+    θ0_mean , θθ0_cov , y , Σ_η, 
+    N_ens , step_length, M_threshold, 
+    N_t; T = T) 
+    
+    ens_func(θ_ens) = ensemble(s_param, θ_ens, forward)
+    
+    
+    for i in 1:N_t
+        
+        update_ensemble!(smcobj, ens_func)
+        
+        
+    end
+    
+    return smcobj
+end

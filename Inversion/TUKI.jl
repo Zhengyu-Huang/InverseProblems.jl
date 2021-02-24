@@ -324,7 +324,7 @@ function TUKI_Run(s_param, forward::Function,
     
     θ_names = s_param.θ_names
     
-    ens_func(θ_ens) = run_linear_ensemble(θ_ens, G)
+    ens_func(θ_ens) = ensemble(s_param, θ_ens, forward)
     
     tukiobj = TUKIObj(θ_names,
     θ0_mean, 
