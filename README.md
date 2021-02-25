@@ -36,7 +36,7 @@ Let's start! (⚠️ under construction)
 
 * Posterior distribution estimation
     * Some nonlinear maps
-    * Elliptic equation
+    * 2-Parameter elliptic equation
     * 1D Darcy flow
 
 * Chaotic system (Runge Kutta method)
