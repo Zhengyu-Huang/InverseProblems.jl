@@ -59,21 +59,21 @@ function Random_Init_Test(method::String,
     
   end
   errors[3, 1] = norm(θθ0_cov) 
-  
+  markevery = 1  
   fig, (ax1, ax2, ax3) = PyPlot.subplots(ncols=3, figsize=(18,6))
-  ax1.plot(ites, errors[1, :], "-o",  fillstyle="none", markevery=5, label= "UKI")
+  ax1.plot(ites, errors[1, :], "-o",  fillstyle="none", markevery=markevery, label= "UKI")
   ax1.set_xlabel("Iterations")
   ax1.set_ylabel("Relative L₂ norm error")
   ax1.legend()
   ax1.grid(true)
   
-  ax2.plot(ites, errors[2, :], "-o", fillstyle="none", markevery=5, label= "UKI")
+  ax2.plot(ites, errors[2, :], "-o", fillstyle="none", markevery=markevery, label= "UKI")
   ax2.set_xlabel("Iterations")
   ax2.set_ylabel("Optimization error")
   ax2.grid(true)
   ax2.legend()
 
-  ax3.plot(ites, errors[3, :], "-o", fillstyle="none", markevery=5, label= "UKI")
+  ax3.plot(ites, errors[3, :], "-o", fillstyle="none", markevery=markevery, label= "UKI")
   ax3.set_xlabel("Iterations")
   ax3.set_ylabel("Frobenius norm")
   ax3.grid(true)
@@ -203,7 +203,7 @@ function UQ_test()
   θ0_bar = zeros(Float64, 2na)
   θθ0_cov = Array(Diagonal(fill(1.0, 2*na)))           # standard deviation
   
-  N_iter = 50
+  N_iter = 20
 
   mesh = Spectral_Mesh(phys_params.nx, phys_params.ny, phys_params.Lx, phys_params.Ly)
   
