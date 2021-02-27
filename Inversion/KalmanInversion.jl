@@ -12,7 +12,7 @@ function ensemble(s_param, θ_ens::Array{FT,2}, forward::Function)  where {FT<:A
     N_y = s_param.N_y
     g_ens = zeros(FT, N_ens,  N_y)
     
-    for i = 1:N_ens
+    Threads.@threads for i = 1:N_ens
         θ = θ_ens[i, :]
         g_ens[i, :] .= forward(s_param, θ)
     end

@@ -35,24 +35,24 @@ Let's start! (⚠️ under construction)
     * [High-dimensional inverse problem: Bernoulli random vector](Linear/Bernoulli.ipynb)
 
 * Posterior distribution estimation
-    * Some nonlinear maps
-    * 2-Parameter elliptic equation
-    * 1D Darcy flow
+    * [Some nonlinear maps](Posterior/Nonlinear-Maps.ipynb)
+    * [2-Parameter elliptic equation](Posterior/Elliptic.ipynb)
+    * [1D Darcy flow](Posterior/Darcy-1D.ipynb)
 
-* Chaotic system (Runge Kutta method)
+* Chaotic system
     * Chaos and butterfly effects
     * Lorenz63 model
     * Lorenz96 model
 
-* Structure mechanics problems (Finite element method)
+* Structure mechanics problems
     * Damage detection of a "bridge"
     * Consitutive modeling of a multiscale fiber-reinforced plate
  
-* Fluid mechanics problems (Finite difference and spectral methods)
+* Fluid mechanics problems
     * 2D Darcy flow
     * Navier-Stokes initial condition recovery 
 
-* Climate Modeling (Spectral dynamical core)
+* Climate Modeling
     * Barotropic climate model
     * Idealized general circulation model (Held-Suarez benchmark)
 
