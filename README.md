@@ -40,7 +40,7 @@ Let's start! (⚠️ under construction)
     * [1D Darcy flow](Posterior/Darcy-1D.ipynb)
 
 * Chaotic system
-    * Chaos and butterfly effects
+    * [Chaos and butterfly effects](Chaotic/Chaos.ipynb)
     * Lorenz63 model
     * Lorenz96 model
 
