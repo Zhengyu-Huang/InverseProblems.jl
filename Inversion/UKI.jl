@@ -234,6 +234,8 @@ function update_ensemble!(uki::UKIObj{FT}, ens_func::Function) where {FT}
 
     ############ Generate sigma points
     θ_p = construct_sigma_ensemble(uki, θ_p_mean, θθ_p_cov)
+    # play the role of symmetrizing the covariance matrix
+    θθ_p_cov = construct_cov(uki, θ_p, θ_p_mean)
 
     ###########  Analysis step
     g = zeros(FT, N_ens, N_y)
