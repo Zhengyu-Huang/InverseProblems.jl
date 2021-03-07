@@ -42,7 +42,7 @@ Let's start! (⚠️ under construction)
 * Chaotic system
     * [Chaos and butterfly effects](Chaotic/Chaos.ipynb)
     * [Lorenz63 model](Chaotic/Lorenz63.ipynb)
-    * Lorenz96 model
+    * [Lorenz96 model](Chaotic/Lorenz96.ipynb)
 
 * Structure mechanics problems
     * Damage detection of a "bridge"

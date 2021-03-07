@@ -334,3 +334,50 @@ function plot_param_iter(ukiobj::UKIObj{FT, IT}, θ_ref::Array{FT,1}, θ_ref_nam
     legend()
     tight_layout()
 end
+
+
+function plot_opt_errors(ukiobj::UKIObj{FT, IT}, 
+    θ_ref::Union{Array{FT,1}, Nothing} = nothing, 
+    transform_func::Union{Function, Nothing} = nothing) where {FT<:AbstractFloat, IT<:Int}
+    
+    θ_mean = ukiobj.θ_mean
+    θθ_cov = ukiobj.θθ_cov
+    y_pred = ukiobj.y_pred
+    Σ_η = ukiobj.Σ_η
+    y = ukiobj.y
+
+    N_iter = length(θ_mean) - 1
+    
+    ites = Array(LinRange(1, N_iter, N_iter))
+    N_subfigs = (θ_ref === nothing ? 2 : 3)
+
+    errors = zeros(Float64, N_subfigs, N_iter)
+    fig, ax = PyPlot.subplots(ncols=N_subfigs, figsize=(N_subfigs*6,6))
+    for i = 1:N_iter
+        errors[N_subfigs - 1, i] = 0.5*(y - y_pred[i])'*(Σ_η\(y - y_pred[i]))
+        errors[N_subfigs, i]     = norm(θθ_cov[i])
+        
+        if N_subfigs == 3
+            errors[1, i] = norm(θ_ref - (transform_func === nothing ? θ_mean[i] : transform_func(θ_mean[i])))/norm(θ_ref)
+        end
+        
+    end
+
+    markevery = max(div(N_iter, 10), 1)
+    ax[N_subfigs - 1].plot(ites, errors[N_subfigs - 1, :], linestyle="--", marker="o", fillstyle="none", markevery=markevery)
+    ax[N_subfigs - 1].set_xlabel("Iterations")
+    ax[N_subfigs - 1].set_ylabel("Optimization error")
+    ax[N_subfigs - 1].grid()
+    
+    ax[N_subfigs].plot(ites, errors[N_subfigs, :], linestyle="--", marker="o", fillstyle="none", markevery=markevery)
+    ax[N_subfigs].set_xlabel("Iterations")
+    ax[N_subfigs].set_ylabel("Frobenius norm of the covariance")
+    ax[N_subfigs].grid()
+    if N_subfigs == 3
+        ax[1].set_xlabel("Iterations")
+        ax[1].plot(ites, errors[1, :], linestyle="--", marker="o", fillstyle="none", markevery=markevery)
+        ax[1].set_ylabel("L₂ norm error")
+        ax[1].grid()
+    end
+    
+end
