@@ -65,4 +65,4 @@ You are welcome to submit an issue for any questions related to InverseProblems.
 
 2. Daniel Z. Huang, Jiaoyang Huang. "[Improve Unscented Kalman Inversion With Low-Rank Approximation and Reduced-Order Model](https://arxiv.org/pdf/2102.10677.pdf)."
 
-3. Daniel Z. Huang, Jiaoyang Huang. "[Unscented Kalman Inversion: Efficient Gaussian Approximation to the Posterior Distribution](https://arxiv.org/pdf/2102.10677.pdf)."
+3. Daniel Z. Huang, Jiaoyang Huang. "[Unscented Kalman Inversion: Efficient Gaussian Approximation to the Posterior Distribution](https://arxiv.org/pdf/2103.00277.pdf)."
