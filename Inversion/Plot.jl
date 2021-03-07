@@ -50,3 +50,4 @@ function Gaussian_2d(θ_mean::Array{FT,1}, θθ_cov, Nx::IT, Ny::IT) where {FT<:
     return X, Y, Z
     
 end
+

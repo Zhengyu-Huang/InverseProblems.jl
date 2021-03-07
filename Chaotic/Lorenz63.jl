@@ -5,8 +5,6 @@ include("../Inversion/Plot.jl")
 
 
 
-
-
 function f(x::Array{FT,1}, σ::FT, r::FT, β::FT) where {FT<:AbstractFloat}
     return [σ*(x[2]-x[1]); x[1]*(r-x[3])-x[2]; x[1]*x[2]-β*x[3]] 
 end
@@ -39,6 +37,7 @@ function compute_Lorenz63_FE(x0::Array{FT,1}, θ::Array{FT,1}, Δt::FT, N_t::IT)
     return xs
 end
 
+# integrate Lorenz63 with 4th order Runge-Kutta method
 function compute_Lorenz63_RK4(x0::Array{FT,1}, θ::Array{FT,1}, Δt::FT, N_t::IT) where {FT<:AbstractFloat, IT<:Int}
     N_x = length(x0)
 
@@ -59,8 +58,19 @@ function compute_Lorenz63_RK4(x0::Array{FT,1}, θ::Array{FT,1}, Δt::FT, N_t::IT
 end
 
 function f_mean_x3(x::Array{FT,1}) where {FT<:AbstractFloat}
-    J = x[3]
-    pJ_px = FT.([0;0;1])
+    J = [x[3];]
+    pJ_px = FT.([0 0 1])
+    return J, pJ_px
+end
+
+function f_mean_xi_xisq(x::Array{FT,1}) where {FT<:AbstractFloat}
+    J = [x[1]; x[2]; x[3]; x[1]^2; x[2]^2; x[3]^2]
+    pJ_px = FT.([1 0 0;
+                 0 1 0;
+                 0 0 1;
+                 2x[1]  0       0;
+                 0     2x[2]    0;
+                 0       0    2x[3]];)
     return J, pJ_px
 end
 
@@ -69,30 +79,23 @@ function compute_J(xs::Array{FT,2}, func::Function, j::IT, k::IT) where {FT<:Abs
     # J is defined as the average 
     # J = ∑_{i=j}^{k} func(x(t_i)) /(k-j+1)
     # return J and dJ/dxs
-
-    
     N_x, N_t = size(xs, 1), size(xs, 2) - 1
-
     J = 0.0
     ∂J_∂xs = zeros(N_x, N_t+1)
     
     for i = j:k
         J_i, ∂J_∂xs_i = func(xs[:,i])
-        J +=  J_i
+        J +=  J_i[1]
         ∂J_∂xs[:,i] = ∂J_∂xs_i
     end
     
-    
     ∂J_∂xs ./= (k-j+1)
     J /= (k-j+1)
-    
     return J, ∂J_∂xs
 end
 
 # Compute objective function dJ/dθ
 function compute_gradient_adjoint(θ::Array{FT,1}, xs::Array{FT,2}, ∂J_∂xs::Array{FT,2}, Δt::FT) where {FT<:AbstractFloat, IT<:Int}
-    
-
     N_x, N_t = size(xs, 1), size(xs, 2) - 1
     σ, r, β = θ
     N_θ = length(θ)
@@ -143,7 +146,7 @@ end
 
 
 
-
+# Finite difference test for the adjoint-based gradient computation
 function fd_test()
     T = 20
     Δt = 0.01
@@ -180,39 +183,125 @@ end
 
 
 
+mutable struct Setup_Param{FT<:AbstractFloat, IT<:Int}
+    θ_names::Array{String,1}
+    N_θ::IT
+    N_y::IT
+
+    #physics related quantities
+    Tobs::FT
+    Tspinup::FT
+    Δt::FT
+    x0::Array{FT,1}
+    obs_func::Function
+
+    
+    # transform the input parameters θ to impose constraints
+    constraint_func::Function
+
+    # transform the input parameters θ to [σ; r; β]
+    construct_3para::Function
+
+    
+end
+
+function Setup_Param(N_θ::IT, Tobs::FT, Tspinup::FT, Δt::FT, x0::Array{FT,1}, θ_ref::Array{FT,1} =  [10.0 ;28.0;8.0/3.0]) where {FT<:AbstractFloat, IT<:Int}
+    if N_θ == 1
+        @info "Initialize the 1-parameter Lorenz63 inverse problem"
+        N_y = 1
+        θ_names = ["r"]
+        moments_func = f_mean_x3
+        construct_3para = (θ) -> ([θ_ref[1]; θ[1]; θ_ref[3]])
+        
+    elseif N_θ == 3
+        @info "Initialize the 3-parameter Lorenz63 inverse problem"
+        N_y = 6
+        θ_names = ["σ", "r", "β"]
+        moments_func = f_mean_xi_xisq
+        construct_3para = (θ) -> (θ)
+    else
+        @info "$(N_θ)-parameter Lorenz63 inverse problem is not recognized"
+    end
+
+    N_spinup = IT(Tspinup/Δt)
+    obs_func = (xs) -> begin 
+        moments = zeros(FT, N_y, size(xs, 2))
+        for i = 1:size(xs, 2)
+            moments[:, i], _ = moments_func(xs[:, i])
+        end
+        
+        obs = dropdims(mean(moments[:, N_spinup : size(xs, 2)], dims = 2), dims = 2)
+
+        return obs
+    end 
+
+    constraint_func = (θ) -> abs.(θ)
+    
 
 
+    return Setup_Param(θ_names, N_θ, N_y, Tobs, Tspinup, Δt, x0, obs_func, constraint_func, construct_3para)
+    
+end
 
 
-function adjoint_plot(rs, mean_x3s, dmean_x3_drs)
+function forward(s_param::Setup_Param{FT,IT}, θ::Array{FT,1}) where {FT<:AbstractFloat, IT<:Int}
     
+    θ = s_param.constraint_func(θ)
+    θ = s_param.construct_3para(θ)
+
+    x0 = s_param.x0
+
+    T = Tobs + Tspinup
+    N_t = Int64(T/Δt)
+
+    xs = compute_Lorenz63_RK4(x0, θ, Δt, N_t) 
     
-    r_max = 50.0
-    N_r = length(mean_x3)
-    rs = Array(LinRange(0, r_max, N_r))
+    obs = s_param.obs_func(xs)
+        
+    return obs
+end
+
+
+function data_gen(T::FT, Tobs::FT,  Tspinup::FT, moments_func::Function, Δt::FT, θ_ref::Array{FT,1} =  [10.0 ;28.0;8.0/3.0]) where {FT<:AbstractFloat, IT<:Int}
+    N_t = Int64(T/Δt)
+    N_spinup = Int64(Tspinup/Δt)
     
-    PyPlot.figure()
-    PyPlot.plot(rs, mean_x3s, "--", fillstyle="none")
-    PyPlot.xlabel(L"r")
-    PyPlot.ylabel(L"\mathcal{G}(r)")
-    PyPlot.grid("on")
-    PyPlot.tight_layout()
+    x0 = [-8.67139571762; 4.98065219709; 25]
     
-    PyPlot.figure()
-    semilogy(rs, abs.(dmean_x3_drs), "or", markersize=1)
-    xlabel("\$r\$")
-    ylabel(L"|d\mathcal{G}(r)|")
-    grid("on")
-    tight_layout()
-    savefig("Lorenz_dJ.pdf")
-    close("all")
+    xs = compute_Lorenz63_RK4(x0, θ_ref, Δt, N_t) 
+    moments = hcat([moments_func(xs[:, i])[1] for i = 1:size(xs, 2)]...)
     
-    #filter the result
+
+    N_obs_box = Int64((T - Tspinup)/Tobs)
+    obs_box = zeros(size(moments, 1), N_obs_box)
+    N_obs = Int64(Tobs/Δt)
+    for i = 1:N_obs_box
+        N_obs_start = N_spinup + (i - 1)*N_obs + 1
+        obs_box[:, i] = mean(moments[:, N_obs_start : N_obs_start + N_obs - 1], dims = 2)
+    end
+    
+    y = vec(mean(obs_box, dims=2))
+    
+    Σ_η = zeros(Float64, size(y, 1), size(y, 1))
+    for i = 1:N_obs_box
+        Σ_η += (obs_box[:,i] - y) *(obs_box[:,i] - y)'
+    end
+    Σ_η ./= (N_obs_box - 1)
+    
+    return y, Σ_η
+end
+
+
+function adjoint_plot(rs, mean_x3s, dmean_x3_drs, σr)
+    r_max = rs[end]
+    N_r = length(rs)
     dr = rs[2] - rs[1]
-    filtered_x3_arr = copy(mean_x3)
-    filtered_dx3_dr_arr = copy(dmean_x3_dr)
+
+
+    #filter the result
+    filtered_x3_arr = copy(mean_x3s)
+    filtered_dx3_dr_arr = copy(dmean_x3_drs)
     
-    σr = sqrt(0.22714463033782045)
     filter_Δ = Int64(ceil(3*σr/dr))
     for i = 1:N_r
         if (i > filter_Δ && i < N_r - filter_Δ)
@@ -224,39 +313,32 @@ function adjoint_plot(rs, mean_x3s, dmean_x3_drs)
             
             for j = i-filter_Δ:i+filter_Δ
                 weight = 1/(sqrt(2*pi)*σr)*exp(-(rs[j] - rs[i])^2/(2*σr^2))
-                filtered_x3 += mean_x3[j]*weight
-                filtered_dx3_dr_numerator += (rs[j] - rs[i])*(mean_x3[j] - mean_x3[i])*weight
+                filtered_x3 += mean_x3s[j]*weight
+                filtered_dx3_dr_numerator += (rs[j] - rs[i])*(mean_x3s[j] - mean_x3s[i])*weight
                 filtered_dx3_dr_denominator += (rs[j] - rs[i])*(rs[j] - rs[i])*weight
-                weights += weight
-
-                
+                weights += weight   
             end
 
-            
-            
             filtered_x3_arr[i] =  filtered_x3/weights 
             filtered_dx3_dr_arr[i] =  filtered_dx3_dr_numerator/filtered_dx3_dr_denominator
         end
     end
-    
-    plot(rs[filter_Δ+1:N_r - filter_Δ-1], filtered_x3_arr[filter_Δ+1:N_r - filter_Δ-1], "--", fillstyle="none")
-    xlabel(L"r")
-    ylabel(L"\mathcal{F}\mathcal{G}(r)")
-    grid("on")
-    tight_layout()
-    savefig("Filtered_Lorenz_J.pdf")
-    close("all")
-    
-    plot(rs[filter_Δ+1:N_r - filter_Δ-1], filtered_dx3_dr_arr[filter_Δ+1:N_r - filter_Δ-1], "or", markersize=1)
-    xlabel("\$r\$")
-    ylabel(L"\mathcal{F}d\mathcal{G}(r)")
-    grid("on")
-    tight_layout()
-    savefig("Filtered_Lorenz_dJ.pdf")
-    close("all")
-    
-end
 
+    fig, (ax1, ax2) = PyPlot.subplots(ncols=2, figsize=(12,6))
+    
+    ax1.plot(rs[filter_Δ+1:N_r - filter_Δ-1], filtered_x3_arr[filter_Δ+1:N_r - filter_Δ-1], "--", fillstyle="none")
+    ax1.set_xlabel(L"r")
+    ax1.set_ylabel(L"\mathcal{F}\mathcal{G}(r)")
+    ax1.grid("on")
+    tight_layout()
+ 
+    
+    ax2.plot(rs[filter_Δ+1:N_r - filter_Δ-1], filtered_dx3_dr_arr[filter_Δ+1:N_r - filter_Δ-1], "or", markersize=1)
+    ax2.set_xlabel("\$r\$")
+    ax2.set_ylabel(L"\mathcal{F}d\mathcal{G}(r)")
+    ax2.grid("on")
+    fig.tight_layout()
+end
 
 
 

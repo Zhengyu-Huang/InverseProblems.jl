@@ -41,7 +41,7 @@ Let's start! (⚠️ under construction)
 
 * Chaotic system
     * [Chaos and butterfly effects](Chaotic/Chaos.ipynb)
-    * Lorenz63 model
+    * [Lorenz63 model](Chaotic/Lorenz63.ipynb)
     * Lorenz96 model
 
 * Structure mechanics problems

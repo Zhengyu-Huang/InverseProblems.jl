@@ -123,7 +123,7 @@ end
 construct_sigma_ensemble
 Construct the sigma ensemble, based on the mean x_mean, and covariance x_cov
 """
-function construct_sigma_ensemble(uki::UKIObj{FT}, x_mean::Array{FT}, x_cov::Array{FT,2}) where {FT<:AbstractFloat}
+function construct_sigma_ensemble(uki::UKIObj{FT, IT}, x_mean::Array{FT}, x_cov::Array{FT,2}) where {FT<:AbstractFloat, IT<:Int}
     N_ens = uki.N_ens
     N_x = size(x_mean,1)
     @assert(N_ens == 2*N_x+1)
@@ -147,7 +147,7 @@ end
 """
 construct_mean x_mean from ensemble x
 """
-function construct_mean(uki::UKIObj{FT}, x::Array{FT,2}) where {FT<:AbstractFloat}
+function construct_mean(uki::UKIObj{FT, IT}, x::Array{FT,2}) where {FT<:AbstractFloat, IT<:Int}
     N_ens, N_x = size(x)
 
     @assert(uki.N_ens == N_ens)
@@ -167,7 +167,7 @@ end
 """
 construct_cov xx_cov from ensemble x and mean x_mean
 """
-function construct_cov(uki::UKIObj{FT}, x::Array{FT,2}, x_mean::Array{FT}) where {FT<:AbstractFloat}
+function construct_cov(uki::UKIObj{FT, IT}, x::Array{FT,2}, x_mean::Array{FT}) where {FT<:AbstractFloat, IT<:Int}
     N_ens, N_x = uki.N_ens, size(x_mean,1)
     
     cov_weights = uki.cov_weights
@@ -184,7 +184,7 @@ end
 """
 construct_cov xy_cov from ensemble x and mean x_mean, ensemble y and mean y_mean
 """
-function construct_cov(uki::UKIObj{FT}, x::Array{FT,2}, x_mean::Array{FT}, y::Array{FT,2}, y_mean::Array{FT}) where {FT<:AbstractFloat}
+function construct_cov(uki::UKIObj{FT, IT}, x::Array{FT,2}, x_mean::Array{FT}, y::Array{FT,2}, y_mean::Array{FT}) where {FT<:AbstractFloat, IT<:Int}
     N_ens, N_x, N_y = uki.N_ens, size(x_mean,1), size(y_mean,1)
     
     cov_weights = uki.cov_weights
@@ -207,7 +207,7 @@ define the function as
     ens_func(θ_ens) = MyG(phys_params, θ_ens, other_params)
 use G(θ_mean) instead of FG(θ)
 """
-function update_ensemble!(uki::UKIObj{FT}, ens_func::Function) where {FT}
+function update_ensemble!(uki::UKIObj{FT, IT}, ens_func::Function) where {FT<:AbstractFloat, IT<:Int}
     
     uki.iter += 1
     # update evolution covariance matrix
@@ -303,4 +303,34 @@ function UKI_Run(s_param, forward::Function,
     
     return ukiobj
     
+end
+
+
+function plot_param_iter(ukiobj::UKIObj{FT, IT}, θ_ref::Array{FT,1}, θ_ref_names::Array{String}) where {FT<:AbstractFloat, IT<:Int}
+    
+    θ_mean = ukiobj.θ_mean
+    θθ_cov = ukiobj.θθ_cov
+    
+    N_iter = length(θ_mean) - 1
+    ites = Array(LinRange(1, N_iter+1, N_iter+1))
+    
+    θ_mean_arr = abs.(hcat(θ_mean...))
+    
+    
+    N_θ = length(θ_ref)
+    θθ_std_arr = zeros(Float64, (N_θ, N_iter+1))
+    for i = 1:N_iter+1
+        for j = 1:N_θ
+            θθ_std_arr[j, i] = sqrt(θθ_cov[i][j,j])
+        end
+    end
+    
+    for i = 1:N_θ
+        errorbar(ites, θ_mean_arr[i,:], yerr=3.0*θθ_std_arr[i,:], fmt="--o",fillstyle="none", label=θ_ref_names[i])   
+        plot(ites, fill(θ_ref[i], N_iter+1), "--", color="gray")
+    end
+    
+    xlabel("Iterations")
+    legend()
+    tight_layout()
 end
