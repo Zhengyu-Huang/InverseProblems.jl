@@ -162,9 +162,8 @@ function PolyModelTest()
             
             
             data_misfit = ukiobj.g_bar[end] - yy_train_ref
-            
-            data_misfit .= mean(abs.(data_misfit))
-            t_cov = Array(Diagonal(data_misfit.^2))
+            new_cov =  sum(data_misfit.^2)/length(data_misfit)    # maximum(data_misfit.^2)
+            t_cov = Array(Diagonal(fill(new_cov, length(data_misfit))))
             
             # t_cov = length(data_misfit)*Array(Diagonal(data_misfit.^2))
             
