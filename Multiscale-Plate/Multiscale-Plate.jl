@@ -246,10 +246,10 @@ function Multiscale_Test(phys_params::Params,
 
     stress_scale = scales[2]
 
-    errorbar(ites, θ_bar_arr[1,ites] * stress_scale, yerr=3.0*θθ_std[1,ites]* stress_scale, fmt="--o",fillstyle="none", label=L"E (GPa)")
+    errorbar(ites, θ_bar_arr[1,ites] * stress_scale, yerr=3.0*θθ_std[1,ites]* stress_scale, fmt="--o",fillstyle="none", label=L"E~(GPa)")
     errorbar(ites, θ_bar_arr[2,ites], yerr=3.0*θθ_std[2,ites], fmt="--o",fillstyle="none", label=L"ν") 
-    errorbar(ites, θ_bar_arr[3,ites] * stress_scale, yerr=3.0*θθ_std[3,ites]* stress_scale, fmt="--o",fillstyle="none", label=L"σ_Y (GPa)")
-    errorbar(ites, θ_bar_arr[4,ites] * stress_scale, yerr=3.0*θθ_std[4,ites]* stress_scale, fmt="--o",fillstyle="none", label=L"K (GPa)")
+    errorbar(ites, θ_bar_arr[3,ites] * stress_scale, yerr=3.0*θθ_std[3,ites]* stress_scale, fmt="--o",fillstyle="none", label=L"σ_Y~(GPa)")
+    errorbar(ites, θ_bar_arr[4,ites] * stress_scale, yerr=3.0*θθ_std[4,ites]* stress_scale, fmt="--o",fillstyle="none", label=L"K~(GPa)")
     semilogy()
     xlabel("Iterations")
     legend()
@@ -311,10 +311,10 @@ function Multiscale_Test_Plot(phys_params::Params,
     
     stress_scale = scales[2]
 
-    errorbar(ites, θ_bar_arr[1,ites] * stress_scale, yerr=3.0*θθ_std[1,ites]* stress_scale, fmt="--o",fillstyle="none", label=L"E (GPa)")
+    errorbar(ites, θ_bar_arr[1,ites] * stress_scale, yerr=3.0*θθ_std[1,ites]* stress_scale, fmt="--o",fillstyle="none", label=L"E~(GPa)")
     errorbar(ites, θ_bar_arr[2,ites], yerr=3.0*θθ_std[2,ites], fmt="--o",fillstyle="none", label=L"ν") 
-    errorbar(ites, θ_bar_arr[3,ites] * stress_scale, yerr=3.0*θθ_std[3,ites]* stress_scale, fmt="--o",fillstyle="none", label=L"σ_Y (GPa)")
-    errorbar(ites, θ_bar_arr[4,ites] * stress_scale, yerr=3.0*θθ_std[4,ites]* stress_scale, fmt="--o",fillstyle="none", label=L"K (GPa)")
+    errorbar(ites, θ_bar_arr[3,ites] * stress_scale, yerr=3.0*θθ_std[3,ites]* stress_scale, fmt="--o",fillstyle="none", label=L"σ_Y~(GPa)")
+    errorbar(ites, θ_bar_arr[4,ites] * stress_scale, yerr=3.0*θθ_std[4,ites]* stress_scale, fmt="--o",fillstyle="none", label=L"K~(GPa)")
     semilogy()
     xlabel("Iterations")
     legend()
@@ -455,7 +455,7 @@ end
 
 # todo misspecified observation covariance estimation
 # first choice of the observation covariance, only observation error 
-t_cov = Array(Diagonal(   fill(0.001^2, length(t_mean))   ))
+t_cov = Array(Diagonal(   fill(0.0001^2, length(t_mean))   ))
 # add 5 percents observation noise
 
 
