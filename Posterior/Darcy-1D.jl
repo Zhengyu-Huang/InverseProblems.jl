@@ -28,7 +28,7 @@ mutable struct Setup_Param{FT<:AbstractFloat, IT<:Int}
     θ_ref::Array{FT, 1}
     
     
-    # the number of inverse parameters
+    # inverse parameters
     θ_names::Array{String, 1}
     N_θ::IT
     # observation locations and number of observations
@@ -80,6 +80,8 @@ and the reference parameters θ_ref, and reference field logk field
 
 logk(x) = ∑ θ_{(l)} √λ_{l} φ_{l}(x)
 where λ_{l} = (π^2l^2 + τ^2)^{-d}  and φ_{l}(x) = √2 cos(πlx)
+
+generate_θ_KL function generates the summation of the first N_KL terms 
 =#
 function generate_θ_KL(xx::Array{FT,1}, N_KL::IT, d::FT=2.0, τ::FT=3.0; seed::IT=123) where {FT<:AbstractFloat, IT<:Int}
     
