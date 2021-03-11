@@ -49,7 +49,7 @@ Let's start! (⚠️ under construction)
     * Consitutive modeling of a multiscale fiber-reinforced plate
  
 * Fluid mechanics problems
-    * 2D Darcy flow
+    * [2D Darcy flow](Fluid/Darcy-2D.ipynb)
     * Navier-Stokes initial condition recovery 
 
 * Climate Modeling
