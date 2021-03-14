@@ -50,7 +50,7 @@ Let's start! (⚠️ under construction)
  
 * Fluid mechanics problems
     * [2D Darcy flow](Fluid/Darcy-2D.ipynb)
-    * Navier-Stokes initial condition recovery 
+    * [Navier-Stokes initial condition recovery](Fluid/Navier-Stokes.ipynb)
 
 * Climate Modeling
     * Barotropic climate model
