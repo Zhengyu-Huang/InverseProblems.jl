@@ -24,7 +24,7 @@ Let's start! (⚠️ under construction)
     * Markov Chain Monte Carlo method
     * Sequential Monte Carlo method
     * [Kalman filters and Gaussian approximation algorithm](Lectures/Kalman.ipynb)
-    * Unsented Kalman inversion and its variants
+    * [Unsented Kalman inversion and its variants](Lectures/Unscented.ipynb)
     * Ensemble Kalman inversion and its variants
     * All models are wrong
 
