@@ -20,10 +20,10 @@ Let's start! (⚠️ under construction)
 * What are inverse problems, why are they important?
 
 * Inverse methods
-    * Bayesian inversion, Bayesian inference, and Bayesian calibration 
+    * [Bayesian inversion, Bayesian inference, and Bayesian calibration](Lectures/Bayesian.ipynb) 
     * Markov Chain Monte Carlo method
     * Sequential Monte Carlo method
-    * Gaussian approximation algorithm
+    * [Kalman filters and Gaussian approximation algorithm](Lectures/Kalman.ipynb)
     * Unsented Kalman inversion and its variants
     * Ensemble Kalman inversion and its variants
     * All models are wrong

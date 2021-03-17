@@ -15,7 +15,7 @@ merge!(rcParams, font0)
 function Gaussian_1d(θ_mean::FT, θθ_cov::FT, Nx::IT) where {FT<:AbstractFloat, IT<:Int}
     # 1d Gaussian plot
     
-    θ_range = min(5*sqrt(θθ_cov), 5)
+    θ_range = 5*sqrt(θθ_cov)
     θ = Array(LinRange(θ_mean - θ_range, θ_mean + θ_range, Nx))
     ρθ = similar(θ)
     
@@ -30,8 +30,7 @@ end
 function Gaussian_2d(θ_mean::Array{FT,1}, θθ_cov, Nx::IT, Ny::IT) where {FT<:AbstractFloat, IT<:Int}
     # 2d Gaussian plot
     
-    θ_range = [min(5*sqrt(θθ_cov[1,1]), 5); min(5*sqrt(θθ_cov[2,2]), 5)]
-
+    θ_range = [5*sqrt(θθ_cov[1,1]); 5*sqrt(θθ_cov[2,2])]
     xx = Array(LinRange(θ_mean[1] - θ_range[1], θ_mean[1] + θ_range[1], Nx))
     yy = Array(LinRange(θ_mean[2] - θ_range[2], θ_mean[2] + θ_range[2], Ny))
     
