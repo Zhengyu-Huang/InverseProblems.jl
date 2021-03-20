@@ -196,6 +196,15 @@ function Apply_Laplacian!(mesh::Spectral_Mesh, u_hat::Array{ComplexF64,2}, Δu_h
     Δu_hat .= eig .* u_hat
 end
 
+function Solve_Laplacian!(mesh::Spectral_Mesh, Δu_hat::Array{ComplexF64,2}, u_hat::Array{ComplexF64,2}) 
+    """
+    Δ (ω_hat[kx,ky]  e^{i (2π/Lx kx x + 2π/Ly ky y)}) = -((2πkx/Lx)² + (2πky/Ly)² )ω_hat
+    """
+    eig = mesh.laplacian_eigs
+    u_hat .= Δu_hat ./ eig
+    u_hat[1, 1] = 0
+end
+
 
 function Apply_Gradient_Init(N_x::Int64, N_y::Int64, Lx::Float64, Ly::Float64, kxx::Array{Int64, 1}, kyy::Array{Int64, 1}) 
     """
@@ -228,6 +237,20 @@ function Apply_Curl!(mesh::Spectral_Mesh, fx::Array{Float64,2}, fy::Array{Float6
     Trans_Grid_To_Spectral!(mesh, fy, fy_hat)
 
     curl_f_hat .= d_x.*fy_hat - d_y.*fx_hat
+
+end
+
+"""
+(∇f)_hat = ∂fy/∂x_hat - ∂fx/∂y_hat
+"""
+function Apply_Gradient!(mesh::Spectral_Mesh, fx::Array{Float64,2}, fy::Array{Float64,2}, ∇f_hat::Array{ComplexF64,2}) 
+    d_x, d_y = mesh.d_x, mesh.d_y
+    fx_hat, fy_hat = mesh.u_hat, mesh.v_hat
+
+    Trans_Grid_To_Spectral!(mesh, fx, fx_hat)  
+    Trans_Grid_To_Spectral!(mesh, fy, fy_hat)
+
+    ∇f_hat .= d_x.*fx_hat + d_y.*fy_hat
 
 end
 

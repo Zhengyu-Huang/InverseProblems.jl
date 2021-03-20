@@ -25,6 +25,8 @@ mutable struct Spectral_NS_Solver
 
     ν::Float64
 
+    fx::Array{Float64, 2}
+    fy::Array{Float64, 2}
     curl_f_hat::Array{ComplexF64, 2}
 
     ub::Float64
@@ -35,10 +37,12 @@ mutable struct Spectral_NS_Solver
     ω_hat::Array{ComplexF64, 2}
     u_hat::Array{ComplexF64, 2}
     v_hat::Array{ComplexF64, 2}
+    p_hat::Array{ComplexF64, 2}
 
     ω::Array{Float64, 2}
     u::Array{Float64, 2}
     v::Array{Float64, 2}
+    p::Array{Float64, 2}
 
     Δω_hat::Array{ComplexF64, 2}
     δω_hat::Array{ComplexF64, 2}
@@ -62,25 +66,30 @@ end
 #
 function Spectral_NS_Solver(mesh::Spectral_Mesh, ν::Float64;
     fx::Union{Array{Float64, 2}, Nothing} = nothing, fy::Union{Array{Float64, 2}, Nothing} = nothing, 
-    curl_f::Union{Array{Float64, 2}, Nothing} = nothing,
     u0::Union{Array{Float64, 2}, Nothing} = nothing, v0::Union{Array{Float64, 2}, Nothing} = nothing, 
     ω0::Union{Array{Float64, 2}, Nothing} = nothing, ub::Union{Float64, Nothing} = nothing, vb::Union{Float64, Nothing} = nothing)    
     N_x, N_y = mesh.N_x, mesh.N_y
     
-    curl_f_hat = zeros(ComplexF64, N_x, N_y)
-    if curl_f === nothing
-        Apply_Curl!(mesh, fx, fy, curl_f_hat) 
-    else
-        Trans_Grid_To_Spectral!(mesh, curl_f, curl_f_hat)
+    if fx === nothing
+        fx = zeros(Float64, N_x, N_y)
     end
+    if fy === nothing
+        fy = zeros(Float64, N_x, N_y)
+    end
+
+    curl_f_hat = zeros(ComplexF64, N_x, N_y)
+    Apply_Curl!(mesh, fx, fy, curl_f_hat) 
+   
     
     
     u_hat = zeros(ComplexF64, N_x, N_y)
     v_hat = zeros(ComplexF64, N_x, N_y)
     ω_hat = zeros(ComplexF64, N_x, N_y)
+    p_hat = zeros(ComplexF64, N_x, N_y)
     u = zeros(Float64, N_x, N_y)
     v = zeros(Float64, N_x, N_y)
     ω = zeros(Float64, N_x, N_y)
+    p = zeros(Float64, N_x, N_y)
     if ω0 === nothing
     
         u .= u0
@@ -116,7 +125,7 @@ function Spectral_NS_Solver(mesh::Spectral_Mesh, ν::Float64;
     k3 = zeros(ComplexF64, N_x, N_y)
     k4 = zeros(ComplexF64, N_x, N_y)
     
-    Spectral_NS_Solver(mesh, ν, curl_f_hat, ub, vb, ω_hat, u_hat, v_hat, ω, u, v, Δω_hat, δω_hat, k1, k2, k3, k4)
+    Spectral_NS_Solver(mesh, ν, fx, fy, curl_f_hat, ub, vb, ω_hat, u_hat, v_hat, p_hat, ω, u, v, p, Δω_hat, δω_hat, k1, k2, k3, k4)
 end
 
 
@@ -176,7 +185,7 @@ end
 
 
 # Update ω, u_hat, v_hat, u, v from ω_hat
-function Update_Grid_Vars!(self::Spectral_NS_Solver)
+function Update_Grid_Vars!(self::Spectral_NS_Solver, compute_pressure::Bool = false)
 
     ω_hat, u_hat, v_hat = self.ω_hat, self.u_hat, self.v_hat
     ω, u, v = self.ω, self.u, self.v
@@ -189,9 +198,46 @@ function Update_Grid_Vars!(self::Spectral_NS_Solver)
     Trans_Spectral_To_Grid!(mesh, u_hat, u)
     Trans_Spectral_To_Grid!(mesh, v_hat, v)
 
-    return ω, u, v
+    # Compute pressure
+    p, p_hat = self.p, self.p_hat
+    if compute_pressure
+        fx, fy = self.fx, self.fy
+        u_x, u_y, v_x, v_y, Δp = similar(ω), similar(ω), similar(ω), similar(ω), similar(ω)
+        ∇f_hat, Δp_hat = similar(ω_hat), similar(ω_hat)
+
+        Apply_Gradient!(mesh, u_hat, u_x, u_y)
+        Apply_Gradient!(mesh, v_hat, v_x, v_y)
+        Apply_Gradient!(mesh, fx, fy, ∇f_hat)
+        
+        Δp .= 2(u_x.*v_y - v_x.*u_y)
+        Trans_Grid_To_Spectral!(mesh, Δp, Δp_hat)
+        
+        Δp_hat .+= ∇f_hat
+        Solve_Laplacian!(mesh, Δp_hat, p_hat) 
+        
+        Trans_Spectral_To_Grid!(mesh, p_hat, p)
+    end
+
+
+    return ω, u, v, p
     
 end
+
+# Compute pressure from ω_hat and f_x, f_y
+function Compute_Pressure(self::Spectral_NS_Solver, ω_hat, f_x, f_y)
+
+    
+    u_hat, v_hat = self.u_hat, self.v_hat
+    ω, u, v = self.ω, self.u, self.v
+    ub, vb = self.ub, self.vb
+
+    mesh = self.mesh
+    Trans_Spectral_To_Grid!(mesh, ω_hat, ω)
+    UV_Spectral_From_Vor!(mesh, ω_hat, u_hat, v_hat, ub, vb)
+
+
+end
+
 
 
 function Solve!(self::Spectral_NS_Solver, Δt::Float64, method::String)
