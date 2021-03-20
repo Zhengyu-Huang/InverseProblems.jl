@@ -300,28 +300,28 @@ end
     t_mean[i] += noise
   end
     
-  # # first round 
-  # kiobj, mesh = Random_Init_Test(phys_params, seq_pairs, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, θ_ref, ω0_ref, N_iter)
-  # # adjust model error , update t_cov
-  # data_misfit = (kiobj.g_bar[end] - t_mean)
-  # n_dm = length(kiobj.g_bar[end] - t_mean)
-  # # @info "Mean error : ", sum(data_misfit)/n_dm, " Cov error : ", sum(data_misfit.^2)/n_dm
-  # # @info "Mean max : ", maximum(abs.(data_misfit)), " Cov max : ", maximum(data_misfit.^2)
-  # # new_cov =  sum(data_misfit.^2)/n_dm    # maximum(data_misfit.^2)
-  # # # estimation of the constant model error, and re-train
-  # # t_cov = Array(Diagonal(fill(new_cov, length(data_misfit))))
-
-  # diag_cov = Misfit2Diagcov(2, data_misfit, t_mean)
-  # t_cov = Array(Diagonal(diag_cov))
-
-  # # second round 
-  # kiobj, mesh = Random_Init_Test(phys_params, seq_pairs, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, θ_ref, ω0_ref, N_iter)
-  # @save "exkiobj.dat" kiobj
-
-
-
-  @load "exkiobj.dat" kiobj
+  # first round 
+  kiobj, mesh = Random_Init_Test(phys_params, seq_pairs, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, θ_ref, ω0_ref, N_iter)
+  # adjust model error , update t_cov
+  data_misfit = (kiobj.g_bar[end] - t_mean)
   n_dm = length(kiobj.g_bar[end] - t_mean)
+  # @info "Mean error : ", sum(data_misfit)/n_dm, " Cov error : ", sum(data_misfit.^2)/n_dm
+  # @info "Mean max : ", maximum(abs.(data_misfit)), " Cov max : ", maximum(data_misfit.^2)
+  # new_cov =  sum(data_misfit.^2)/n_dm    # maximum(data_misfit.^2)
+  # # estimation of the constant model error, and re-train
+  # t_cov = Array(Diagonal(fill(new_cov, length(data_misfit))))
+
+  diag_cov = Misfit2Diagcov(2, data_misfit, t_mean)
+  t_cov = Array(Diagonal(diag_cov))
+
+  # second round 
+  kiobj, mesh = Random_Init_Test(phys_params, seq_pairs, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, θ_ref, ω0_ref, N_iter)
+  @save "exkiobj.dat" kiobj
+
+
+
+  # @load "exkiobj.dat" kiobj
+  # n_dm = length(kiobj.g_bar[end] - t_mean)
   
 
 

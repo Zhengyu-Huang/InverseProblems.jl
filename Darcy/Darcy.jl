@@ -83,6 +83,20 @@ function plot_field(darcy::Param_Darcy, u_2d::Array{Float64, 2},  clim, ax)
     return ax.pcolormesh(X, Y, u_2d, cmap="jet", clim=clim)
 end
 
+function plot_field(darcy::Param_Darcy, u_2d::Array{Float64, 2},  clim,  filename::String = "None")
+    N = darcy.N
+    xx = darcy.xx
+    figure(123)
+    X,Y = repeat(xx, 1, N), repeat(xx, 1, N)'
+    pcolormesh(X, Y, u_2d, cmap="jet", vmin=clim[1], vmax = clim[2])
+    colorbar()
+    tight_layout()
+    if filename != "None"
+        savefig(filename)
+        close("all")
+    end
+end
+
 
 #=
 Compute reference logk field, as 
