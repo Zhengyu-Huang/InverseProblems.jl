@@ -3,7 +3,7 @@ using Distributions
 using PyPlot
 using LinearAlgebra
 include("../RExKI.jl")
-
+include("Misfit2Diagcov.jl")
 
 
 # a0 + a1 x + a2 x^2 .....
@@ -162,9 +162,12 @@ function PolyModelTest()
             
             
             data_misfit = ukiobj.g_bar[end] - yy_train_ref
-            new_cov =  sum(data_misfit.^2)/length(data_misfit)    # maximum(data_misfit.^2)
-            t_cov = Array(Diagonal(fill(new_cov, length(data_misfit))))
-            
+
+            # new_cov =  sum(data_misfit.^2)/length(data_misfit)    # maximum(data_misfit.^2)
+            # t_cov = Array(Diagonal(fill(new_cov, length(data_misfit))))
+
+            diag_cov = Misfit2Diagcov(3, data_misfit, yy_train_ref)
+            t_cov = Array(Diagonal(diag_cov))
             # t_cov = length(data_misfit)*Array(Diagonal(data_misfit.^2))
             
             ukiobj = ExKI(xx_train, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter, update_cov)

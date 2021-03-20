@@ -10,7 +10,7 @@ using Distributions
 include("../Plot.jl")
 include("CommonFuncs.jl")
 include("../RExKI.jl")
-
+include("../ModelError/Misfit2Diagcov.jl")
 mutable struct Params
     θ_name::Array{String, 1}
     θ_func::Function
@@ -483,14 +483,12 @@ end
 # update t_cov
 data_misfit = (kiobj_perf.g_bar[end] - t_mean)
 n_dm = length(kiobj_perf.g_bar[end] - t_mean)
-@info "Mean error : ", sum(data_misfit)/n_dm, " Cov error : ", sum(data_misfit.^2)/n_dm
-@info "Mean max : ", maximum(abs.(data_misfit)), " Cov max : ", maximum(data_misfit.^2)
 
-new_cov =  sum(data_misfit.^2)/n_dm    # maximum(data_misfit.^2)
-# estimation of the constant model error, and re-train
-# t_cov = Array(Diagonal( obs_noise_level^2 * t_mean_noiseless.^2  .+  sum(data_misfit.^2)/n_dm))
-t_cov = Array(Diagonal(fill(new_cov, length(data_misfit))))
-# θ0_bar, θθ0_cov = kiobj_perf.θ_bar[end], kiobj_perf.θθ_cov[end]
+diag_cov = Misfit2Diagcov(2, data_misfit, t_mean)
+t_cov = Array(Diagonal(diag_cov))
+
+
+
 # todo use the commented line
 kiobj = Multiscale_Test(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter)
 kiobj = Multiscale_Test_Plot(phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, α_reg, N_iter; ki_file = "exkiobj.dat")

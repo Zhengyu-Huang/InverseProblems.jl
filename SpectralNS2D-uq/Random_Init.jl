@@ -3,7 +3,7 @@ using LinearAlgebra
 using Distributions
 using Random
 
-struct Params
+mutable struct Params
     ν::Float64
     ub::Float64
     vb::Float64
@@ -300,9 +300,10 @@ function Foward_Helper(params::Params, ω0::Array{Float64,2}, save_file_name::St
     
     data = zeros(Float64, size(d_x,1), size(d_y,1), size(d_t,1))
     
+    plot_range = 5
     #data[:,:,1] = ω0[d_x, d_y]
     if save_file_name != "None"
-        Visual(mesh, ω0, "ω", save_file_name*"0.pdf", -5.0, 5.0)
+        Visual(mesh, ω0, "ω", save_file_name*"0.pdf", -plot_range, plot_range)
     end
     
     for i = 1:nt
@@ -310,7 +311,7 @@ function Foward_Helper(params::Params, ω0::Array{Float64,2}, save_file_name::St
         if i%Δd_t == 0
             Update_Grid_Vars!(solver)
             if save_file_name != "None"
-                Visual_Obs(mesh, solver.ω, Δd_x, Δd_y, "ω", save_file_name*string(i)*".pdf", -5.0, 5.0)
+                Visual_Obs(mesh, solver.ω, Δd_x, Δd_y, "ω", save_file_name*string(i)*".pdf", -plot_range, plot_range)
             end
             data[:, :, Int64(i/Δd_t)] = solver.ω[d_x, d_y]
         end
@@ -398,7 +399,6 @@ function RandomInit_Main(θ::Array{Float64,1}, seq_pairs::Array{Int64,2}, params
     Δd_x, Δd_y, Δd_t = params.Δd_x, params.Δd_y, params.Δd_t
     
     
-    @assert(2size(seq_pairs,1) == size(θ,1))
     mesh = Spectral_Mesh(nx, ny, Lx, Ly)
     ω0 = Initial_ω0_KL(mesh, θ, seq_pairs)   
     
@@ -432,15 +432,14 @@ function Force(mesh::Spectral_Mesh)
     # F = [-∂Φ/∂y, ∂Φ/∂x] and Φ = cos((5x + 5y))
     nx, ny = mesh.nx, mesh.ny
     Δx, Δy, xx, yy = mesh.Δx, mesh.Δy, mesh.xx, mesh.yy
-    
     fx, fy = zeros(Float64, nx, ny), zeros(Float64, nx, ny)
-    # for i = 1:nx
-    #     for j = 1:ny
-    #         x, y = xx[i], yy[j]
-    #         fx[i,j] =  5*sin(5*(x+y)) 
-    #         fy[i,j] = -5*sin(5*(x+y)) 
-    #     end
-    # end
+    for i = 1:nx
+        for j = 1:ny
+            x, y = xx[i], yy[j]
+            fx[i,j] =  2sin(4*y) 
+            fy[i,j] =  0
+        end
+    end
     
     return fx, fy
 end
