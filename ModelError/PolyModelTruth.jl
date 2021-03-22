@@ -1,7 +1,7 @@
 using Random
 using Distributions
 using LinearAlgebra
-using PyPlot
+include("../Plot.jl")
 include("../RExKI.jl")
 
 
@@ -101,7 +101,7 @@ m0, Σ0 = nothing, nothing
 m, C = compute_posterior(y, G, Σ_η, m0, Σ0)
 xs_test = Array(LinRange(-2, 2, 100))
 ys_test_ref = [true_G(xs_test[i]) for i = 1:length(xs_test)]
-figure(figsize=(5,4))
+figure(figsize=(6,4))
 plot(xs_test, ys_test_ref, "--o", color="black", fillstyle="none", label = "Reference", markevery=10)
 prediction(xs_train, y, xs_test, m, C, color="C2", marker = "s")
 
@@ -129,7 +129,7 @@ m0, Σ0 = nothing, nothing
 m, C = compute_posterior(y, G, Σ_η, m0, Σ0)
 xs_test = Array(LinRange(-2, 2, 100))
 ys_test_ref = [true_G(xs_test[i]) for i = 1:length(xs_test)]
-figure(figsize=(5,4))
+figure(figsize=(6,4))
 plot(xs_test, ys_test_ref, "--o", color="black", fillstyle="none", label = "Reference", markevery=10)
 prediction(xs_train, y, xs_test, m, C, color="C2", marker = "s")
 

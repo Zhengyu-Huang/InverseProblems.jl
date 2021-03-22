@@ -1,7 +1,7 @@
 using Random
 using Distributions
-using PyPlot
 using LinearAlgebra
+include("../Plot.jl")
 include("../RExKI.jl")
 include("Misfit2Diagcov.jl")
 
@@ -106,9 +106,9 @@ function prediction(xx_test, xx_train, kiobj, θ_mean, θθ_cov, savefile=nothin
     obs_std = sqrt.(diag(obs_cov))
     
     # optimization related plots
-    fig_disp, ax_disp = PyPlot.subplots(ncols = 1, nrows=1, sharex=false, sharey=false, figsize=(5,4))
+    fig_disp, ax_disp = PyPlot.subplots(ncols = 1, nrows=1, sharex=false, sharey=false, figsize=(6,4))
     
-    ax_disp.plot(xx_train, yy_train_ref, "o", fillstyle="none", color="grey", label="Training")
+    ax_disp.plot(xx_train, yy_train_ref, "o", fillstyle="none", color="grey", label="Training (Ny = $(length(xx_train)))")
     
     ax_disp.plot(xx_test, yy_test_ref, "--", color="black", fillstyle="none", label = "Reference", markevery=10)
     
@@ -144,7 +144,7 @@ function PolyModelTest()
             Random.seed!(123); 
             noise_level = 0.05
             for i = 1:length(t_mean)
-                noise = noise_level*t_mean[i] * (rand(Uniform(0, 2))-1) 
+                noise = rand(Normal(0, 0.1)) 
                 t_mean[i] += noise
             end
 
@@ -166,7 +166,7 @@ function PolyModelTest()
             # new_cov =  sum(data_misfit.^2)/length(data_misfit)    # maximum(data_misfit.^2)
             # t_cov = Array(Diagonal(fill(new_cov, length(data_misfit))))
 
-            diag_cov = Misfit2Diagcov(3, data_misfit, yy_train_ref)
+            diag_cov = Misfit2Diagcov(2, data_misfit, yy_train_ref)
             t_cov = Array(Diagonal(diag_cov))
             # t_cov = length(data_misfit)*Array(Diagonal(data_misfit.^2))
             
