@@ -43,6 +43,9 @@ function A6_First_Half_Step!(structure::Structure, fext::FT, t::FT, Δt::FT) whe
     # prediction
     structure.Q = [ds_h + Δt_h/2*vs_h + Δt_h/8*(vs_h - vs) , 1.5*vs_h - 0.5*vs, NaN]
     structure.t = structure.t + Δt_h
+
+    # @info structure.Q, structure.Q_h
+    # error("stop")
 end
 
 
@@ -76,7 +79,8 @@ function Structure_Time_Advance!(structure::Structure{FT}, fext::FT, t::FT, Δt:
     structure.Q_h =  [ds_h, vs_h, as_h]
 
     # prediction
-    structure.Q = [ds_h + Δt/2*vs_h + Δt/8*(vs_h - vs_hm1) , 1.5*vs_h - 0.5*vs_hm1, NaN]
+    Δt_h = Δt/2
+    structure.Q = [ds_h + Δt_h/2*vs_h + Δt_h/8*(vs_h - vs) , 1.5*vs_h - 0.5*vs, NaN]
     structure.t = structure.t + Δt
 
 end

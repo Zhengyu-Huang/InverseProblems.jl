@@ -1,4 +1,4 @@
-
+using LinearAlgebra
 
 """
 Convert primitive variables to conservative variables
@@ -38,7 +38,7 @@ Convert conservative variables to primitive variables
 ρ, ρv, E   =>   ρ, v, p    
 """
 function Conser_To_Pri!(cons::Array{FT,2}, γ::FT, prim::Array{FT,2}) where {FT<:AbstractFloat}
-    for i = size(cons)[2]
+    for i = 1:size(cons)[2]
         prim[:, i] .= Conser_To_Pri(cons[:, i], γ)
     end
 end
@@ -253,7 +253,7 @@ function Initial!(self::Euler1D{FT, IT}, init_func::Function) where {FT<:Abstrac
         
         self.V[:,i]  .= ρ, v, p
 
-        cons = Conser_To_Pri([ρ; v; p], γ)
+        cons = Pri_To_Conser([ρ; v; p], γ)
         self.W[:,i] .= cons
     end
 end
@@ -302,14 +302,16 @@ function Intersector_Update!(self::Euler1D{FT, IT}, V::Array{FT,2}, W::Array{FT,
     
     xs, vs = self.emb
     FS_id_nm1 = self.FS_id_nm1
+
+    γ = self.γ
     #Using interpolation between inside node and Riemann solution
     xx = self.xx
     x_si = 0.5*(xx[FS_id_nm1] + xx[FS_id_nm1 + 1])
     
     # populate the ghost node at past time
     vv_s = FIVER(xx[FS_id_nm1 - 2], V[:, FS_id_nm1 - 2], xx[FS_id_nm1 - 1], V[:,FS_id_nm1 - 1], x_si, xs, vs, self.γ, self.FIVER_order)
-    V[:, FS_id_nm1] = Interpolation(V[:,FS_id_nm1 - 1],xx[FS_id_nm1 - 1], vv_s, x_si, xx[FS_id_nm1])
-    W[:, FS_id_nm1] = Pri_To_Conser(V[:, FS_id_nm1], γ)
+    V[:, FS_id_nm1] .= Interpolation(V[:,FS_id_nm1 - 1],xx[FS_id_nm1 - 1], vv_s, x_si, xx[FS_id_nm1])
+    W[:, FS_id_nm1] .= Pri_To_Conser(V[:, FS_id_nm1], γ)
     
 end
 
@@ -407,15 +409,22 @@ function Compute_Rhs_Muscl(self::Euler1D{FT, IT}, V::Array{FT,2} ,  RKstep::IT, 
             prim_l_recon = Interpolation(prim_ll, xx_ll, prim_l, xx_l, x_si)
             prim_r_recon = FIVER(xx_ll, prim_ll, xx_l, prim_l, x_si, xs, vs, self.γ, self.FIVER_order)
             
+            # todo 
+            prim_l_recon = prim_r_recon
         end
         
-        flux = Roe_Flux(prim_l_recon, prim_r_recon, γ)    
-        rhs[:, i] -= flux
-        rhs[:, i + 1] += flux
+        flux = Roe_Flux(prim_l_recon, prim_r_recon, γ)   
         
-        return rhs
+        # @info i, flux, prim_l_recon, prim_r_recon, Pri_To_Conser(prim_l_recon, γ)
+        rhs[:, i] -= flux
+        # Do not update ghost node
+        if i < FS_id - 1
+            rhs[:, i + 1] += flux   
+        end
+
         
     end
+    return rhs
 end
 
 
@@ -449,8 +458,10 @@ function Fluid_Time_Advance!(self::Euler1D{FT, IT}, emb::Array{FT,1}, t::FT, Δt
     
     #first step k1 = F(w_{n-1}, xs_{n-1}, vs_{n-1})
     rhs = Compute_Rhs_Muscl(self, V,  1)
+
+    @show 1, norm(rhs/Δx), self.emb_nm1
     
-    W_tmp = W + Δt*rhs
+    W_tmp = W + Δt*rhs/Δx
     
     V_tmp = copy(W_tmp)
     Conser_To_Pri!(W_tmp, γ, V_tmp)
@@ -466,15 +477,22 @@ function Fluid_Time_Advance!(self::Euler1D{FT, IT}, emb::Array{FT,1}, t::FT, Δt
     #second step k2 = F(w_{n-1} - dt*k1, xs_n, vs_n)
     #need GTR or RTG in the procedure
     rhs = Compute_Rhs_Muscl(self, V_tmp, 2)
+
+    @info rhs/Δx
+    @show 2, norm(rhs/Δx), self.emb
+
+    # error("stop")
     
-    W_tmp .= W_tmp + Δt*rhs
+    W_tmp .= W_tmp + Δt*rhs/Δx
     
     W .= 0.5*(W_tmp + W)
     
     Conser_To_Pri!(W, γ, V)
+
+   
     
-    
-    
+    # @show norm(W), W[1,:]
+    # @show norm(V)
     
     
     #################################################
