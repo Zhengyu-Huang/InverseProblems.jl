@@ -89,10 +89,7 @@ function Receding_Piston_Point(x, t, fluid_info, L, structure::Function)
 end
     
 
-function Exact_Solution(t,  mesh_info, fluid_info, structure)
-    
-    L, N  = mesh_info
-    N = Int64(N)
+function Exact_Solution(t,  L, N, fluid_info, structure)
     γ, ρ_l, v_l, p_l = fluid_info
     
     Δx = L/N

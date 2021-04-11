@@ -223,7 +223,7 @@ end
 
 
     
-function Euler1D(N::IT, L::FT, emb::Array{FT,1}; FIVER_order::IT = 2, γ::FT=1.4) where {FT<:AbstractFloat, IT<:Int}
+function Euler1D(L::FT,  N::IT, emb::Array{FT,1}; FIVER_order::IT = 2, γ::FT=1.4) where {FT<:AbstractFloat, IT<:Int}
     Δx = L/N
     
     
