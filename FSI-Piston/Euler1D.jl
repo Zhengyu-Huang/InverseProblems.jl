@@ -194,10 +194,6 @@ end
 
 
 
-
-
-
-
 ################################################
 # Fluid Class
 ###########################################################
@@ -230,11 +226,13 @@ end
 function Euler1D(N::IT, L::FT, emb::Array{FT,1}; FIVER_order::IT = 2, γ::FT=1.4) where {FT<:AbstractFloat, IT<:Int}
     Δx = L/N
     
-    t = FT(0)
+    
     xx = Array(LinRange(Δx/2, L - Δx/2, N))
     W = zeros(FT, 3, N)
     V = zeros(FT, 3, N)
     xs, vs = emb
+
+    t = FT(0)
 
     FS_id = FS_id_nm1 = FS_id_cal(xs, Δx)
 
@@ -292,8 +290,6 @@ function Send_Force(self::Euler1D{FT, IT}, t::FT, Δt::FT) where {FT<:AbstractFl
     prim_s = FIVER(xx[FS_id - 2], V[:, FS_id - 2], xx[FS_id - 1], V[:,FS_id - 1], xs, xs, vs, γ, self.FIVER_order)
     
     fext = prim_s[3]
-
-    @info "Send_Force : ", prim_s, xs, vs, FS_id, fext
 
     return fext
 end
@@ -418,9 +414,9 @@ function Compute_Rhs_Muscl(self::Euler1D{FT, IT}, V::Array{FT,2} ,  RKstep::IT, 
         end
         
         flux = Roe_Flux(prim_l_recon, prim_r_recon, γ)   
-        
-        # @info i, flux, prim_l_recon, prim_r_recon, Pri_To_Conser(prim_l_recon, γ)
         rhs[:, i] -= flux
+
+
         # Do not update ghost node
         if i < FS_id - 1
             rhs[:, i + 1] += flux   
@@ -462,8 +458,6 @@ function Fluid_Time_Advance!(self::Euler1D{FT, IT}, emb::Array{FT,1}, t::FT, Δt
     
     #first step k1 = F(w_{n-1}, xs_{n-1}, vs_{n-1})
     rhs = Compute_Rhs_Muscl(self, V,  1)
-
-    @show 1, norm(rhs/Δx), self.emb_nm1
     
     W_tmp = W + Δt*rhs/Δx
     
@@ -471,46 +465,26 @@ function Fluid_Time_Advance!(self::Euler1D{FT, IT}, emb::Array{FT,1}, t::FT, Δt
     Conser_To_Pri!(W_tmp, γ, V_tmp, FS_id_nm1)
     
     if FS_id == FS_id_nm1 + 1
+        # node 0, node 1, ... node FS_id - 1 are real cells
+        # need GTR or RTG in the procedure
         Intersector_Update!(self, V_tmp, W_tmp)
     end
     
     
-    
-    #node 0, node 1, ... node FS_id - 1 are real cells
-    
     #second step k2 = F(w_{n-1} - dt*k1, xs_n, vs_n)
-    #need GTR or RTG in the procedure
     rhs = Compute_Rhs_Muscl(self, V_tmp, 2)
 
-    # @info rhs/Δx
-    # @show 2, norm(rhs/Δx), self.emb
-
-    # error("stop")
-    
     W_tmp .= W_tmp + Δt*rhs/Δx
     
     W .= 0.5*(W_tmp + W)
     
     Conser_To_Pri!(W, γ, V, FS_id)
-
-   
-    
-    # @show norm(W), W[1,:]
-    # @show norm(V)
-    
-    
-    #################################################
-    # Ghost to Real Change
-    #############################
     
     if (FS_id == FS_id_nm1 + 1)
+        # Ghost to Real Change
         Intersector_Update!(self, V, W)
     end
     
-    
-    
     self.t = self.t + Δt
-    
-    
-    
+ 
 end

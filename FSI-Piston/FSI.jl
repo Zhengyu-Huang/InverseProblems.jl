@@ -58,44 +58,45 @@ function Solve(mesh_info, fluid_info, structure_info, time_info)
         end
 
         t = t + Δt
+
     end
 
     return fluid, structure
 end
 
-using PyPlot
-L, N = 2.0, 200
-mesh_info  = [L, N]
-fluid_info = [1.4, 1.225, 0. , 1.0] 
-ms, cs, ks = 1.0, 0.0, 1.0
-structure_info = [ms, cs, ks, 0.0, 0.0, L/2, "AEROELASTIC", nothing] 
+# using PyPlot
+# L, N = 2.0, 200
+# mesh_info  = [L, N]
+# fluid_info = [1.4, 1.225, 0. , 1.0] 
+# ms, cs, ks = 1.0, 0.0, 1.0
+# structure_info = [ms, cs, ks, 0.0, 0.0, L/2, "AEROELASTIC", nothing] 
 
-# function structure(t)
+# # function structure(t)
     
-#     ds = 1.0/8.0 * t^4
-#     vs = 1.0/2.0 * t^3
-#     as = 3.0/2.0 * t^2
+# #     ds = 1.0/8.0 * t^4
+# #     vs = 1.0/2.0 * t^3
+# #     as = 3.0/2.0 * t^2
 
-#     return [ds; vs; as]
-# end
+# #     return [ds; vs; as]
+# # end
 
-# structure_info = [ms, cs, ks, 0.0, 0.0, L/2, "FORCED", structure] 
-Δt, T = 0.001, 0.5
-time_info = [Δt, T]
+# # structure_info = [ms, cs, ks, 0.0, 0.0, L/2, "FORCED", structure] 
+# Δt, T = 0.001, 0.5
+# time_info = [Δt, T]
 
-fluid, piston = Solve(mesh_info, fluid_info, structure_info, time_info)
-V = fluid.V
-xx = fluid.xx
+# fluid, piston = Solve(mesh_info, fluid_info, structure_info, time_info)
+# V = fluid.V
+# xx = fluid.xx
 
-fig, ax = PyPlot.subplots(ncols=3, nrows=1, figsize=(18, 5))
+# fig, ax = PyPlot.subplots(ncols=3, nrows=1, figsize=(18, 5))
 
-ax[1].plot(xx, V[1, :], "-o", fillstyle = "none")
-ax[2].plot(xx, V[2, :], "-o", fillstyle = "none")
-ax[3].plot(xx, V[3, :], "-o", fillstyle = "none")
-ax[1].set_xlabel("x")
-ax[1].set_ylabel("ρ")
-ax[2].set_xlabel("x")
-ax[2].set_ylabel("v")
-ax[3].set_xlabel("x")
-ax[3].set_ylabel("p")
-fig.tight_layout()
+# ax[1].plot(xx, V[1, :], "-o", fillstyle = "none")
+# ax[2].plot(xx, V[2, :], "-o", fillstyle = "none")
+# ax[3].plot(xx, V[3, :], "-o", fillstyle = "none")
+# ax[1].set_xlabel("x")
+# ax[1].set_ylabel("ρ")
+# ax[2].set_xlabel("x")
+# ax[2].set_ylabel("v")
+# ax[3].set_xlabel("x")
+# ax[3].set_ylabel("p")
+# fig.tight_layout()

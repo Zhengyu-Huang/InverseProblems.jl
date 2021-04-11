@@ -44,14 +44,9 @@ function A6_First_Half_Step!(structure::Structure, fext::FT, t::FT, Δt::FT) whe
 
     structure.Q_h .= ds_h, vs_h, as_h
 
-    @info ds_h, vs_h, as_h
-
     # prediction
     structure.Q .= ds_h + Δt_h/2*vs_h + Δt_h/8*(vs_h - vs) , 1.5*vs_h - 0.5*vs, NaN64
     structure.t = structure.t + Δt_h
-
-    # @info structure.Q, structure.Q_h
-    # error("stop")
 end
 
 
@@ -68,15 +63,9 @@ end
 
 function Structure_Time_Advance!(structure::Structure{FT}, fext::FT, t::FT, Δt::FT) where {FT<:AbstractFloat}
 
-    
     ms, cs, ks = structure.ms, structure.cs, structure.ks
 
-
     structure.Q_hm1 .= structure.Q_h
-    
-    # ds_h,   vs_h,   as_h = structure.Q_h
-
-    # error(vs_h)
 
     ds_hm1, vs_hm1, as_hm1 = structure.Q_hm1
 
@@ -85,11 +74,6 @@ function Structure_Time_Advance!(structure::Structure{FT}, fext::FT, t::FT, Δt:
     as_h  = (fext - ms/2*as_hm1 - cs/2*(2vs_hm1 + Δt/2*as_hm1) - ks/2*(2ds_hm1 + Δt*vs_hm1 + Δt^2/4*as_hm1) )/(ms/2 + cs*Δt/4 + ks*Δt^2/8)
     vs_h  = vs_hm1 + Δt/2*(as_h + as_hm1)
     ds_h  = ds_hm1 + Δt/2*(vs_h + vs_hm1)
-
-    @show fext, as_hm1, vs_hm1, ds_hm1
-    @info "fext = ", cs, ms, ks, fext, as_h, vs_h, ds_h, "old ", vs_hm1, ds_hm1
-
-
 
 
     structure.Q_h .=  ds_h, vs_h, as_h
