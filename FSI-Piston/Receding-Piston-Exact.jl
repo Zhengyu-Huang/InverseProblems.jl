@@ -1,5 +1,3 @@
-using LinearAlgebra
-using PyPlot
 function f_piston(τ, x, t , a0, L, γ, structure::Function)
     ds, vs, _ = structure(τ)
     f = ((γ + 1)/2*vs - a0)*(t - τ) + ds + L/2 - x
