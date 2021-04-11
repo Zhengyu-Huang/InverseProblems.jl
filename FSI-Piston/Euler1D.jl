@@ -14,8 +14,8 @@ end
 Convert primitive variables to conservative variables
 ρ, v, p   =>   ρ, ρv, E = ρv²/2 + ρCᵥT
 """
-function Pri_To_Conser!(prim::Array{FT,2}, γ::FT, cons::Array{FT,2},) where {FT<:AbstractFloat}
-    for i = size(prim)[2]
+function Pri_To_Conser!(prim::Array{FT,2}, γ::FT, cons::Array{FT,2}, FS_id::IT = size(prim)[2]+1) where {FT<:AbstractFloat, IT<:Int}
+    for i = 1:FS_id - 1
         cons[:, i] .= Pri_To_Conser(prim[:, i], γ)
     end
     
@@ -37,8 +37,8 @@ end
 Convert conservative variables to primitive variables
 ρ, ρv, E   =>   ρ, v, p    
 """
-function Conser_To_Pri!(cons::Array{FT,2}, γ::FT, prim::Array{FT,2}) where {FT<:AbstractFloat}
-    for i = 1:size(cons)[2]
+function Conser_To_Pri!(cons::Array{FT,2}, γ::FT, prim::Array{FT,2}, FS_id::IT = size(cons)[2]+1) where {FT<:AbstractFloat, IT<:Int}
+    for i = 1:FS_id - 1
         prim[:, i] .= Conser_To_Pri(cons[:, i], γ)
     end
 end
@@ -283,6 +283,7 @@ end
 
 
 function Send_Force(self::Euler1D{FT, IT}, t::FT, Δt::FT) where {FT<:AbstractFloat, IT<:Int}
+    
     xs, vs = self.emb
     FS_id = self.FS_id
     V, xx = self.V, self.xx
@@ -290,7 +291,10 @@ function Send_Force(self::Euler1D{FT, IT}, t::FT, Δt::FT) where {FT<:AbstractFl
 
     prim_s = FIVER(xx[FS_id - 2], V[:, FS_id - 2], xx[FS_id - 1], V[:,FS_id - 1], xs, xs, vs, γ, self.FIVER_order)
     
-    fext = prim_s[2]
+    fext = prim_s[3]
+
+    @info "Send_Force : ", prim_s, xs, vs, FS_id, fext
+
     return fext
 end
 
@@ -464,7 +468,7 @@ function Fluid_Time_Advance!(self::Euler1D{FT, IT}, emb::Array{FT,1}, t::FT, Δt
     W_tmp = W + Δt*rhs/Δx
     
     V_tmp = copy(W_tmp)
-    Conser_To_Pri!(W_tmp, γ, V_tmp)
+    Conser_To_Pri!(W_tmp, γ, V_tmp, FS_id_nm1)
     
     if FS_id == FS_id_nm1 + 1
         Intersector_Update!(self, V_tmp, W_tmp)
@@ -478,8 +482,8 @@ function Fluid_Time_Advance!(self::Euler1D{FT, IT}, emb::Array{FT,1}, t::FT, Δt
     #need GTR or RTG in the procedure
     rhs = Compute_Rhs_Muscl(self, V_tmp, 2)
 
-    @info rhs/Δx
-    @show 2, norm(rhs/Δx), self.emb
+    # @info rhs/Δx
+    # @show 2, norm(rhs/Δx), self.emb
 
     # error("stop")
     
@@ -487,7 +491,7 @@ function Fluid_Time_Advance!(self::Euler1D{FT, IT}, emb::Array{FT,1}, t::FT, Δt
     
     W .= 0.5*(W_tmp + W)
     
-    Conser_To_Pri!(W, γ, V)
+    Conser_To_Pri!(W, γ, V, FS_id)
 
    
     

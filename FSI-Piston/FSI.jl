@@ -84,7 +84,7 @@ structure_info = [ms, cs, ks, 0.0, 0.0, L/2, "AEROELASTIC", nothing]
 time_info = [Δt, T]
 
 fluid, piston = Solve(mesh_info, fluid_info, structure_info, time_info)
-V = fluid.W
+V = fluid.V
 xx = fluid.xx
 
 fig, ax = PyPlot.subplots(ncols=3, nrows=1, figsize=(18, 5))
