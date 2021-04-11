@@ -298,7 +298,12 @@ function UKI_Run(s_param, forward::Function,
     for i in 1:N_iter
         
         update_ensemble!(ukiobj, ens_func) 
-        
+
+        @info "iter : ", i, ukiobj.θ_mean[i]
+
+        @info "iter : ", i, exp.(ukiobj.θ_mean[i])
+        @info "iter : ", i, 0.5*(ukiobj.y_pred[i] - ukiobj.y)'*(ukiobj.Σ_η\(ukiobj.y_pred[i] - ukiobj.y))
+        @info "iter : ", i, ukiobj.θθ_cov[i]
     end
     
     return ukiobj

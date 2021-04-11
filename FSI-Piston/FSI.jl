@@ -91,7 +91,7 @@ end
 # Inverse problem
 ###################################################################
 
-struct Setup_Param{FT<:AbstractFloat, IT<:Int}
+mutable struct Setup_Param{FT<:AbstractFloat, IT<:Int}
     # mesh information
     
     L::FT              # computational domain [0, L]
@@ -129,7 +129,7 @@ function Setup_Param(L::FT, N::IT,
     
     Δx = L/N
     xx = Array(LinRange(Δx/2, L - Δx/2, N))
-    N_θ = length(θ_ref)
+    N_θ = length(θ_names)
     
     N_T = Int64(T/Δt)
     N_y = div(N_T, obs_freq) + 1
@@ -140,20 +140,29 @@ end
 
 
 
-function forward(piston::Setup_Param, θ::Array{FT, 1}) where {FT<:AbstractFloat}
-    L, N = piston.L, piston.N
+function forward(s_param::Setup_Param, θ::Array{FT, 1}) where {FT<:AbstractFloat}
+    L, N = s_param.L, s_param.N
 
-    fluid_info, time_info = piston.fluid_info, piston.time_info
+    fluid_info, time_info = s_param.fluid_info, s_param.time_info
+    
+    ms = s_param.θ_ref[1]
+    cs, ks = exp.(θ)
 
-    ms, cs, ks = θ
+    cs, ks = θ
+
+    @info "ms, cs, ks ", ms, cs, ks
     structure_info = [ms, cs, ks, 0.0, 0.0, L/2, "AEROELASTIC", nothing] 
     
-    obs_freq = piston.obs_freq
+    obs_freq = s_param.obs_freq
+
     _, _, _, structure_history = Solve(L, N, fluid_info, structure_info, time_info, output_freq = obs_freq)
 
 
     # structure displacement
     y = structure_history[1, :]
+
+    @info size(y), s_param.N_y
+
     return y
 end
 
@@ -204,7 +213,7 @@ N, L = 400, 2.0
 fluid_info = [γ, ρ0, v0, p0] 
 
 # piston mass, damping coefficient and spring stiffness
-ms, cs, ks = 2.0, 0.5, 2.0
+ms, cs, ks = 1.0, 0.5, 2.0
 θ_ref = [ms; cs; ks]
 # initial displacement, velocity, and initial position
 u0, v0, x0 = 0.0, 0.0, L/2
@@ -213,15 +222,18 @@ structure_info = [ms, cs, ks, u0, v0, x0, "AEROELASTIC", nothing]
 # time step and end time
 Δt, T = 0.001, 1.0
 N_T = Int64(T/Δt)
-obs_freq = 50
+obs_freq = 10
 time_info = [Δt, T]
 
+s_param = Setup_Param(L, N,  time_info, fluid_info,  θ_ref, ["cs", "ks"], obs_freq)
+
+# y_noiseless  = forward(s_param, s_param.θ_ref) 
 
 fluid, piston, _, piston_history = Solve(L, N, fluid_info, structure_info, time_info; output_freq = 1)
 y_noiseless = piston_history[1, 1:obs_freq:end]
 
 y = copy(y_noiseless)
-noise_level = 0.0
+noise_level = 0.05
 N_y = length(y)
 Random.seed!(123);
 for i = 1:N_y
@@ -230,31 +242,34 @@ for i = 1:N_y
 end
 
 
+# visualize the observation
+PyPlot.figure()
+tt = Array(LinRange(0, T, N_T+1))
+PyPlot.plot(tt, piston_history[1, :])
+PyPlot.plot(tt[1:obs_freq:end], y, "o", color="black")
+PyPlot.xlabel("Time")
+PyPlot.ylabel("Displacement")
 
-piston = Setup_Param(L, N, 
-time_info, fluid_info, 
-θ_ref, ["ms", "cs", "ks"],
-obs_freq)
 
-N_y, N_θ = piston.N_y, piston.N_θ
+N_y, N_θ = s_param.N_y, s_param.N_θ
 # observation
 Σ_η = Array(Diagonal(fill(0.1^2, N_y)))
 
 
 # UKI 
-θ0_mean = ones(Float64, N_θ) 
-θθ0_cov = Array(Diagonal(fill(1.0^2.0, N_θ)))
+θ0_mean =  ones(Float64, N_θ) # [0.5; 2.0] # 
+θθ0_cov = Array(Diagonal(fill(1^2.0, N_θ)))
 N_iter = 30
 α_reg = 1.0
 update_freq = 1
-ukiobj = UKI_Run(piston, forward, θ0_mean, θθ0_cov, y, Σ_η, α_reg, update_freq, N_iter)
+ukiobj = UKI_Run(s_param, forward, θ0_mean, θθ0_cov, y, Σ_η, α_reg, update_freq, N_iter)
 
 
 fig, (ax1, ax2, ax3) = PyPlot.subplots(ncols=3, figsize=(18,6))
 ites = Array(LinRange(1, N_iter, N_iter))
 errors = zeros(Float64, (3, N_iter))
 for i = 1:N_iter
-    errors[1, i] = norm(piston.θ_ref - ukiobj.θ_mean[i])/norm(piston.θ_ref)
+    errors[1, i] = norm(s_param.θ_ref - ukiobj.θ_mean[i])/norm(s_param.θ_ref)
     errors[2, i] = 0.5*(ukiobj.y_pred[i] - ukiobj.y)'*(ukiobj.Σ_η\(ukiobj.y_pred[i] - ukiobj.y))
     errors[3, i] = norm(ukiobj.θθ_cov[i])
 end
