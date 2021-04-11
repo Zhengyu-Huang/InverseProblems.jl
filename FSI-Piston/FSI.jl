@@ -22,7 +22,7 @@ function Solve(mesh_info, fluid_info, structure_info, time_info)
     as_0 = (p_0 - ks*ds_0 - cs*vs_0)/ms
     Q = [ds_0; vs_0; as_0]
 
-    structure = Structure(Q, Q, Q, x0, ms, cs, ks, motion, forced_motion_func, t)
+    structure = Structure(ds_0, vs_0, as_0, x0, ms, cs, ks, motion, forced_motion_func, t)
     
 
     #####################################################
