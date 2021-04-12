@@ -230,7 +230,7 @@ fluid, piston, _, piston_history = Solve(L, N, fluid_info, structure_info, time_
 y_noiseless = piston_history[1, 1:obs_freq:end]
 
 y = copy(y_noiseless)
-noise_σ = 0.005
+noise_σ = 0.002
 N_y = length(y)
 Random.seed!(123);
 for i = 1:N_y
@@ -238,6 +238,16 @@ for i = 1:N_y
     noise = rand(Normal(0, noise_σ))
     y[i] += noise
 end
+
+# visualize the fluid variables
+PyPlot.figure()
+PyPlot.plot(fluid.xx, fluid.V[1, :], "-o", fillstyle = "none", markevery = 10, label="ρ")
+PyPlot.plot(fluid.xx, fluid.V[2, :], "-o", fillstyle = "none", markevery = 10, label="v")
+PyPlot.plot(fluid.xx, fluid.V[3, :], "-o", fillstyle = "none", markevery = 10, label="p")
+PyPlot.xlabel("X")
+PyPlot.tight_layout()
+PyPlot.legend()
+PyPlot.savefig("Fluid-Piston.pdf")
 
 
 # visualize the observation
@@ -247,7 +257,9 @@ PyPlot.plot(tt, piston_history[1, :])
 PyPlot.plot(tt[1:obs_freq:end], y, "o", color="black")
 PyPlot.xlabel("Time")
 PyPlot.ylabel("Displacement")
-PyPlot.savefig("Observation.pdf")
+PyPlot.tight_layout()
+PyPlot.savefig("Observation-Piston.pdf")
+
 
 N_y, N_θ = s_param.N_y, s_param.N_θ
 # observation
@@ -275,18 +287,19 @@ end
 
 PyPlot.figure()
 ites = Array(LinRange(0, N_iter, N_iter+1))
-PyPlot.errorbar(ites, θ_mean_arr[1,:], fmt="--o",fillstyle="none", yerr=θθ_std_arr[1,:],  label=L"c_s")
+PyPlot.errorbar(ites, θ_mean_arr[1,:], fmt="--o",fillstyle="none", yerr=3θθ_std_arr[1,:],  label=L"c_s")
 PyPlot.plot(ites, fill(cs, N_iter+1), "--", color="grey")
 
-PyPlot.errorbar(ites, θ_mean_arr[2,:], fmt="--o", fillstyle="none", yerr=θθ_std_arr[2,:], label=L"k_s")
+PyPlot.errorbar(ites, θ_mean_arr[2,:], fmt="--o", fillstyle="none", yerr=3θθ_std_arr[2,:], label=L"k_s")
 PyPlot.plot(ites, fill(ks, N_iter+1), "--", color="grey")
 PyPlot.legend()
 
 PyPlot.xlabel("Iterations")
 PyPlot.tight_layout()
-PyPlot.savefig("UKI-Converge.pdf")
+PyPlot.savefig("UKI-Converge-Piston.pdf")
 
-
+@info "Final mean: ", ukiobj.θ_mean[end]
+@info "Final cov: ", ukiobj.θθ_cov[end]
 
 # fig, (ax1, ax2, ax3) = PyPlot.subplots(ncols=3, figsize=(18,6))
 # ites = Array(LinRange(1, N_iter, N_iter))
@@ -317,23 +330,23 @@ PyPlot.savefig("UKI-Converge.pdf")
 # fig.tight_layout()
 
 
-include("../Inversion/RWMCMC.jl")
-# compute posterior distribution by MCMC
-μ0 , Σ0 = [cs; ks], Array(Diagonal(fill(1.0^2.0, N_θ)))
-logρ(θ) = log_bayesian_posterior(s_param, θ, forward, y, Σ_η, μ0, Σ0)
-step_length = 0.01
-N_iter , n_burn_in= 50000, 10000
-us = RWMCMC_Run(logρ, μ0, step_length, N_iter)
+# include("../Inversion/RWMCMC.jl")
+# # compute posterior distribution by MCMC
+# μ0 , Σ0 = [cs; ks], Array(Diagonal(fill(1.0^2.0, N_θ)))
+# logρ(θ) = log_bayesian_posterior(s_param, θ, forward, y, Σ_η, μ0, Σ0)
+# step_length = 0.01
+# N_iter , n_burn_in= 50000, 10000
+# us = RWMCMC_Run(logρ, μ0, step_length, N_iter)
 
-# plot UKI results at 5th, 10th, and 15th iterations
-PyPlot.figure()
-Nx = 100; Ny = 200
-uki_θ_mean = ukiobj.θ_mean[end]
-uki_θθ_cov = ukiobj.θθ_cov[end]
-X,Y,Z = Gaussian_2d(uki_θ_mean, uki_θθ_cov, Nx, Ny)
-PyPlot.contour(X, Y, Z, 20)
+# # plot UKI results at 5th, 10th, and 15th iterations
+# PyPlot.figure()
+# Nx = 100; Ny = 200
+# uki_θ_mean = ukiobj.θ_mean[end]
+# uki_θθ_cov = ukiobj.θθ_cov[end]
+# X,Y,Z = Gaussian_2d(uki_θ_mean, uki_θθ_cov, Nx, Ny)
+# PyPlot.contour(X, Y, Z, 20)
 
-# plot MCMC results 
-everymarker = 1
-PyPlot.scatter(us[n_burn_in:everymarker:end, 1], us[n_burn_in:everymarker:end, 2], s = 1)
-PyPlot.savefig("UKI-MCMC.pdf")
+# # plot MCMC results 
+# everymarker = 1
+# PyPlot.scatter(us[n_burn_in:everymarker:end, 1], us[n_burn_in:everymarker:end, 2], s = 1)
+# PyPlot.savefig("UKI-MCMC.pdf")
