@@ -146,11 +146,10 @@ function forward(s_param::Setup_Param, θ::Array{FT, 1}) where {FT<:AbstractFloa
     fluid_info, time_info = s_param.fluid_info, s_param.time_info
     
     ms = s_param.θ_ref[1]
-    cs, ks = exp.(θ)
+    
 
     cs, ks = θ
 
-    @info "ms, cs, ks ", ms, cs, ks
     structure_info = [ms, cs, ks, 0.0, 0.0, L/2, "AEROELASTIC", nothing] 
     
     obs_freq = s_param.obs_freq
@@ -160,8 +159,6 @@ function forward(s_param::Setup_Param, θ::Array{FT, 1}) where {FT<:AbstractFloa
 
     # structure displacement
     y = structure_history[1, :]
-
-    @info size(y), s_param.N_y
 
     return y
 end
@@ -213,7 +210,7 @@ N, L = 400, 2.0
 fluid_info = [γ, ρ0, v0, p0] 
 
 # piston mass, damping coefficient and spring stiffness
-ms, cs, ks = 1.0, 0.5, 2.0
+ms, cs, ks = 1.0, 0.50, 2.0
 θ_ref = [ms; cs; ks]
 # initial displacement, velocity, and initial position
 u0, v0, x0 = 0.0, 0.0, L/2
@@ -237,7 +234,8 @@ noise_level = 0.05
 N_y = length(y)
 Random.seed!(123);
 for i = 1:N_y
-    noise = rand(Normal(0, noise_level*y[i]))
+    # noise = rand(Normal(0, noise_level*y[i]))
+    noise = rand(Normal(0, 0.01))
     y[i] += noise
 end
 
@@ -253,44 +251,65 @@ PyPlot.ylabel("Displacement")
 
 N_y, N_θ = s_param.N_y, s_param.N_θ
 # observation
-Σ_η = Array(Diagonal(fill(0.1^2, N_y)))
+Σ_η = Array(Diagonal(fill(0.01^2, N_y)))
 
 
 # UKI 
 θ0_mean =  ones(Float64, N_θ) # [0.5; 2.0] # 
-θθ0_cov = Array(Diagonal(fill(1^2.0, N_θ)))
-N_iter = 30
+θθ0_cov = Array(Diagonal(fill(1.0^2.0, N_θ)))
+N_iter = 10
 α_reg = 1.0
 update_freq = 1
 ukiobj = UKI_Run(s_param, forward, θ0_mean, θθ0_cov, y, Σ_η, α_reg, update_freq, N_iter)
 
 
-fig, (ax1, ax2, ax3) = PyPlot.subplots(ncols=3, figsize=(18,6))
-ites = Array(LinRange(1, N_iter, N_iter))
-errors = zeros(Float64, (3, N_iter))
-for i = 1:N_iter
-    errors[1, i] = norm(s_param.θ_ref - ukiobj.θ_mean[i])/norm(s_param.θ_ref)
-    errors[2, i] = 0.5*(ukiobj.y_pred[i] - ukiobj.y)'*(ukiobj.Σ_η\(ukiobj.y_pred[i] - ukiobj.y))
-    errors[3, i] = norm(ukiobj.θθ_cov[i])
+
+####
+θ_mean_arr = hcat(ukiobj.θ_mean...)
+θθ_std_arr = zeros(Float64, (N_θ, N_iter+1))
+for i = 1:N_iter+1
+    for j = 1:N_θ
+        θθ_std_arr[j, i] = sqrt(ukiobj.θθ_cov[i][j,j])
+    end
 end
 
-ax1.semilogy(ites, errors[1, :], "-o", fillstyle="none", markevery=2, label= "UKI")
-ax1.set_xlabel("Iterations")
-ax1.set_ylabel("Relative L₂ norm error of logκ")
-ax1.legend()
-ax1.grid(true)
+ites = Array(LinRange(1, N_iter+1, N_iter+1))
+PyPlot.errorbar(ites, θ_mean_arr[1,:], fmt="--o",fillstyle="none", yerr=θθ_std_arr[1,:],  label=L"c_s")
+PyPlot.plot(ites, fill(cs, N_iter+1), "--", color="grey")
 
-ax2.semilogy(ites, errors[2, :], "-o", fillstyle="none", markevery=2, label= "UKI")
-ax2.set_xlabel("Iterations")
-ax2.set_ylabel("Optimization error")
-ax2.grid(true)
-ax2.legend()
+PyPlot.errorbar(ites, θ_mean_arr[2,:], fmt="--o", fillstyle="none", yerr=θθ_std_arr[2,:], label=L"k_s")
+PyPlot.plot(ites, fill(ks, N_iter+1), "--", color="grey")
+PyPlot.legend()
 
-ax3.semilogy(ites, errors[3, :], "-o", fillstyle="none", markevery=2, label= "UKI")
-ax3.set_xlabel("Iterations")
-ax3.set_ylabel("Frobenius norm of covariance")
-ax3.grid(true)
-ax3.legend()
-fig.tight_layout()
+
+
+
+# fig, (ax1, ax2, ax3) = PyPlot.subplots(ncols=3, figsize=(18,6))
+# ites = Array(LinRange(1, N_iter, N_iter))
+# errors = zeros(Float64, (3, N_iter))
+# for i = 1:N_iter
+#     errors[1, i] = norm(s_param.θ_ref - ukiobj.θ_mean[i])/norm(s_param.θ_ref)
+#     errors[2, i] = 0.5*(ukiobj.y_pred[i] - ukiobj.y)'*(ukiobj.Σ_η\(ukiobj.y_pred[i] - ukiobj.y))
+#     errors[3, i] = norm(ukiobj.θθ_cov[i])
+# end
+
+# ax1.semilogy(ites, errors[1, :], "-o", fillstyle="none", markevery=2, label= "UKI")
+# ax1.set_xlabel("Iterations")
+# ax1.set_ylabel("Relative L₂ norm error of logκ")
+# ax1.legend()
+# ax1.grid(true)
+
+# ax2.semilogy(ites, errors[2, :], "-o", fillstyle="none", markevery=2, label= "UKI")
+# ax2.set_xlabel("Iterations")
+# ax2.set_ylabel("Optimization error")
+# ax2.grid(true)
+# ax2.legend()
+
+# ax3.semilogy(ites, errors[3, :], "-o", fillstyle="none", markevery=2, label= "UKI")
+# ax3.set_xlabel("Iterations")
+# ax3.set_ylabel("Frobenius norm of covariance")
+# ax3.grid(true)
+# ax3.legend()
+# fig.tight_layout()
 
 
