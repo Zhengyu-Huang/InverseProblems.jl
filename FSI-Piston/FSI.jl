@@ -230,12 +230,12 @@ fluid, piston, _, piston_history = Solve(L, N, fluid_info, structure_info, time_
 y_noiseless = piston_history[1, 1:obs_freq:end]
 
 y = copy(y_noiseless)
-noise_level = 0.05
+noise_σ = 0.005
 N_y = length(y)
 Random.seed!(123);
 for i = 1:N_y
     # noise = rand(Normal(0, noise_level*y[i]))
-    noise = rand(Normal(0, 0.01))
+    noise = rand(Normal(0, noise_σ))
     y[i] += noise
 end
 
@@ -247,11 +247,11 @@ PyPlot.plot(tt, piston_history[1, :])
 PyPlot.plot(tt[1:obs_freq:end], y, "o", color="black")
 PyPlot.xlabel("Time")
 PyPlot.ylabel("Displacement")
-
+PyPlot.savefig("Observation.pdf")
 
 N_y, N_θ = s_param.N_y, s_param.N_θ
 # observation
-Σ_η = Array(Diagonal(fill(0.01^2, N_y)))
+Σ_η = Array(Diagonal(fill(noise_σ^2, N_y)))
 
 
 # UKI 
@@ -273,7 +273,8 @@ for i = 1:N_iter+1
     end
 end
 
-ites = Array(LinRange(1, N_iter+1, N_iter+1))
+PyPlot.figure()
+ites = Array(LinRange(0, N_iter, N_iter+1))
 PyPlot.errorbar(ites, θ_mean_arr[1,:], fmt="--o",fillstyle="none", yerr=θθ_std_arr[1,:],  label=L"c_s")
 PyPlot.plot(ites, fill(cs, N_iter+1), "--", color="grey")
 
@@ -281,6 +282,9 @@ PyPlot.errorbar(ites, θ_mean_arr[2,:], fmt="--o", fillstyle="none", yerr=θθ_s
 PyPlot.plot(ites, fill(ks, N_iter+1), "--", color="grey")
 PyPlot.legend()
 
+PyPlot.xlabel("Iterations")
+PyPlot.tight_layout()
+PyPlot.savefig("UKI-Converge.pdf")
 
 
 
@@ -313,3 +317,23 @@ PyPlot.legend()
 # fig.tight_layout()
 
 
+include("../Inversion/RWMCMC.jl")
+# compute posterior distribution by MCMC
+μ0 , Σ0 = [cs; ks], Array(Diagonal(fill(1.0^2.0, N_θ)))
+logρ(θ) = log_bayesian_posterior(s_param, θ, forward, y, Σ_η, μ0, Σ0)
+step_length = 0.01
+N_iter , n_burn_in= 50000, 10000
+us = RWMCMC_Run(logρ, μ0, step_length, N_iter)
+
+# plot UKI results at 5th, 10th, and 15th iterations
+PyPlot.figure()
+Nx = 100; Ny = 200
+uki_θ_mean = ukiobj.θ_mean[end]
+uki_θθ_cov = ukiobj.θθ_cov[end]
+X,Y,Z = Gaussian_2d(uki_θ_mean, uki_θθ_cov, Nx, Ny)
+PyPlot.contour(X, Y, Z, 20)
+
+# plot MCMC results 
+everymarker = 1
+PyPlot.scatter(us[n_burn_in:everymarker:end, 1], us[n_burn_in:everymarker:end, 2], s = 1)
+PyPlot.savefig("UKI-MCMC.pdf")
