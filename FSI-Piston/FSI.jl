@@ -301,52 +301,28 @@ PyPlot.savefig("UKI-Converge-Piston.pdf")
 @info "Final mean: ", ukiobj.θ_mean[end]
 @info "Final cov: ", ukiobj.θθ_cov[end]
 
-# fig, (ax1, ax2, ax3) = PyPlot.subplots(ncols=3, figsize=(18,6))
-# ites = Array(LinRange(1, N_iter, N_iter))
-# errors = zeros(Float64, (3, N_iter))
-# for i = 1:N_iter
-#     errors[1, i] = norm(s_param.θ_ref - ukiobj.θ_mean[i])/norm(s_param.θ_ref)
-#     errors[2, i] = 0.5*(ukiobj.y_pred[i] - ukiobj.y)'*(ukiobj.Σ_η\(ukiobj.y_pred[i] - ukiobj.y))
-#     errors[3, i] = norm(ukiobj.θθ_cov[i])
-# end
 
-# ax1.semilogy(ites, errors[1, :], "-o", fillstyle="none", markevery=2, label= "UKI")
-# ax1.set_xlabel("Iterations")
-# ax1.set_ylabel("Relative L₂ norm error of logκ")
-# ax1.legend()
-# ax1.grid(true)
+using NPZ
+include("../Inversion/RWMCMC.jl")
+# compute posterior distribution by MCMC
+μ0 , Σ0 = [cs; ks], Array(Diagonal(fill(1.0^2.0, N_θ)))
+logρ(θ) = log_bayesian_posterior(s_param, θ, forward, y, Σ_η, μ0, Σ0)
+step_length = 0.01
+N_iter , n_burn_in= 50000, 10000
+us = RWMCMC_Run(logρ, μ0, step_length, N_iter)
+npzwrite("us.npy", us)
 
-# ax2.semilogy(ites, errors[2, :], "-o", fillstyle="none", markevery=2, label= "UKI")
-# ax2.set_xlabel("Iterations")
-# ax2.set_ylabel("Optimization error")
-# ax2.grid(true)
-# ax2.legend()
-
-# ax3.semilogy(ites, errors[3, :], "-o", fillstyle="none", markevery=2, label= "UKI")
-# ax3.set_xlabel("Iterations")
-# ax3.set_ylabel("Frobenius norm of covariance")
-# ax3.grid(true)
-# ax3.legend()
-# fig.tight_layout()
-
-
-# include("../Inversion/RWMCMC.jl")
-# # compute posterior distribution by MCMC
-# μ0 , Σ0 = [cs; ks], Array(Diagonal(fill(1.0^2.0, N_θ)))
-# logρ(θ) = log_bayesian_posterior(s_param, θ, forward, y, Σ_η, μ0, Σ0)
-# step_length = 0.01
-# N_iter , n_burn_in= 50000, 10000
-# us = RWMCMC_Run(logρ, μ0, step_length, N_iter)
-
-# # plot UKI results at 5th, 10th, and 15th iterations
-# PyPlot.figure()
-# Nx = 100; Ny = 200
-# uki_θ_mean = ukiobj.θ_mean[end]
-# uki_θθ_cov = ukiobj.θθ_cov[end]
-# X,Y,Z = Gaussian_2d(uki_θ_mean, uki_θθ_cov, Nx, Ny)
-# PyPlot.contour(X, Y, Z, 20)
-
-# # plot MCMC results 
-# everymarker = 1
-# PyPlot.scatter(us[n_burn_in:everymarker:end, 1], us[n_burn_in:everymarker:end, 2], s = 1)
-# PyPlot.savefig("UKI-MCMC.pdf")
+# plot UKI results at 5th, 10th, and 15th iterations
+PyPlot.figure()
+Nx = 100; Ny = 200
+uki_θ_mean = ukiobj.θ_mean[end]
+uki_θθ_cov = ukiobj.θθ_cov[end]
+X,Y,Z = Gaussian_2d(uki_θ_mean, uki_θθ_cov, Nx, Ny)
+PyPlot.contour(X, Y, Z, Array(LinRange(minimum(Z)+0.01*maximum(Z), maximum(Z), 20)), alpha=0.5)
+PyPlot.xlabel(L"c_s")
+PyPlot.ylabel(L"k_s")
+PyPlot.tight_layout()
+# plot MCMC results 
+everymarker = 1
+PyPlot.scatter(us[n_burn_in:everymarker:end, 1], us[n_burn_in:everymarker:end, 2], s = 1)
+PyPlot.savefig("UKI-MCMC.pdf")
