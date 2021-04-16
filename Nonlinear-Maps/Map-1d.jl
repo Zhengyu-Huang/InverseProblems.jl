@@ -200,9 +200,12 @@ function Map_Posterior_Plot(forward_func::Function, plot⁻::Bool = true)
     obs_cov = reshape([0.1^2], (1,1))
 
     # prior distribution
-    μ0,  cov_sqr0   = [-1.0;], reshape([10.0],  (1, 1))
+    μ0,  cov_sqr0   = [1.0;], reshape([10.0],  (1, 1))
     μ0⁻, cov_sqr0⁻  = [-1.0;], reshape([0.5],  (1, 1))
     μ0⁺, cov_sqr0⁺  = [ 1.0;], reshape([0.5],  (1, 1))
+
+    # μ0⁻, cov_sqr0⁻  = [-1.0;], reshape([10.0],  (1, 1))
+    # μ0⁺, cov_sqr0⁺  = [ 1.0;], reshape([10.0],  (1, 1))
     
     cov0  = cov_sqr0  * cov_sqr0 
     cov0⁻ = cov_sqr0⁻ * cov_sqr0⁻ 
@@ -214,7 +217,7 @@ function Map_Posterior_Plot(forward_func::Function, plot⁻::Bool = true)
     f_density(u) = f_posterior(u, nothing, obs, obs_cov, μ0, cov0) 
     step_length = 1.0
     n_ite , n_burn_in= 5000000, 1000000
-    us = RWMCMC(f_density, μ0, step_length, n_ite)
+    us = RWMCMC_Run(f_density, μ0, step_length, n_ite)
     @info "MCMC min max = ", minimum(us), maximum(us)
     
     # compute posterior distribution by SMC
@@ -263,10 +266,10 @@ function Map_Posterior_Plot(forward_func::Function, plot⁻::Bool = true)
         ax.hist(us[n_burn_in:end, 1], bins = 100, density = true, histtype = "step", label="MCMC", color="C3")
 
 
-        # plot SMC results 
-        θ = smcobj.θ[end]
-        weights = smcobj.weights[end]
-        ax.hist(θ, bins = 20, weights = weights, density = true, histtype = "step", label="SMC", color="C0")
+        # # plot SMC results 
+        # θ = smcobj.θ[end]
+        # weights = smcobj.weights[end]
+        # ax.hist(θ, bins = 20, weights = weights, density = true, histtype = "step", label="SMC", color="C0")
         
         
         ax.legend()
