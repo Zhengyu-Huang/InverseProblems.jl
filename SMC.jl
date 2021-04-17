@@ -124,27 +124,35 @@ function time_advance!(smc::SMCObj, ens_func::Function, Δt::Float64=smc.Δt)
     end
     g_n = ens_func(θ_n)
 
+    # to avoid Inf in the update weights step
+    log_dweights = zeros(Float64, N_ens)
+    for i = 1:N_ens
+        
+        log_dweights[i] = -0.5*(g_t - g_p[i,:])'/obs_cov*(g_t - g_p[i,:]) * Δt
+    end
+    log_dweight_scale = maximum(log_dweights)
+ 
+
     # update weights
     for i = 1:N_ens
-        weights_n[i] = weights_p[i] * exp(-0.5*(g_t - g_p[i,:])'/obs_cov*(g_t - g_p[i,:]) * Δt)
+        weights_n[i] = weights_p[i] * exp(-0.5*(g_t - g_p[i,:])'/obs_cov*(g_t - g_p[i,:]) * Δt - log_dweight_scale)
     end 
+
     weights_n .= weights_n/sum(weights_n)
-    
+
     
     for i = 1:N_ens
 
         f_p = (t+Δt)*(-0.5*(g_t - g_p[i,:])'/obs_cov*(g_t - g_p[i,:])) + f_log_prior(θ_p[i, :])  
         f_n = (t+Δt)*(-0.5*(g_t - g_n[i,:])'/obs_cov*(g_t - g_n[i,:])) + f_log_prior(θ_n[i, :]) 
+        
+        
         α = min(1.0, exp(f_n - f_p))
-
-        # @info i, θ_p[i, :], θ_n[i, :], α, step_length, (t+Δt), (t+Δt)*(-0.5*(g_t - g_p[i,:])'/obs_cov*(g_t - g_p[i,:])), f_log_prior(θ_p[i, :]) ,  
-        # f_p, (t+Δt)*(-0.5*(g_t - g_n[i,:])'/obs_cov*(g_t - g_n[i,:])), f_log_prior(θ_n[i, :]),  f_n
 
         θ_n[i, :] = (rand(Bernoulli(α)) ? θ_n[i, :] : θ_p[i, :])
         
     end
 
-    # error("stop")
     
 
     

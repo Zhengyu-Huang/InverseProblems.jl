@@ -5,8 +5,9 @@ using LinearAlgebra
 include("../Plot.jl")
 include("../RUKI.jl")
 include("../RExKI.jl")
-include("../REnKI.jl")
+include("../LSKI.jl")
 include("../RWMCMC.jl")
+include("../SMC.jl")
 # p(x) = u₂x + exp(-u₁)(-x²/2 + x/2)
 
 function forward(u::Array{Float64,1}, args)
@@ -142,38 +143,72 @@ function ExKI(t_mean::Array{Float64,1}, t_cov::Array{Float64,2},
     return ukiobj
 end
 
-function EnKI(t_mean::Array{Float64,1}, t_cov::Array{Float64,2}, 
-    θ0_bar::Array{Float64,1}, θθ0_cov_sqr::Array{Float64,2}, 
-    α_reg::Float64, N_ens::Int64, N_iter::Int64 = 100)
-    
-    
-    parameter_names = ["u₁", "u₂"]
-    
+
+function EnKI_Run(filter_type, t_mean, t_cov, θ_ref, θ0_bar, 
+    θθ0_cov,  N_ens, α_reg::Float64, N_iter::Int64 = 100, update_cov::Int64 = 0)
+
+    parameter_names = ["θ"]
+
     ens_func(θ_ens) = ensemble(θ_ens)
-    
-    enkiobj = EnKIObj("ETKI",
+
+    @info typeof(θθ0_cov)
+
+    ekiobj = EnKIObj(filter_type,
     parameter_names,
     N_ens,
     θ0_bar,
-    θθ0_cov_sqr,
-    t_mean,
+    θθ0_cov,
+    t_mean, # observation
     t_cov,
-    α_reg) 
-    
+    α_reg)
+
+    #### Daniel Huang todo
+    ekiobj.Σ_ω .= 0.0 
+    ekiobj.Σ_ν ./= 2.0
+    ####
+    errors = zeros(Float64, N_iter+1)
+    θ_ref_norm = norm(θ_ref)
+
+    θ_bar = dropdims(mean(ekiobj.θ, dims=1), dims=1)
+    errors[1] = norm(θ_bar .- θ_ref)/θ_ref_norm
+
     for i in 1:N_iter
+
+        update_ensemble!(ekiobj, ens_func)
+        θ_bar .= dropdims(mean(ekiobj.θ, dims=1), dims=1)
         
-        update_ensemble!(enkiobj, ens_func) 
-        # @info ukiobj.θ_bar[i, :]
-        # @info ukiobj.g_bar[i, :]
+        @info "error is :", norm(θ_bar .- θ_ref)/θ_ref_norm
+
+    end
+
+    return ekiobj
+
+end
+
+
+
+function SMC(t_mean::Array{Float64,1}, t_cov::Array{Float64,2}, 
+    θ0_bar::Array{Float64,1}, θθ0_cov::Array{Float64,2}, 
+    N_ens::Int64, step_length::Float64,
+    M_threshold::Float64,
+    N_t::Int64,
+    T::Float64 = 1.0)
+    
+    parameter_names = ["u₁"]
+    smcobj = SMCObj(parameter_names , θ0_bar , θθ0_cov , t_mean , t_cov , N_ens , step_length, M_threshold, N_t, T) 
+    
+    ens_func(θ_ens) = ensemble(θ_ens)
+    
+    
+    for i in 1:N_t
         
-        @info "loss = ", (enkiobj.g_bar[i] - enkiobj.g_t)'/enkiobj.obs_cov*(enkiobj.g_bar[i] - enkiobj.g_t)
+        time_advance!(smcobj, ens_func)
         
         
     end
     
-    return enkiobj
+    return smcobj
 end
-
 
 
 function Ellitic_Posterior_Plot()
@@ -182,14 +217,14 @@ function Ellitic_Posterior_Plot()
     obs = [27.5; 79.7]
     obs_cov = [0.1^2   0.0; 0.0  0.1^2]
     μ0 = [0.0; 0.0] 
-    cov_sqr0    = [10.0  0.0; 0.0 10.0]
+    cov_sqr0    = [1.0  0.0; 0.0 10.0]
     cov0 = cov_sqr0 * cov_sqr0 
     
     # compute posterior distribution by MCMC
     f_density(u) = f_posterior(u, nothing, obs, obs_cov, μ0, cov0) 
     step_length = 1.0
     n_ite , n_burn_in= 5000000, 1000000
-    us = RWMCMC(f_density, μ0, step_length, n_ite)
+    us = RWMCMC_Run(f_density, μ0, step_length, n_ite)
 
     uki_cov0 = [1.0  0.0; 0.0 100.0]
     for update_cov in [0,1]
@@ -235,5 +270,107 @@ function Ellitic_Posterior_Plot()
     
 end
 
+function Ellitic_Posterior_Compare_Plot()
 
-Ellitic_Posterior_Plot()
+    # prior and covariance
+    obs = [27.5; 79.7]
+    obs_cov = [0.1^2   0.0; 0.0  0.1^2]
+     
+    cov_sqr0    = [1.0  0.0; 0.0 10.0]
+    cov0 = cov_sqr0 * cov_sqr0 
+
+    μ0 = [0.0; 0.0]
+    uki_cov0 = [1.0  0.0; 0.0 100.0]
+
+
+    # compute posterior distribution by MCMC
+    f_density(u) = f_posterior(u, nothing, obs, obs_cov, μ0, cov0) 
+    step_length = 1.0
+    n_ite , n_burn_in= 5000000, 1000000
+    us_mcmc = RWMCMC_Run(f_density, μ0, step_length, n_ite)
+
+
+    everymarker = 1
+    ncols = 3
+    nrows = 2
+    fig, ax = PyPlot.subplots(ncols=ncols, nrows = nrows, sharex=false, sharey=false, figsize=(15,10))
+    for i = 1:ncols*nrows
+        ax[i].scatter(us_mcmc[n_burn_in:everymarker:end, 1], us_mcmc[n_burn_in:everymarker:end, 2], s = 1)
+    end
+
+
+    # emmce
+   
+    N_ens = 100
+    θ0 = rand(MvNormal(μ0, uki_cov0), N_ens)
+    θ0 = Array(θ0')
+    n_ite = 500
+    us_emcee = emcee_Run(f_density, θ0, n_ite);
+    n_burn_in = 1
+    ax[1,1].scatter(us_emcee[n_burn_in:100, :, 1], us_emcee[n_burn_in:100, :, 2], s = 2, color="C1", label="emcee (100)")
+    ax[2,1].scatter(us_emcee[n_burn_in:end, :, 1], us_emcee[n_burn_in:end, :, 2], s = 2, color="red", label="emcee (500)")
+    
+    # compute posterior distribution by SMC
+    N_ens = 100
+    M_threshold = Float64(N_ens)*0.6
+    step_length = 1.0
+
+    N_t = 100
+    smcobj = SMC(obs, obs_cov, μ0, cov0,  N_ens, step_length, M_threshold, N_t)
+    θ = smcobj.θ[end]
+    weights = smcobj.weights[end]
+    θ_p = copy(θ)
+    for i = 1:N_ens
+        θ[i, :] .= θ_p[sample(Weights(weights)), :]
+    end
+    ax[1,2].scatter(θ[:, 1], θ[:, 2], s = 2, color="C1", label="SMC ($(N_t))")
+
+
+    N_t = 500
+    smcobj = SMC(obs, obs_cov, μ0, cov0,  N_ens, 1.0, M_threshold, N_t)
+    θ = smcobj.θ[end]
+    weights = smcobj.weights[end]
+    θ_p = copy(θ)
+    for i = 1:N_ens
+        θ[i, :] .= θ_p[sample(Weights(weights)), :]
+    end
+    ax[2,2].scatter(θ[:, 1], θ[:, 2], s = 2, color="red", label="SMC ($(N_t))")
+    
+    # ensemble transform inversion
+
+    filter_type = "ETKI"
+    N_ens = 100
+    α_reg,  N_iter = 1.0, 30
+    update_cov = 0
+
+    θ_ref = [-3.0, 104.0]
+
+    N_iter = 1
+    ekiobj = EnKI_Run(filter_type, obs, obs_cov,θ_ref, μ0, uki_cov0,  
+    N_ens, α_reg, N_iter, update_cov)
+    ax[1,3].scatter(ekiobj.θ[:, 1], ekiobj.θ[:, 2], s = 2, color="C1", label="ETKI (1)")
+    
+    N_iter = 30
+    ekiobj = EnKI_Run(filter_type, obs, obs_cov,θ_ref, μ0, uki_cov0,  
+    N_ens, α_reg, N_iter, update_cov)
+    ax[2,3].scatter(ekiobj.θ[:, 1], ekiobj.θ[:, 2], s = 2, color="red", label="ETKI (30)")
+    
+
+    
+    for i = 1:ncols*nrows
+        if i != 3
+            ax[i].set_xlim([-4, 0])
+            ax[i].set_ylim([103, 106])
+        end
+        ax[i].legend()
+    end
+
+    fig.tight_layout()
+    fig.savefig("Elliptic_Comp.png")
+    close("all")
+end
+
+
+# Ellitic_Posterior_Plot()
+
+Ellitic_Posterior_Compare_Plot()
