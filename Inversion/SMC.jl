@@ -3,6 +3,8 @@ using Statistics
 using Distributions
 using LinearAlgebra
 using StatsBase
+
+include("Utility.jl")
 """
 The implementation follows
 
@@ -112,11 +114,23 @@ function update_ensemble!(smc::SMCObj, ens_func::Function, Δt::FT=smc.Δt) wher
     weights  = smc.weights[end]
     θ_n = copy(θ)
     weights_n = copy(weights)
-    
+
+
     # update weights: ω̂ᵐ_n = l_{n-1}(uᵐ_{n-1}) ω̂ᵐ_{n-1}
     g = ens_func(θ)
+
+
+    # to avoid Inf in the update weights step, scale the weights during the computation
+    # the step does not change the results but avoids numerical instability
+    log_dweights = zeros(Float64, N_ens)
     for i = 1:N_ens
-        weights_n[i] = weights[i] * exp(-0.5*(y - g[i,:])'/Σ_η*(y - g[i,:]) * Δt)
+        log_dweights[i] = -0.5*(y - g[i,:])'/Σ_η*(y - g[i,:]) * Δt
+    end
+    log_dweight_scale = maximum(log_dweights)
+
+    
+    for i = 1:N_ens
+        weights_n[i] = weights[i] * exp(log_dweights[i] - log_dweight_scale)
     end 
     weights_n .= weights_n/sum(weights_n)
     

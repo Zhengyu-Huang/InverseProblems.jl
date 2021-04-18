@@ -21,8 +21,8 @@ Let's start! (⚠️ under construction)
 
 * Inverse methods
     * [Bayesian inversion, Bayesian inference, and Bayesian calibration](Lectures/Bayesian.ipynb) 
-    * Markov Chain Monte Carlo method
-    * Sequential Monte Carlo method
+    * [Markov Chain Monte Carlo method](Lectures/MonteCarlo.ipynb) 
+    * [Sequential Monte Carlo method](Lectures/MonteCarlo.ipynb)
     * [Kalman filters and Gaussian approximation algorithm](Lectures/Kalman.ipynb)
     * [Unsented Kalman inversion and its variants](Lectures/Unscented.ipynb)
     * Ensemble Kalman inversion and its variants
