@@ -132,7 +132,7 @@ obs_cov = Array(Diagonal(fill(0.1^2, length(obs))))
 
 fig, ax = PyPlot.subplots(figsize=(18,6))
 
-N_ite = 50
+N_ite = 20
 kiobj = ExKI_Run(obs, obs_cov, θ0_bar, θθ0_cov, darcy,  1.0, N_ite)
 xx = darcy.xx
 ki_θ_bar  = kiobj.θ_bar[end]
