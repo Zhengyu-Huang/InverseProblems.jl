@@ -179,6 +179,12 @@ function EnKI_Run(filter_type, t_mean, t_cov, θ_ref, θ0_bar,
         
         @info "error is :", norm(θ_bar .- θ_ref)/θ_ref_norm
 
+        if (update_cov) > 0 && (i%update_cov == 0) 
+             @info ekiobj.Σ_ω
+             ekiobj.Σ_ω .= construct_cov(ekiobj, ekiobj.θ, θ_bar, ekiobj.θ, θ_bar) 
+             @info "end ", ekiobj.Σ_ω
+        end 
+
     end
 
     return ekiobj
@@ -293,7 +299,7 @@ function Ellitic_Posterior_Compare_Plot()
     everymarker = 1
     ncols = 3
     nrows = 2
-    fig, ax = PyPlot.subplots(ncols=ncols, nrows = nrows, sharex=false, sharey=false, figsize=(15,10))
+    fig, ax = PyPlot.subplots(ncols=ncols, nrows = nrows, sharex=false, sharey=true, figsize=(15,10))
     for i = 1:ncols*nrows
         ax[i].scatter(us_mcmc[n_burn_in:everymarker:end, 1], us_mcmc[n_burn_in:everymarker:end, 2], s = 1)
     end
@@ -356,13 +362,12 @@ function Ellitic_Posterior_Compare_Plot()
     ax[2,3].scatter(ekiobj.θ[:, 1], ekiobj.θ[:, 2], s = 2, color="red", label="ETKI (30)")
     
 
-    
+    ax[1].set_ylim([103, 107])
     for i = 1:ncols*nrows
         if i != 3
             ax[i].set_xlim([-4, 0])
-            ax[i].set_ylim([103, 106])
         end
-        ax[i].legend()
+        ax[i].legend(loc="lower right")
     end
 
     fig.tight_layout()
