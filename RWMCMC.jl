@@ -31,7 +31,9 @@ function RWMCMC_Run(log_bayesian_posterior::Function, θ0::Array{FT,1}, step_len
         θ_p = θs[i-1, :] 
         θ = θ_p + step_length * rand(Normal(0, 1), N_θ)
         
-        
+	if i%10000 == 0
+	   @info i, n_ite
+	end        
         fs[i] = log_bayesian_posterior(θ)
         α = min(1.0, exp(fs[i] - fs[i-1]))
         if α > rand(Uniform(0, 1))
