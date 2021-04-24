@@ -24,8 +24,9 @@ Let's start! (⚠️ under construction)
     * [Markov Chain Monte Carlo method](Lectures/MonteCarlo.ipynb) 
     * [Sequential Monte Carlo method](Lectures/MonteCarlo.ipynb)
     * [Kalman filters and Gaussian approximation algorithm](Lectures/Kalman.ipynb)
-    * [Unsented Kalman inversion and its variants](Lectures/Unscented.ipynb)
+    * [Unscented Kalman inversion and its variants](Lectures/Unscented.ipynb)
     * Ensemble Kalman inversion and its variants
+    * [When is posterior distribution close to Gaussian](Lectures/Posterior.ipynb)
     * All models are wrong
 
 * Linear inverse problems
