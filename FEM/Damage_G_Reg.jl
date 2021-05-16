@@ -155,7 +155,7 @@ function Compare()
   # n_test = 2
   n_test = 1
   # fine scale , avoid Bayesian Crime
-  ns, ns_obs, porder, problem, ns_c, porder_c = 4, 5, 2, "Static", 4, 2
+  ns, ns_obs, porder, problem, ns_c, porder_c = 8, 5, 2, "Static", 8, 2
   # ns, ns_obs, porder, problem, ns_c, porder_c = 4, 5, 2, "Static", 4, 2
 
   phys_params_fine = Params(ns, ns_obs, porder, problem, ns_c, porder_c, n_test)
@@ -164,7 +164,7 @@ function Compare()
   E_max = phys_params_fine.prop["E"]
   θ_dam_fine_ref, t_mean_fine =  Forward_Analytic(phys_params_fine,  "Figs/Damage-disp-fine", "Figs/Damage-E-fine")
   
-  nθ = 10
+  nθ = 20
   # # construct basis 
   # domain_c = phys_params_fine.domain_c
   # nθ = size(phys_params_fine.domain_c.nodes, 1)
@@ -179,7 +179,7 @@ function Compare()
   vmin = minimum((1.0 .- θ_dam_fine_ref)*E_max)
   # coarse scale 
 
-  ns, ns_obs, porder, problem, ns_c, porder_c = 4, 5, 2, "Static", 4, 2
+  ns, ns_obs, porder, problem, ns_c, porder_c = 8, 5, 2, "Static", 8, 2
   phys_params = Params(ns, ns_obs, porder, problem, ns_c, porder_c, n_test)
   nodes, _, _, _, _, _, _, _ = Construct_Mesh(phys_params.ns, phys_params.porder, phys_params.ls, phys_params.ngp, phys_params.prop, phys_params.P1, phys_params.P2, phys_params.problem, phys_params.T)
   E_max = phys_params.prop["E"]
