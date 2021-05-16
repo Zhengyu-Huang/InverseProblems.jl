@@ -164,18 +164,18 @@ function Compare()
   E_max = phys_params_fine.prop["E"]
   θ_dam_fine_ref, t_mean_fine =  Forward_Analytic(phys_params_fine,  "Figs/Damage-disp-fine", "Figs/Damage-E-fine")
   
-  # construct basis 
-  domain_c = phys_params_fine.domain_c
-  nθ = size(phys_params_fine.domain_c.nodes, 1)
   nθ = 10
-  # it is very sensity to τ
+  # # construct basis 
+  # domain_c = phys_params_fine.domain_c
+  # nθ = size(phys_params_fine.domain_c.nodes, 1)
+  # # it is very sensity to τ
   σ, s0, τ = 1.0, phys_params_fine.ls/(ns_c * porder_c), 2.0
-  _, U, Σ = Kernel_function(domain_c, σ, s0, τ)
-  sqrt_Σ = sqrt.(Σ)
-  U, sqrt_Σ = U[:, 1:nθ] , sqrt_Σ[1:nθ] 
-  Random.seed!(42);
-  θ_c = rand(Normal(0, 10), nθ)
-  θ_dam_fine_ref, t_mean_fine = Forward_Analytic(phys_params_fine, θ_c, U, sqrt_Σ, "Figs/Damage-disp-fine", "Figs/Damage-E-fine")
+  # _, U, Σ = Kernel_function(domain_c, σ, s0, τ)
+  # sqrt_Σ = sqrt.(Σ)
+  # U, sqrt_Σ = U[:, 1:nθ] , sqrt_Σ[1:nθ] 
+  # Random.seed!(42);
+  # θ_c = rand(Normal(0, 10), nθ)
+  # θ_dam_fine_ref, t_mean_fine = Forward_Analytic(phys_params_fine, θ_c, U, sqrt_Σ, "Figs/Damage-disp-fine", "Figs/Damage-E-fine")
   vmin = minimum((1.0 .- θ_dam_fine_ref)*E_max)
   # coarse scale 
 
