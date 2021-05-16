@@ -155,7 +155,7 @@ function Compare()
   # n_test = 2
   n_test = 1
   # fine scale , avoid Bayesian Crime
-  ns, ns_obs, porder, problem, ns_c, porder_c = 8, 5, 2, "Static", 8, 2
+  ns, ns_obs, porder, problem, ns_c, porder_c = 4, 5, 2, "Static", 4, 2
   # ns, ns_obs, porder, problem, ns_c, porder_c = 4, 5, 2, "Static", 4, 2
 
   phys_params_fine = Params(ns, ns_obs, porder, problem, ns_c, porder_c, n_test)
@@ -164,12 +164,12 @@ function Compare()
   E_max = phys_params_fine.prop["E"]
   θ_dam_fine_ref, t_mean_fine =  Forward_Analytic(phys_params_fine,  "Figs/Damage-disp-fine", "Figs/Damage-E-fine")
   
-  nθ = size(phys_params_fine.domain_c.nodes, 1)
+  nθ = 100
   # # construct basis 
   # domain_c = phys_params_fine.domain_c
   # nθ = size(phys_params_fine.domain_c.nodes, 1)
   # # it is very sensity to τ
-  σ, s0, τ = 1.0, phys_params_fine.ls/(ns_c * porder_c), 2.0
+  σ, s0, τ = 1.0, phys_params_fine.ls/(ns_c * porder_c), 1.0
   # _, U, Σ = Kernel_function(domain_c, σ, s0, τ)
   # sqrt_Σ = sqrt.(Σ)
   # U, sqrt_Σ = U[:, 1:nθ] , sqrt_Σ[1:nθ] 
@@ -179,7 +179,7 @@ function Compare()
   vmin = minimum((1.0 .- θ_dam_fine_ref)*E_max)
   # coarse scale 
 
-  ns, ns_obs, porder, problem, ns_c, porder_c = 8, 5, 2, "Static", 8, 2
+  ns, ns_obs, porder, problem, ns_c, porder_c = 4, 5, 2, "Static", 4, 2
   phys_params = Params(ns, ns_obs, porder, problem, ns_c, porder_c, n_test)
   nodes, _, _, _, _, _, _, _ = Construct_Mesh(phys_params.ns, phys_params.porder, phys_params.ls, phys_params.ngp, phys_params.prop, phys_params.P1, phys_params.P2, phys_params.problem, phys_params.T)
   E_max = phys_params.prop["E"]
@@ -188,7 +188,7 @@ function Compare()
   
   θ0_mean = zeros(Float64, nθ)
   θθ0_cov = Array(Diagonal(fill(10.0, nθ)))           # standard deviation
-  N_iter = 20
+  N_iter = 10
   
   fig_y, ax_y = PyPlot.subplots(ncols = 1, nrows=1, sharex=true, sharey=true, figsize=(6,6))
   

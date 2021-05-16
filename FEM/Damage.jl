@@ -371,7 +371,7 @@ function Damage_Ref(x::Float64, y::Float64)
     
     A = [0.8; 0.6; 0.5]
 
-    A = [0.9; 0.9; 0.0]
+    A = [0.0; 0.9; 0.0]
     
     er = 0.0
     for i = 1:3
