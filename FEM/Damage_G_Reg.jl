@@ -164,7 +164,7 @@ function Compare()
   E_max = phys_params_fine.prop["E"]
   θ_dam_fine_ref, t_mean_fine =  Forward_Analytic(phys_params_fine,  "Figs/Damage-disp-fine", "Figs/Damage-E-fine")
   
-  nθ = 20
+  nθ = size(phys_params_fine.domain_c.nodes, 1)
   # # construct basis 
   # domain_c = phys_params_fine.domain_c
   # nθ = size(phys_params_fine.domain_c.nodes, 1)
