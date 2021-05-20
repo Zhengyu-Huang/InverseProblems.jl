@@ -122,14 +122,14 @@ Construct the initial parameters, by sampling N_ens samples from specified
 prior distributions.
 """
 function construct_cov_sqrt(eki::EKIObj{FT}, x::Array{FT,2}) where {FT<:AbstractFloat}
-    N_ens, N_x = eki.N_ens, size(x_mean,1)
-
+    N_ens, N_x = eki.N_ens, size(x,2)
+    
     x_mean = dropdims(mean(x, dims=1), dims=1)
     
     x_cov_sqrt = zeros(FT, N_x, N_ens)
     
     for i = 1: N_ens
-        xy_cov[:, i] .+= (x[i,:] - x_mean)
+        x_cov_sqrt[:, i] .= (x[i,:] - x_mean)
     end
     
     return x_cov_sqrt/sqrt(N_ens - 1)

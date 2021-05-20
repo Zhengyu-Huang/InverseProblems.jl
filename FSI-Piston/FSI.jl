@@ -201,128 +201,128 @@ end
 # fig.tight_layout()
 
 
-include("../Inversion/Plot.jl")
-include("../Inversion/KalmanInversion.jl")
-N, L = 400, 2.0
+# include("../Inversion/Plot.jl")
+# include("../Inversion/KalmanInversion.jl")
+# N, L = 400, 2.0
 
-# flow gas constant, intial density, velocity and pressure
-γ, ρ0, v0, p0 = 1.4, 1.225, 0. , 1.0
-fluid_info = [γ, ρ0, v0, p0] 
+# # flow gas constant, intial density, velocity and pressure
+# γ, ρ0, v0, p0 = 1.4, 1.225, 0. , 1.0
+# fluid_info = [γ, ρ0, v0, p0] 
 
-# piston mass, damping coefficient and spring stiffness
-ms, cs, ks = 1.0, 0.50, 2.0
-θ_ref = [ms; cs; ks]
-# initial displacement, velocity, and initial position
-u0, v0, x0 = 0.0, 0.0, L/2
-structure_info = [ms, cs, ks, u0, v0, x0, "AEROELASTIC", nothing] 
+# # piston mass, damping coefficient and spring stiffness
+# ms, cs, ks = 1.0, 0.50, 2.0
+# θ_ref = [ms; cs; ks]
+# # initial displacement, velocity, and initial position
+# u0, v0, x0 = 0.0, 0.0, L/2
+# structure_info = [ms, cs, ks, u0, v0, x0, "AEROELASTIC", nothing] 
 
-# time step and end time
-Δt, T = 0.001, 1.0
-N_T = Int64(T/Δt)
-obs_freq = 10
-time_info = [Δt, T]
+# # time step and end time
+# Δt, T = 0.001, 1.0
+# N_T = Int64(T/Δt)
+# obs_freq = 10
+# time_info = [Δt, T]
 
-s_param = Setup_Param(L, N,  time_info, fluid_info,  θ_ref, ["cs", "ks"], obs_freq)
+# s_param = Setup_Param(L, N,  time_info, fluid_info,  θ_ref, ["cs", "ks"], obs_freq)
 
-# y_noiseless  = forward(s_param, s_param.θ_ref) 
+# # y_noiseless  = forward(s_param, s_param.θ_ref) 
 
-fluid, piston, _, piston_history = Solve(L, N, fluid_info, structure_info, time_info; output_freq = 1)
-y_noiseless = piston_history[1, 1:obs_freq:end]
+# fluid, piston, _, piston_history = Solve(L, N, fluid_info, structure_info, time_info; output_freq = 1)
+# y_noiseless = piston_history[1, 1:obs_freq:end]
 
-y = copy(y_noiseless)
-noise_σ = 0.002
-N_y = length(y)
-Random.seed!(123);
-for i = 1:N_y
-    # noise = rand(Normal(0, noise_level*y[i]))
-    noise = rand(Normal(0, noise_σ))
-    y[i] += noise
-end
+# y = copy(y_noiseless)
+# noise_σ = 0.002
+# N_y = length(y)
+# Random.seed!(123);
+# for i = 1:N_y
+#     # noise = rand(Normal(0, noise_level*y[i]))
+#     noise = rand(Normal(0, noise_σ))
+#     y[i] += noise
+# end
 
-# visualize the fluid variables
-PyPlot.figure()
-PyPlot.plot(fluid.xx, fluid.V[1, :], "-o", fillstyle = "none", markevery = 10, label="ρ")
-PyPlot.plot(fluid.xx, fluid.V[2, :], "-o", fillstyle = "none", markevery = 10, label="v")
-PyPlot.plot(fluid.xx, fluid.V[3, :], "-o", fillstyle = "none", markevery = 10, label="p")
-PyPlot.xlabel("X")
-PyPlot.tight_layout()
-PyPlot.legend()
-PyPlot.savefig("Fluid-Piston.pdf")
-
-
-# visualize the observation
-PyPlot.figure()
-tt = Array(LinRange(0, T, N_T+1))
-PyPlot.plot(tt, piston_history[1, :])
-PyPlot.plot(tt[1:obs_freq:end], y, "o", color="black")
-PyPlot.xlabel("Time")
-PyPlot.ylabel("Displacement")
-PyPlot.tight_layout()
-PyPlot.savefig("Observation-Piston.pdf")
+# # visualize the fluid variables
+# PyPlot.figure()
+# PyPlot.plot(fluid.xx, fluid.V[1, :], "-o", fillstyle = "none", markevery = 10, label="ρ")
+# PyPlot.plot(fluid.xx, fluid.V[2, :], "-s", fillstyle = "none", markevery = 10, label="v")
+# PyPlot.plot(fluid.xx, fluid.V[3, :], "-v", fillstyle = "none", markevery = 10, label="p")
+# PyPlot.xlabel("X")
+# PyPlot.tight_layout()
+# PyPlot.legend()
+# PyPlot.savefig("Fluid-Piston.pdf")
 
 
-N_y, N_θ = s_param.N_y, s_param.N_θ
-# observation
-Σ_η = Array(Diagonal(fill(noise_σ^2, N_y)))
+# # visualize the observation
+# PyPlot.figure()
+# tt = Array(LinRange(0, T, N_T+1))
+# PyPlot.plot(tt, piston_history[1, :])
+# PyPlot.plot(tt[1:obs_freq:end], y, "o", color="black")
+# PyPlot.xlabel("Time")
+# PyPlot.ylabel("Displacement")
+# PyPlot.tight_layout()
+# PyPlot.savefig("Observation-Piston.pdf")
 
 
-# UKI 
-θ0_mean =  ones(Float64, N_θ) # [0.5; 2.0] # 
-θθ0_cov = Array(Diagonal(fill(1.0^2.0, N_θ)))
-N_iter = 10
-α_reg = 1.0
-update_freq = 1
-ukiobj = UKI_Run(s_param, forward, θ0_mean, θθ0_cov, y, Σ_η, α_reg, update_freq, N_iter)
+# N_y, N_θ = s_param.N_y, s_param.N_θ
+# # observation
+# Σ_η = Array(Diagonal(fill(noise_σ^2, N_y)))
+
+
+# # UKI 
+# θ0_mean =  ones(Float64, N_θ) # [0.5; 2.0] # 
+# θθ0_cov = Array(Diagonal(fill(1.0^2.0, N_θ)))
+# N_iter = 10
+# α_reg = 1.0
+# update_freq = 1
+# ukiobj = UKI_Run(s_param, forward, θ0_mean, θθ0_cov, y, Σ_η, α_reg, update_freq, N_iter)
 
 
 
-####
-θ_mean_arr = hcat(ukiobj.θ_mean...)
-θθ_std_arr = zeros(Float64, (N_θ, N_iter+1))
-for i = 1:N_iter+1
-    for j = 1:N_θ
-        θθ_std_arr[j, i] = sqrt(ukiobj.θθ_cov[i][j,j])
-    end
-end
+# ####
+# θ_mean_arr = hcat(ukiobj.θ_mean...)
+# θθ_std_arr = zeros(Float64, (N_θ, N_iter+1))
+# for i = 1:N_iter+1
+#     for j = 1:N_θ
+#         θθ_std_arr[j, i] = sqrt(ukiobj.θθ_cov[i][j,j])
+#     end
+# end
 
-PyPlot.figure()
-ites = Array(LinRange(0, N_iter, N_iter+1))
-PyPlot.errorbar(ites, θ_mean_arr[1,:], fmt="--o",fillstyle="none", yerr=3θθ_std_arr[1,:],  label=L"c_s")
-PyPlot.plot(ites, fill(cs, N_iter+1), "--", color="grey")
+# PyPlot.figure()
+# ites = Array(LinRange(0, N_iter, N_iter+1))
+# PyPlot.errorbar(ites, θ_mean_arr[1,:], fmt="--o",fillstyle="none", yerr=3θθ_std_arr[1,:],  label=L"c_s")
+# PyPlot.plot(ites, fill(cs, N_iter+1), "--", color="grey")
 
-PyPlot.errorbar(ites, θ_mean_arr[2,:], fmt="--o", fillstyle="none", yerr=3θθ_std_arr[2,:], label=L"k_s")
-PyPlot.plot(ites, fill(ks, N_iter+1), "--", color="grey")
-PyPlot.legend()
+# PyPlot.errorbar(ites, θ_mean_arr[2,:], fmt="--v", fillstyle="none", yerr=3θθ_std_arr[2,:], label=L"k_s")
+# PyPlot.plot(ites, fill(ks, N_iter+1), "--", color="grey")
+# PyPlot.legend()
 
-PyPlot.xlabel("Iterations")
-PyPlot.tight_layout()
-PyPlot.savefig("UKI-Converge-Piston.pdf")
+# PyPlot.xlabel("Iterations")
+# PyPlot.tight_layout()
+# PyPlot.savefig("UKI-Converge-Piston.pdf")
 
-@info "Final mean: ", ukiobj.θ_mean[end]
-@info "Final cov: ", ukiobj.θθ_cov[end]
+# @info "Final mean: ", ukiobj.θ_mean[end]
+# @info "Final cov: ", ukiobj.θθ_cov[end]
 
 
-using NPZ
-include("../Inversion/RWMCMC.jl")
-# compute posterior distribution by MCMC
-μ0 , Σ0 = [cs; ks], Array(Diagonal(fill(1.0^2.0, N_θ)))
-logρ(θ) = log_bayesian_posterior(s_param, θ, forward, y, Σ_η, μ0, Σ0)
-step_length = 0.01
-N_iter , n_burn_in= 50000, 10000
-us = RWMCMC_Run(logρ, μ0, step_length, N_iter)
-npzwrite("us.npy", us)
+# using NPZ
+# include("../Inversion/RWMCMC.jl")
+# # compute posterior distribution by MCMC
+# μ0 , Σ0 = [cs; ks], Array(Diagonal(fill(1.0^2.0, N_θ)))
+# logρ(θ) = log_bayesian_posterior(s_param, θ, forward, y, Σ_η, μ0, Σ0)
+# step_length = 0.01
+# N_iter , n_burn_in= 50000, 10000
+# us = RWMCMC_Run(logρ, μ0, step_length, N_iter)
+# npzwrite("us.npy", us)
 
-# plot UKI results at 5th, 10th, and 15th iterations
-PyPlot.figure()
-Nx = 100; Ny = 200
-uki_θ_mean = ukiobj.θ_mean[end]
-uki_θθ_cov = ukiobj.θθ_cov[end]
-X,Y,Z = Gaussian_2d(uki_θ_mean, uki_θθ_cov, Nx, Ny)
-PyPlot.contour(X, Y, Z, Array(LinRange(minimum(Z)+0.01*maximum(Z), maximum(Z), 20)), alpha=0.5)
-PyPlot.xlabel(L"c_s")
-PyPlot.ylabel(L"k_s")
-PyPlot.tight_layout()
-# plot MCMC results 
-everymarker = 1
-PyPlot.scatter(us[n_burn_in:everymarker:end, 1], us[n_burn_in:everymarker:end, 2], s = 1)
-PyPlot.savefig("UKI-MCMC.pdf")
+# # plot UKI results at 5th, 10th, and 15th iterations
+# PyPlot.figure()
+# Nx = 100; Ny = 200
+# uki_θ_mean = ukiobj.θ_mean[end]
+# uki_θθ_cov = ukiobj.θθ_cov[end]
+# X,Y,Z = Gaussian_2d(uki_θ_mean, uki_θθ_cov, Nx, Ny)
+# PyPlot.contour(X, Y, Z, Array(LinRange(minimum(Z)+0.01*maximum(Z), maximum(Z), 20)), alpha=0.5)
+# PyPlot.xlabel(L"c_s")
+# PyPlot.ylabel(L"k_s")
+# PyPlot.tight_layout()
+# # plot MCMC results 
+# everymarker = 1
+# PyPlot.scatter(us[n_burn_in:everymarker:end, 1], us[n_burn_in:everymarker:end, 2], s = 1)
+# PyPlot.savefig("UKI-MCMC.pdf")

@@ -53,6 +53,13 @@ Let's start! (⚠️ under construction)
     * [2D Darcy flow](Fluid/Darcy-2D.ipynb)
     * [Navier-Stokes initial condition recovery](Fluid/Navier-Stokes.ipynb)
 
+* Fluid structure interaction problems
+    * Piston problem
+        * [Receding piston (analytical solution)](FSI-Piston/Receding-Piston-Exact.ipynb)
+        * [Piston system calibration](FSI-Piston/FSI.ipynb)
+    * Airfoil damage detection during transonic buffeting
+
+
 * Climate Modeling
     * Barotropic climate model
     * Idealized general circulation model (Held-Suarez benchmark)
