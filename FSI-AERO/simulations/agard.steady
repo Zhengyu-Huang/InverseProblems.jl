@@ -1,0 +1,95 @@
+under Problem {
+  Type = Steady;
+  Framework = Embedded;
+  Mode = Dimensional;  
+}
+
+under Input {
+  Prefix = "../data/";
+  Connectivity = "agard.con";
+  Geometry = "agard.msh";
+  Decomposition = "agard.dec";
+  CpuMap = "agard.35cpu";
+  EmbeddedSurface = "../sources/embeddedSurf.top";
+}
+
+under Output {
+  under Postpro {
+    Prefix = "results.0/";
+    LiftandDrag = "LiftandDrag";
+    Force = "Force";
+    Velocity = "Velocity.bin";
+    Pressure = "Pressure.bin";
+    PostprocessSides = 1;
+    Frequency = 0;
+  }
+  under Restart {
+    Prefix = "references.0/"; 
+    Solution = "Solution.bin";
+    RestartData = "Restart.data";
+    Position = "spos";
+    EmbeddedPosition = "embpos";
+    Frequency = 0;
+  }
+}
+
+under Equations {
+  Type = Euler;
+  under FluidModel[0]{
+    Fluid = PerfectGas;
+  }
+}
+
+under BoundaryConditions {
+  under Inlet {
+    Mach = 0.97;
+    Alpha = 7.5; 
+    Beta = 0.0;
+    Density = 0.61115933E-7;  // slugs / in^3
+    Pressure = 6.0;//            // psi*12 ([slugs/(in-s^2)])
+  }
+}
+
+under Space {
+  under NavierStokes { 
+    Flux = Roe;
+    Reconstruction = Constant;//Linear;
+    Limiter = VanAlbada;
+    Gradient = Galerkin;
+  }
+}
+
+under Time {
+  Type = Implicit;
+  MaxIts = 1000;
+  Cfl0 = 1.0;
+  CflMax = 100.0;
+  Eps = 1.0e-6;  
+  under Implicit {
+    Type = BackwardEuler;
+    under Newton { 
+      MaxIts = 1; 
+      Eps = 1e-5;
+      FailSafe = AlwaysOn;
+      under LinearSolver {
+        under NavierStokes {
+          Type = Gmres;
+          MaxIts = 100;
+          KrylovVectors = 100;
+          Eps = 1e-5;
+          //Output = "stdout";
+          under Preconditioner { Type = Ras; Fill = 0; }
+        }
+      }
+    }
+  }
+}
+
+
+under EmbeddedFramework {
+  Intersector = PhysBAM;
+  //SurrogateSurface = EmbeddedSurface;
+  RiemannNormal = Structure; //Fluid;
+  RotatedRiemann = On;
+  //RiemannAveraging = All;
+}

@@ -1,0 +1,57 @@
+CONTROL
+agard
+1
+AgardNS
+AgardES
+********************************************************************
+AERO
+*C0 0.5 0.375
+A6
+Matcher "../data/agard.match.fem"
+********************************************************************
+*RENUM
+*sloan
+********************************************************************
+MASS
+********************************************************************
+TRBM
+1.0E-09
+********************************************************************
+NONLINEAR
+********************************************************************
+STATIC
+* sparse
+mumps pivot
+mumps_icntl 14 200
+******************************************************************
+* specify the type of node renumbering for skyline and sparse solvers
+* RENUM
+* rcm
+********************************************************************
+DYNAMICS
+newmark
+mech          0.25  0.50
+time          0.0   0.5e-4  0.1
+**************************************************************************
+OUTPUT
+gdisplac "results.1/AGARD.disp" 100
+**********************************************************************
+OUTPUT6
+gdisplac "results.1/AGARD.disp.111" 1 111
+gdisplac "results.1/AGARD.disp.116" 1 116
+gdisplac "results.1/AGARD.disp.121" 1 121
+gdisplac "results.1/AGARD.disp.56"  1 56
+gdisplac "results.1/AGARD.disp.61"  1 61
+gdisplac "results.1/AGARD.disp.66"  1 66
+gdisplac "results.1/AGARD.disp.352" 1 352
+gdisplac "results.1/AGARD.disp.362" 1 362
+gdisplac "results.1/AGARD.disp.377" 1 377
+gdisplac "results.1/AGARD.disp.197" 1 197
+gdisplac "results.1/AGARD.disp.207" 1 207
+gdisplac "results.1/AGARD.disp.222" 1 222
+********************************************************************
+INCLUDE "agard.fem.common"
+INCLUDE "agard.fem.composite"
+********************************************************************
+END
+********************************************************************

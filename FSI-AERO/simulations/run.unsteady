@@ -1,0 +1,28 @@
+#!/bin/bash
+
+AEROS_EXECUTABLE="/home/pavery/bin/aeros"
+AEROF_EXECUTABLE="/home/pavery/bin/aerof2"
+SOWER_EXECUTABLE="/home/pavery/bin/sower"
+XP2EXO_EXECUTABLE="/home/pavery/bin/xp2exo"
+MPIRUN_EXECUTABLE="/home/pavery/openmpi-1.8.3-install/bin/mpirun"
+
+
+module load openmpi/3.0.0-intel-2018.u1 cmake/3.8.1 imkl/2018.u1
+
+# run Steady state
+mpirun -n 35 $AEROF_EXECUTABLE agard.unsteady : -n 1 $AEROS_EXECUTABLE agard.fem.unsteady |& tee unsteady.log
+
+
+
+#postprocess fluid solution
+$SOWER_EXECUTABLE -fluid -merge -con ../data/agard.con -mesh ../data/agard.msh -result results.1/Pressure.bin -output postpro.1/Pressure
+$SOWER_EXECUTABLE -fluid -merge -con ../data/agard.con -mesh ../data/agard.msh -result results.1/Mach.bin -output postpro.1/Mach
+
+
+# Convert fluid outputs to .exo format
+$XP2EXO_EXECUTABLE ../sources/domain.top     fluid_unsteady.exo     postpro.1/Pressure.xpost postpro.1/Mach.xpost 
+$XP2EXO_EXECUTABLE ../sources/embeddedSurf.top  embedded_surface_unsteady.exo results.1/EmbeddedDisplacement.bin results.1/PressureCoefficient.bin
+
+$XP2EXO_EXECUTABLE ../sources/agard.fem.top  structure_unsteady.exo results.1/AGARD.disp 
+
+

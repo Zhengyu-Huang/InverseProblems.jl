@@ -1,0 +1,105 @@
+under Problem {
+  Type = UnsteadyAeroelastic;
+  Framework = Embedded;
+  Mode = Dimensional;  
+}
+
+under Input {
+  Connectivity = "../data/agard.con";
+  Geometry = "../data/agard.msh";
+  Decomposition = "../data/agard.dec";
+  CpuMap = "../data/agard.35cpu";
+  Solution = "references.0/Solution.bin";
+  Matcher = "../data/agard.match.fluid";
+  EmbeddedSurface = "../sources/embeddedSurf.top";
+}
+
+under Output {
+  under Postpro {
+    Prefix = "results.1/";
+    LiftandDrag = "LiftandDrag";
+    Force = "Force";
+    Mach = "Mach.bin";
+    Pressure = "Pressure.bin";
+    EmbeddedSurfaceDisplacement = "EmbeddedDisplacement.bin";
+    EmbeddedSurfacePressureCoefficient = "PressureCoefficient.bin";
+    Frequency = 0;
+    PostprocessSides = 1;
+  }
+  under Restart {
+    Prefix = "references.1/"; 
+    Solution = "Solution.bin";
+    RestartData = "Restart.data";
+    Position = "spos";
+    EmbeddedPosition = "embpos";
+    Frequency = 0;
+  }
+
+}
+
+under Equations {
+  Type = Euler;
+  under FluidModel[0]{
+    Fluid = PerfectGas;
+  }
+}
+
+under BoundaryConditions {
+  under Inlet {
+    Mach = 0.97;
+    Alpha = 7.5; 
+    Beta = 0.0;
+    Density = 0.61115933E-7;  // slugs / in^3
+    Pressure = 6.0;//            // psi*12 ([slugs/(in-s^2)])
+  }
+}
+
+under Space {
+  under NavierStokes { 
+    Flux = Roe;
+    Reconstruction = Linear;
+    Limiter = VanAlbada;
+    //Gradient = Galerkin;
+    Beta = 0.66666666667;
+  }
+}
+
+under Time {
+  Type = Implicit;
+  MaxIts = 5000;
+  under CflLaw {
+     Cfl0 = 1.0e+2;
+     CflMax = 1.0e+2;
+  }
+    
+  under Implicit {
+    //Type = ThreePointBackwardDifference;
+    Type = BackwardEuler;
+    MatrixVectorProduct = FiniteDifference;
+    under Newton { 
+      MaxIts = 5; 
+      Eps = 1e-05;
+      FailSafe = AlwaysOn;
+      under LinearSolver {
+        under NavierStokes {
+          Type = Gmres;
+          MaxIts = 100;
+          KrylovVectors = 100;
+          Eps = 1.0e-4;
+          //Output = "stdout";
+          under Preconditioner { Type = Ras; Fill = 0; }
+        }
+      }
+    }
+  }
+}
+
+
+under EmbeddedFramework {
+  Intersector = PhysBAM;
+  //SurrogateSurface = EmbeddedSurface;
+  RiemannNormal = Structure; //Fluid;
+  RotatedRiemann = On;
+  StructureNormalOrientation = FluidNormal;
+  RiemannAveraging = All;
+}
