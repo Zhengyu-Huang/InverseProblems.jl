@@ -35,7 +35,7 @@ update_freq = 1
 # no regularization
 α_reg = 1.0
 
-RESTART = true
+RESTART = false
 if RESTART
     ukiobj = load("ukiobj.jld")["ukiobj"]
 else

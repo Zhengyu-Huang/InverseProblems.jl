@@ -47,6 +47,21 @@ which also include command lines to loading libraries and postprocessing, the `.
 ## Inverse problem
 
 Unscented Kalman inversion routine each time modifies the input file `simulations/agard.fem.composite`, calls the AERO suite ` ./run.unsteady`, and reads the output file of the AERO suite to get the observation.
+For the current setup, we run the code interactively.
 
+ * Generate initial flow condition by runing steady simulation 
+ 
+ `./run.steady`
 
+ * Generate synthetic observation data
+ 
+ `julia FSI_UKI_Ref.jl`
+ 
+ * Move reference observation to the reference fold 
+ 
+ `mkdir results.1/reference`
+ `mv results.1/AGARD.disp* results.1/reference/.`
 
+* Start calibration 
+
+  `julia FSI_UKI.jl`

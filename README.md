@@ -57,7 +57,7 @@ Let's start! (⚠️ under construction)
     * Piston problem
         * [Receding piston (analytical solution)](FSI-Piston/Receding-Piston-Exact.ipynb)
         * [Piston system calibration](FSI-Piston/FSI.ipynb)
-    * Airfoil damage detection during transonic buffeting
+    * [Airfoil damage detection during transonic buffeting](FSI-AERO/README.md)
 
 
 * Climate Modeling
