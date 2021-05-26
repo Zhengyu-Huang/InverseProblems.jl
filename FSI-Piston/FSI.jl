@@ -142,17 +142,20 @@ end
 
 function forward(s_param::Setup_Param, θ::Array{FT, 1}) where {FT<:AbstractFloat}
     L, N = s_param.L, s_param.N
-
-    fluid_info, time_info = s_param.fluid_info, s_param.time_info
+    time_info, obs_freq = s_param.time_info, s_param.obs_freq
     
     ms = s_param.θ_ref[1]
+    ks = s_param.θ_ref[3]
+
+    cs, ks, p = exp.(θ)
+
+    fluid_info  = copy(s_param.fluid_info)
+    fluid_info[4] = p
     
-
-    cs, ks = θ
-
+    @info cs, ks, p, fluid_info
     structure_info = [ms, cs, ks, 0.0, 0.0, L/2, "AEROELASTIC", nothing] 
     
-    obs_freq = s_param.obs_freq
+    
 
     _, _, _, structure_history = Solve(L, N, fluid_info, structure_info, time_info, output_freq = obs_freq)
 
@@ -163,143 +166,108 @@ function forward(s_param::Setup_Param, θ::Array{FT, 1}) where {FT<:AbstractFloa
     return y
 end
 
-# using PyPlot
-# L, N = 2.0, 200
-# mesh_info  = [L, N]
-# fluid_info = [1.4, 1.225, 0. , 1.0] 
-# ms, cs, ks = 1.0, 0.0, 1.0
-# structure_info = [ms, cs, ks, 0.0, 0.0, L/2, "AEROELASTIC", nothing] 
+include("../Inversion/Plot.jl")
+include("../Inversion/KalmanInversion.jl")
+N, L = 400, 2.0
 
-# # function structure(t)
-    
-# #     ds = 1.0/8.0 * t^4
-# #     vs = 1.0/2.0 * t^3
-# #     as = 3.0/2.0 * t^2
+# flow gas constant, intial density, velocity and pressure
+γ, ρ0, v0, p0 = 1.4, 1.225, 0. , 2.0
+fluid_info = [γ, ρ0, v0, p0] 
 
-# #     return [ds; vs; as]
-# # end
+# piston mass, damping coefficient and spring stiffness
+ms, cs, ks = 1.0, 0.50, 2.0
+θ_ref = [ms; cs; ks]
+# initial displacement, velocity, and initial position
+u0, v0, x0 = 0.0, 0.0, L/2
+structure_info = [ms, cs, ks, u0, v0, x0, "AEROELASTIC", nothing] 
 
-# # structure_info = [ms, cs, ks, 0.0, 0.0, L/2, "FORCED", structure] 
-# Δt, T = 0.001, 0.5
-# time_info = [Δt, T]
+# time step and end time
+Δt, T = 0.001, 1.0
+N_T = Int64(T/Δt)
+obs_freq = 10
+time_info = [Δt, T]
 
-# fluid, piston = Solve(mesh_info, fluid_info, structure_info, time_info)
-# V = fluid.V
-# xx = fluid.xx
+s_param = Setup_Param(L, N,  time_info, fluid_info,  θ_ref, ["cs", "ks", "ρ"], obs_freq)
 
-# fig, ax = PyPlot.subplots(ncols=3, nrows=1, figsize=(18, 5))
+# y_noiseless  = forward(s_param, s_param.θ_ref) 
 
-# ax[1].plot(xx, V[1, :], "-o", fillstyle = "none")
-# ax[2].plot(xx, V[2, :], "-o", fillstyle = "none")
-# ax[3].plot(xx, V[3, :], "-o", fillstyle = "none")
-# ax[1].set_xlabel("x")
-# ax[1].set_ylabel("ρ")
-# ax[2].set_xlabel("x")
-# ax[2].set_ylabel("v")
-# ax[3].set_xlabel("x")
-# ax[3].set_ylabel("p")
-# fig.tight_layout()
+fluid, piston, _, piston_history = Solve(L, N, fluid_info, structure_info, time_info; output_freq = 1)
+y_noiseless = piston_history[1, 1:obs_freq:end]
 
+y = copy(y_noiseless)
+noise_σ = 0.002
+N_y = length(y)
+Random.seed!(123);
+for i = 1:N_y
+    # noise = rand(Normal(0, noise_level*y[i]))
+    noise = rand(Normal(0, noise_σ))
+    y[i] += noise
+end
 
-# include("../Inversion/Plot.jl")
-# include("../Inversion/KalmanInversion.jl")
-# N, L = 400, 2.0
-
-# # flow gas constant, intial density, velocity and pressure
-# γ, ρ0, v0, p0 = 1.4, 1.225, 0. , 1.0
-# fluid_info = [γ, ρ0, v0, p0] 
-
-# # piston mass, damping coefficient and spring stiffness
-# ms, cs, ks = 1.0, 0.50, 2.0
-# θ_ref = [ms; cs; ks]
-# # initial displacement, velocity, and initial position
-# u0, v0, x0 = 0.0, 0.0, L/2
-# structure_info = [ms, cs, ks, u0, v0, x0, "AEROELASTIC", nothing] 
-
-# # time step and end time
-# Δt, T = 0.001, 1.0
-# N_T = Int64(T/Δt)
-# obs_freq = 10
-# time_info = [Δt, T]
-
-# s_param = Setup_Param(L, N,  time_info, fluid_info,  θ_ref, ["cs", "ks"], obs_freq)
-
-# # y_noiseless  = forward(s_param, s_param.θ_ref) 
-
-# fluid, piston, _, piston_history = Solve(L, N, fluid_info, structure_info, time_info; output_freq = 1)
-# y_noiseless = piston_history[1, 1:obs_freq:end]
-
-# y = copy(y_noiseless)
-# noise_σ = 0.002
-# N_y = length(y)
-# Random.seed!(123);
-# for i = 1:N_y
-#     # noise = rand(Normal(0, noise_level*y[i]))
-#     noise = rand(Normal(0, noise_σ))
-#     y[i] += noise
-# end
-
-# # visualize the fluid variables
-# PyPlot.figure()
-# PyPlot.plot(fluid.xx, fluid.V[1, :], "-o", fillstyle = "none", markevery = 10, label="ρ")
-# PyPlot.plot(fluid.xx, fluid.V[2, :], "-s", fillstyle = "none", markevery = 10, label="v")
-# PyPlot.plot(fluid.xx, fluid.V[3, :], "-v", fillstyle = "none", markevery = 10, label="p")
-# PyPlot.xlabel("X")
-# PyPlot.tight_layout()
-# PyPlot.legend()
-# PyPlot.savefig("Fluid-Piston.pdf")
+# visualize the fluid variables
+PyPlot.figure()
+PyPlot.plot(fluid.xx, fluid.V[1, :], "-o", fillstyle = "none", markevery = 10, label="ρ")
+PyPlot.plot(fluid.xx, fluid.V[2, :], "-s", fillstyle = "none", markevery = 10, label="v")
+PyPlot.plot(fluid.xx, fluid.V[3, :], "-v", fillstyle = "none", markevery = 10, label="p")
+PyPlot.xlabel("X")
+PyPlot.tight_layout()
+PyPlot.legend()
+PyPlot.savefig("Fluid-Piston.pdf")
 
 
-# # visualize the observation
-# PyPlot.figure()
-# tt = Array(LinRange(0, T, N_T+1))
-# PyPlot.plot(tt, piston_history[1, :])
-# PyPlot.plot(tt[1:obs_freq:end], y, "o", color="black")
-# PyPlot.xlabel("Time")
-# PyPlot.ylabel("Displacement")
-# PyPlot.tight_layout()
-# PyPlot.savefig("Observation-Piston.pdf")
+# visualize the observation
+PyPlot.figure()
+tt = Array(LinRange(0, T, N_T+1))
+PyPlot.plot(tt, piston_history[1, :])
+PyPlot.plot(tt[1:obs_freq:end], y, "o", color="black")
+PyPlot.xlabel("Time")
+PyPlot.ylabel("Displacement")
+PyPlot.tight_layout()
+PyPlot.savefig("Observation-Piston.pdf")
 
 
-# N_y, N_θ = s_param.N_y, s_param.N_θ
-# # observation
-# Σ_η = Array(Diagonal(fill(noise_σ^2, N_y)))
+N_y, N_θ = s_param.N_y, s_param.N_θ
+# observation
+Σ_η = Array(Diagonal(fill(noise_σ^2, N_y)))
 
 
-# # UKI 
-# θ0_mean =  ones(Float64, N_θ) # [0.5; 2.0] # 
-# θθ0_cov = Array(Diagonal(fill(1.0^2.0, N_θ)))
-# N_iter = 10
-# α_reg = 1.0
-# update_freq = 1
-# ukiobj = UKI_Run(s_param, forward, θ0_mean, θθ0_cov, y, Σ_η, α_reg, update_freq, N_iter)
+# UKI 
+θ0_mean =  zeros(Float64, N_θ) # [0.5; 2.0] # 
+θθ0_cov = Array(Diagonal(fill(0.5^2.0, N_θ)))
+N_iter = 10
+α_reg = 1.0
+update_freq = 1
+ukiobj = UKI_Run(s_param, forward, θ0_mean, θθ0_cov, y, Σ_η, α_reg, update_freq, N_iter)
 
 
 
-# ####
-# θ_mean_arr = hcat(ukiobj.θ_mean...)
-# θθ_std_arr = zeros(Float64, (N_θ, N_iter+1))
-# for i = 1:N_iter+1
-#     for j = 1:N_θ
-#         θθ_std_arr[j, i] = sqrt(ukiobj.θθ_cov[i][j,j])
-#     end
-# end
+####
+θ_mean_arr = hcat(ukiobj.θ_mean...)
+θθ_std_arr = zeros(Float64, (N_θ, N_iter+1))
+for i = 1:N_iter+1
+    for j = 1:N_θ
+        θθ_std_arr[j, i] = sqrt(ukiobj.θθ_cov[i][j,j])
+    end
+end
 
-# PyPlot.figure()
-# ites = Array(LinRange(0, N_iter, N_iter+1))
-# PyPlot.errorbar(ites, θ_mean_arr[1,:], fmt="--o",fillstyle="none", yerr=3θθ_std_arr[1,:],  label=L"c_s")
-# PyPlot.plot(ites, fill(cs, N_iter+1), "--", color="grey")
+PyPlot.figure()
+ites = Array(LinRange(0, N_iter, N_iter+1))
+PyPlot.errorbar(ites, θ_mean_arr[1,:], fmt="--o",fillstyle="none", yerr=3θθ_std_arr[1,:],  label=L"c_s")
+PyPlot.plot(ites, fill(cs, N_iter+1), "--", color="grey")
 
-# PyPlot.errorbar(ites, θ_mean_arr[2,:], fmt="--v", fillstyle="none", yerr=3θθ_std_arr[2,:], label=L"k_s")
-# PyPlot.plot(ites, fill(ks, N_iter+1), "--", color="grey")
-# PyPlot.legend()
+PyPlot.errorbar(ites, θ_mean_arr[2,:], fmt="--v", fillstyle="none", yerr=3θθ_std_arr[2,:], label=L"k_s")
+PyPlot.plot(ites, fill(ks, N_iter+1), "--", color="grey")
 
-# PyPlot.xlabel("Iterations")
-# PyPlot.tight_layout()
-# PyPlot.savefig("UKI-Converge-Piston.pdf")
+PyPlot.errorbar(ites, θ_mean_arr[3,:], fmt="--v", fillstyle="none", yerr=3θθ_std_arr[3,:], label=L"p_0")
+PyPlot.plot(ites, fill(p0, N_iter+1), "--", color="grey")
+PyPlot.legend()
 
-# @info "Final mean: ", ukiobj.θ_mean[end]
-# @info "Final cov: ", ukiobj.θθ_cov[end]
+PyPlot.xlabel("Iterations")
+PyPlot.tight_layout()
+PyPlot.savefig("UKI-Converge-Piston.pdf")
+
+@info "Final mean: ", ukiobj.θ_mean[end]
+@info "Final cov: ", ukiobj.θθ_cov[end]
 
 
 # using NPZ
