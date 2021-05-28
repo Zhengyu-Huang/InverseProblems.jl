@@ -228,18 +228,14 @@ PyPlot.savefig("Observation-Piston.pdf")
 
 
 
-# ##########################################################################################################
-# ########################################################## 2 Parameter
+# # ##########################################################################################################
+# # ########################################################## 2 Parameter
 # s_param = Setup_Param(L, N,  time_info, fluid_info,  θ_ref, ["cs", "ks"], obs_freq)
 
 # N_y, N_θ = s_param.N_y, s_param.N_θ
 # # observation
 # Σ_η = Array(Diagonal(fill(noise_σ^2, N_y)))
 
-
-# # UKI 
-# # θ0_mean =  zeros(Float64, N_θ) # [0.5; 2.0] # 
-# # θθ0_cov = Array(Diagonal(fill(0.5^2.0, N_θ)))
 
 # θ0_mean =  ones(Float64, N_θ) # [0.5; 2.0] # 
 # θθ0_cov = Array(Diagonal(fill(0.1^2.0, N_θ)))
@@ -287,128 +283,137 @@ PyPlot.savefig("Observation-Piston.pdf")
 # logρ(θ) = log_likelihood(s_param, θ, forward, y, Σ_η)
 # step_length = 0.01
 # N_iter , n_burn_in= 50000, 10000
-# us = RWMCMC_Run(logρ, μ0, step_length, N_iter)
-# npzwrite("us-2.npy", us)
 
-# # plot UKI results at 5th, 10th, and 15th iterations
-# PyPlot.figure()
+# # us = RWMCMC_Run(logρ, μ0, step_length, N_iter)
+# # npzwrite("us-2.npy", us)
+
+# us = npzread("data/us-2.npy")
+
+
+# # plot posterior distribution
+
 # Nx = 100; Ny = 200
 # uki_θ_mean = ukiobj.θ_mean[end]
 # uki_θθ_cov = ukiobj.θθ_cov[end]
 # X,Y,Z = Gaussian_2d(uki_θ_mean, uki_θθ_cov, Nx, Ny)
-# PyPlot.contour(X, Y, Z, Array(LinRange(minimum(Z)+0.01*maximum(Z), maximum(Z), 20)), alpha=0.5)
-# PyPlot.xlabel(L"c_s")
-# PyPlot.ylabel(L"k_s")
-# PyPlot.tight_layout()
+
+# # PyPlot.figure(figsize = (4,4))
+# # PyPlot.contour(X, Y, Z, Array(LinRange(minimum(Z)+0.01*maximum(Z), maximum(Z), 20)), alpha=0.5)
+# # PyPlot.xlabel(L"c_s")
+# # PyPlot.ylabel(L"k_s")
+# # PyPlot.tight_layout()
+# # # plot MCMC results 
+# # everymarker = 1
+# # PyPlot.scatter(us[n_burn_in:everymarker:end, 1], us[n_burn_in:everymarker:end, 2], s = 1)
+# # PyPlot.savefig("UKI-MCMC-2.pdf")
+
+
+# fig_con, ax_con = PyPlot.subplots(ncols=3, figsize=(12, 4))
+# ax_con[1].contour(X, Y, Z, Array(LinRange(minimum(Z)+0.01*maximum(Z), maximum(Z), 20)), alpha=0.5)
+# ax_con[1].set_xlabel(L"c_s")
+# ax_con[1].set_ylabel(L"k_s")
+# fig_con.tight_layout()
 # # plot MCMC results 
 # everymarker = 1
-# PyPlot.scatter(us[n_burn_in:everymarker:end, 1], us[n_burn_in:everymarker:end, 2], s = 1)
-# PyPlot.savefig("UKI-MCMC-2.pdf")
+# ax_con[1].scatter(us[n_burn_in:everymarker:end, 1], us[n_burn_in:everymarker:end, 2], s = 1)
+# fig_con.savefig("UKI-MCMC-2.png")
+# ##########################################################################################################
+# ########################################################## 3 Parameter
+# s_param = Setup_Param(L, N,  time_info, fluid_info,  θ_ref, ["cs", "ks", "p0"], obs_freq)
+
+# N_y, N_θ = s_param.N_y, s_param.N_θ
+# # observation
+# Σ_η = Array(Diagonal(fill(noise_σ^2, N_y)))
 
 
-##########################################################################################################
-########################################################## 3 Parameter
-s_param = Setup_Param(L, N,  time_info, fluid_info,  θ_ref, ["cs", "ks", "p0"], obs_freq)
-
-N_y, N_θ = s_param.N_y, s_param.N_θ
-# observation
-Σ_η = Array(Diagonal(fill(noise_σ^2, N_y)))
+# θ0_mean =  ones(Float64, N_θ) # [0.5; 2.0] # 
+# θθ0_cov = Array(Diagonal(fill(0.1^2.0, N_θ)))
 
 
-# UKI 
-# θ0_mean =  zeros(Float64, N_θ) # [0.5; 2.0] # 
-# θθ0_cov = Array(Diagonal(fill(0.5^2.0, N_θ)))
-
-θ0_mean =  ones(Float64, N_θ) # [0.5; 2.0] # 
-θθ0_cov = Array(Diagonal(fill(0.1^2.0, N_θ)))
-
-
-N_iter = 15
-α_reg = 1.0
-update_freq = 1
-ukiobj = UKI_Run(s_param, forward, θ0_mean, θθ0_cov, y, Σ_η, α_reg, update_freq, N_iter)
+# N_iter = 15
+# α_reg = 1.0
+# update_freq = 1
+# ukiobj = UKI_Run(s_param, forward, θ0_mean, θθ0_cov, y, Σ_η, α_reg, update_freq, N_iter)
 
 
 
-####
-θ_mean_arr = hcat(ukiobj.θ_mean...)
-θθ_std_arr = zeros(Float64, (N_θ, N_iter+1))
-for i = 1:N_iter+1
-    for j = 1:N_θ
-        θθ_std_arr[j, i] = sqrt(ukiobj.θθ_cov[i][j,j])
-    end
-end
+# ####
+# θ_mean_arr = hcat(ukiobj.θ_mean...)
+# θθ_std_arr = zeros(Float64, (N_θ, N_iter+1))
+# for i = 1:N_iter+1
+#     for j = 1:N_θ
+#         θθ_std_arr[j, i] = sqrt(ukiobj.θθ_cov[i][j,j])
+#     end
+# end
 
-PyPlot.figure()
-ites = Array(LinRange(0, N_iter, N_iter+1))
-PyPlot.errorbar(ites, θ_mean_arr[1,:], fmt="--o",fillstyle="none", yerr=2θθ_std_arr[1,:],  label=L"c_s")
-PyPlot.plot(ites, fill(cs, N_iter+1), "--", color="grey")
+# PyPlot.figure()
+# ites = Array(LinRange(0, N_iter, N_iter+1))
+# PyPlot.errorbar(ites, θ_mean_arr[1,:], fmt="--o",fillstyle="none", yerr=2θθ_std_arr[1,:],  label=L"c_s")
+# PyPlot.plot(ites, fill(cs, N_iter+1), "--", color="grey")
 
-PyPlot.errorbar(ites, θ_mean_arr[2,:], fmt="--v", fillstyle="none", yerr=2θθ_std_arr[2,:], label=L"k_s")
-PyPlot.plot(ites, fill(ks, N_iter+1), "--", color="grey")
+# PyPlot.errorbar(ites, θ_mean_arr[2,:], fmt="--v", fillstyle="none", yerr=2θθ_std_arr[2,:], label=L"k_s")
+# PyPlot.plot(ites, fill(ks, N_iter+1), "--", color="grey")
 
-PyPlot.errorbar(ites, θ_mean_arr[3,:], fmt="--s", fillstyle="none", yerr=2θθ_std_arr[3,:], label=L"p_0")
-PyPlot.plot(ites, fill(p0, N_iter+1), "--", color="grey")
-PyPlot.legend()
+# PyPlot.errorbar(ites, θ_mean_arr[3,:], fmt="--s", fillstyle="none", yerr=2θθ_std_arr[3,:], label=L"p_0")
+# PyPlot.plot(ites, fill(p0, N_iter+1), "--", color="grey")
+# PyPlot.legend()
 
-PyPlot.xlabel("Iterations")
-PyPlot.tight_layout()
-PyPlot.savefig("UKI-Converge-Piston-3.pdf")
+# PyPlot.xlabel("Iterations")
+# PyPlot.tight_layout()
+# PyPlot.savefig("UKI-Converge-Piston-3.pdf")
 
-@info "Final mean: ", ukiobj.θ_mean[end]
-@info "Final cov: ", ukiobj.θθ_cov[end]
-
-
-using NPZ
-include("../Inversion/RWMCMC.jl")
-# compute posterior distribution by MCMC
-μ0 , Σ0 = [cs; ks; p0], Array(Diagonal(fill(1.0^2.0, N_θ)))
-# logρ(θ) = log_bayesian_posterior(s_param, θ, forward, y, Σ_η, μ0, Σ0)
-logρ(θ) = log_likelihood(s_param, θ, forward, y, Σ_η)
-step_length = 0.01
-N_iter , n_burn_in= 50000, 10000
-# N_iter , n_burn_in= 50 , 10
-
-us = RWMCMC_Run(logρ, μ0, step_length, N_iter)
-npzwrite("us-3.npy", us)
-
-# plot UKI results at 5th, 10th, and 15th iterations
-PyPlot.figure()
-Nx = 100; Ny = 200
-uki_θ_mean = ukiobj.θ_mean[end]
-uki_θθ_cov = ukiobj.θθ_cov[end]
-fig_con, ax_con = PyPlot.subplots(ncols=3, figsize=(18,6))
-
-### 1 ,2 => cs, ks
-X,Y,Z = Gaussian_2d(uki_θ_mean[[1,2]], uki_θθ_cov[[1,2],[1,2]], Nx, Ny)
-ax_con[1].contour(X, Y, Z, Array(LinRange(minimum(Z)+0.01*maximum(Z), maximum(Z), 20)), alpha=0.5)
-ax_con[1].set_xlabel(L"c_s")
-ax_con[1].set_ylabel(L"k_s")
-# plot MCMC results 
-everymarker = 1
-ax_con[1].scatter(us[n_burn_in:everymarker:end, 1], us[n_burn_in:everymarker:end, 2], s = 1)
+# @info "Final mean: ", ukiobj.θ_mean[end]
+# @info "Final cov: ", ukiobj.θθ_cov[end]
 
 
-### 2 , 3 => ks, p0
-X,Y,Z = Gaussian_2d(uki_θ_mean[[2,3]], uki_θθ_cov[[2,3],[2,3]], Nx, Ny)
-ax_con[2].contour(X, Y, Z, Array(LinRange(minimum(Z)+0.01*maximum(Z), maximum(Z), 20)), alpha=0.5)
-ax_con[2].set_xlabel(L"k_s")
-ax_con[2].set_ylabel(L"p_0")
-# plot MCMC results 
-everymarker = 1
-ax_con[2].scatter(us[n_burn_in:everymarker:end, 2], us[n_burn_in:everymarker:end, 3], s = 1)
+# using NPZ
+# include("../Inversion/RWMCMC.jl")
+# # compute posterior distribution by MCMC
+# μ0 , Σ0 = [cs; ks; p0], Array(Diagonal(fill(1.0^2.0, N_θ)))
+# # logρ(θ) = log_bayesian_posterior(s_param, θ, forward, y, Σ_η, μ0, Σ0)
+# logρ(θ) = log_likelihood(s_param, θ, forward, y, Σ_η)
+# step_length = 0.01
+# N_iter , n_burn_in= 50000, 10000
+# # us = RWMCMC_Run(logρ, μ0, step_length, N_iter)
+# # npzwrite("us-3.npy", us)
+
+# us = npzread("data/us-3.npy")
+
+# # plot posterior distribution
+# PyPlot.figure()
+# Nx = 100; Ny = 200
+# uki_θ_mean = ukiobj.θ_mean[end]
+# uki_θθ_cov = ukiobj.θθ_cov[end]
+# fig_con, ax_con = PyPlot.subplots(ncols=3, figsize=(12, 4))
+
+# ### 1 ,2 => cs, ks
+# X,Y,Z = Gaussian_2d(uki_θ_mean[[1,2]], uki_θθ_cov[[1,2],[1,2]], Nx, Ny)
+# ax_con[1].contour(X, Y, Z, Array(LinRange(minimum(Z)+0.01*maximum(Z), maximum(Z), 20)), alpha=0.5)
+# ax_con[1].set_xlabel(L"c_s")
+# ax_con[1].set_ylabel(L"k_s")
+# # plot MCMC results 
+# everymarker = 1
+# ax_con[1].scatter(us[n_burn_in:everymarker:end, 1], us[n_burn_in:everymarker:end, 2], s = 1)
 
 
-### 3 , 1 => p0, cs 
-X,Y,Z = Gaussian_2d(uki_θ_mean[[3,1]], uki_θθ_cov[[3,1],[3,1]], Nx, Ny)
-ax_con[3].contour(X, Y, Z, Array(LinRange(minimum(Z)+0.01*maximum(Z), maximum(Z), 20)), alpha=0.5)
-ax_con[3].set_xlabel(L"p_0")
-ax_con[3].set_ylabel(L"c_s")
-# plot MCMC results 
-everymarker = 1
-ax_con[3].scatter(us[n_burn_in:everymarker:end, 3], us[n_burn_in:everymarker:end, 1], s = 1)
+# ### 2 , 3 => ks, p0
+# X,Y,Z = Gaussian_2d(uki_θ_mean[[2,3]], uki_θθ_cov[[2,3],[2,3]], Nx, Ny)
+# ax_con[2].contour(X, Y, Z, Array(LinRange(minimum(Z)+0.01*maximum(Z), maximum(Z), 20)), alpha=0.5)
+# ax_con[2].set_xlabel(L"k_s")
+# ax_con[2].set_ylabel(L"p_0")
+# # plot MCMC results 
+# everymarker = 1
+# ax_con[2].scatter(us[n_burn_in:everymarker:end, 2], us[n_burn_in:everymarker:end, 3], s = 1)
 
 
+# ### 3 , 1 => p0, cs 
+# X,Y,Z = Gaussian_2d(uki_θ_mean[[3,1]], uki_θθ_cov[[3,1],[3,1]], Nx, Ny)
+# ax_con[3].contour(X, Y, Z, Array(LinRange(minimum(Z)+0.01*maximum(Z), maximum(Z), 20)), alpha=0.5)
+# ax_con[3].set_xlabel(L"p_0")
+# ax_con[3].set_ylabel(L"c_s")
+# # plot MCMC results 
+# everymarker = 1
+# ax_con[3].scatter(us[n_burn_in:everymarker:end, 3], us[n_burn_in:everymarker:end, 1], s = 1)
 
-fig_con.tight_layout()
-fig_con.savefig("UKI-MCMC-3.pdf")
+# fig_con.tight_layout()
+# fig_con.savefig("UKI-MCMC-3.png")
