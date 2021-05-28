@@ -7,6 +7,7 @@ using LinearAlgebra
 
 include("../Inversion/Plot.jl")
 include("../Inversion/KalmanInversion.jl")
+include("../Inversion/RWMCMC.jl")
 include("Damage.jl")
 
 
@@ -155,7 +156,7 @@ function Compare()
   # n_test = 2
   n_test = 1
   # fine scale , avoid Bayesian Crime
-  ns, ns_obs, porder, problem, ns_c, porder_c = 4, 5, 2, "Static", 4, 2
+  ns, ns_obs, porder, problem, ns_c, porder_c = 8, 5, 2, "Static", 8, 2
   # ns, ns_obs, porder, problem, ns_c, porder_c = 4, 5, 2, "Static", 4, 2
 
   phys_params_fine = Params(ns, ns_obs, porder, problem, ns_c, porder_c, n_test)
@@ -164,7 +165,7 @@ function Compare()
   E_max = phys_params_fine.prop["E"]
   θ_dam_fine_ref, t_mean_fine =  Forward_Analytic(phys_params_fine,  "Figs/Damage-disp-fine", "Figs/Damage-E-fine")
   
-  nθ = 100
+  nθ = 200
   # # construct basis 
   # domain_c = phys_params_fine.domain_c
   # nθ = size(phys_params_fine.domain_c.nodes, 1)
@@ -188,7 +189,7 @@ function Compare()
   
   θ0_mean = zeros(Float64, nθ)
   θθ0_cov = Array(Diagonal(fill(10.0, nθ)))           # standard deviation
-  N_iter = 10
+  N_iter = 20
   
   fig_y, ax_y = PyPlot.subplots(ncols = 1, nrows=1, sharex=true, sharey=true, figsize=(6,6))
   
@@ -228,20 +229,24 @@ function Compare()
 
   ### Normal System
   
-  α_reg = 1.0
-  update_freq = 0
-  func  = (phys_params, θ_c) -> Forward(phys_params, θ_c, U, sqrt_Σ)
-  ukiobj = UKI_Run(phys_params, func, 
-    θ0_mean, θθ0_cov,
-    y, Σ_η,
-    α_reg,
-    update_freq,
-    N_iter)
+  # α_reg = 1.0
+  # update_freq = 0
+  # func  = (phys_params, θ_c) -> Forward(phys_params, θ_c, U, sqrt_Σ)
+  # ukiobj = UKI_Run(phys_params, func, 
+  #   θ0_mean, θθ0_cov,
+  #   y, Σ_η,
+  #   α_reg,
+  #   update_freq,
+  #   N_iter)
 
-  θ_dam = Get_θ_Dam_From_Raw(phys_params.domain_c, phys_params.interp_e, phys_params.interp_sdata, U * (sqrt_Σ .* ukiobj.θ_mean[end]))
-  Plot_E_Field(phys_params, nodes, (1.0 .- θ_dam)*E_max,  E_max, ax_logk[1]; vmin = vmin)
+  # θ_dam = Get_θ_Dam_From_Raw(phys_params.domain_c, phys_params.interp_e, phys_params.interp_sdata, U * (sqrt_Σ .* ukiobj.θ_mean[end]))
+  # Plot_E_Field(phys_params, nodes, (1.0 .- θ_dam)*E_max,  E_max, ax_logk[1]; vmin = vmin)
 
-  ax_y.plot(ukiobj.y_pred[end], label = "y-uki-1")
+  # ax_y.plot(ukiobj.y_pred[end], label = "y-uki-1")
+
+
+  
+  # ax_y.plot(ukiobj.y_pred[end], label = "y-uki-1")
 
   ### Extended System
   phys_params.N_y += nθ
@@ -251,21 +256,39 @@ function Compare()
   α_reg = 1.0
   update_freq = 1
   func = (phys_params, θ_c) -> aug_Forward(phys_params, θ_c, U, sqrt_Σ)
-  aug_ukiobj = UKI_Run(phys_params, func, 
-    θ0_mean, θθ0_cov,
-    aug_y, aug_Σ_η,
-    α_reg,
-    update_freq,
-    N_iter)
+  # aug_ukiobj = UKI_Run(phys_params, func, 
+  #   θ0_mean, θθ0_cov,
+  #   aug_y, aug_Σ_η,
+  #   α_reg,
+  #   update_freq,
+  #   N_iter)
+  # @save "aug_ukiobj.dat" aug_ukiobj
+
+  @load "aug_ukiobj.dat" aug_ukiobj
 
   θ_dam = Get_θ_Dam_From_Raw(phys_params.domain_c, phys_params.interp_e, phys_params.interp_sdata, U * (sqrt_Σ .* aug_ukiobj.θ_mean[end]))
-  Plot_E_Field(phys_params, nodes, (1.0 .- θ_dam)*E_max,  E_max, ax_logk[2]; vmin = vmin)
+  Plot_E_Field(phys_params, nodes, (1.0 .- θ_dam)*E_max,  E_max, ax_logk[1]; vmin = vmin)
 
   ax_y.plot(aug_ukiobj.y_pred[1][1:length(y)], label = "y-uki-2")
   ax_y.plot(aug_ukiobj.y_pred[end][1:length(y)], label = "y-uki-3")
   ax_y.legend()
   fig_y.savefig("Figs/Y.pdf")
   close(fig_y)
+
+
+  ### MCMC
+  θ0 = aug_ukiobj.θ_mean[end]
+  func(phys_params, θ_c) = Forward(phys_params, θ_c, U, sqrt_Σ)
+  log_likelihood_func(θ) = log_likelihood(phys_params, θ, func, y,  Σ_η)
+  n_iter = 1*10^6
+  θs = PCN_Run(log_likelihood_func, θ0, θθ0_cov, 0.1, n_iter)
+  @save "mcmc.dat" θs
+
+  n_burn_in = div(n_iter, 2)
+  mcmc_θ_mean = dropdims( sum(θs[n_burn_in:end, :], dims = 1)/size(θs[n_burn_in:end, :], 1) , dims=1)
+  θ_dam = Get_θ_Dam_From_Raw(phys_params.domain_c, phys_params.interp_e, phys_params.interp_sdata, U * (sqrt_Σ .* mcmc_θ_mean) )
+  Plot_E_Field(phys_params, nodes, (1.0 .- θ_dam)*E_max,  E_max, ax_logk[2]; vmin = vmin)
+
 
   ### Reference
   
