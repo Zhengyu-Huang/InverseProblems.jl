@@ -449,14 +449,14 @@ end
 
 
 function Get_θ_Dam(θ::Float64)
-    a = 0.9 
-    c = 9.0
+    a = 1.0 
+    c = 10.0
     return a*(1-exp(-θ))/(1+c*exp(-θ))
 end
 
 function Get_θ(θ_dam::Float64)
-    a = 0.9 
-    c = 9.0
+    a = 1.0 
+    c = 10.0
     return -log((a-θ_dam)/(θ_dam*c + a))
 end
 
@@ -902,7 +902,7 @@ function Kernel_function(domain_c, σ::Float64, s0::Float64, τ::Float64)
     # σ² * exp(-||x-y||ᵗ/(2*s0²))
     for i = 1:nθ
         for j = 1:nθ
-            Cov[i, j] = σ^2 * exp(- ((nodes[i, 1] - nodes[j, 1])^2 + (nodes[i, 2] - nodes[j, 2])^2)^(τ/2) /(2*s0^2))
+            Cov[i, j] = σ * exp(- ((nodes[i, 1] - nodes[j, 1])^2 + (nodes[i, 2] - nodes[j, 2])^2)^(τ/2) /(2*s0))
         end
     end
 

@@ -43,50 +43,36 @@ function aug_Forward(phys_params::Params, θ_c::Array{Float64,1}, U, sqrt_Σ)
 end
 
 
-function Damage_Test(method::String, phys_params::Params, 
-  t_mean::Array{Float64,1}, t_cov::Array{Float64,2}, 
-  θ0_bar::Array{Float64,1}, θθ0_cov::Array{Float64,2}, 
-  N_ens::Int64, α_reg::Float64, 
-  θ_dam_ref::Array{Float64,1}, N_iter::Int64, ax1, ax2)
+function Converge_Plot(kiobj)
   
-  
-  kiobj = UKI(phys_params, t_mean, t_cov,  θ0_bar, θθ0_cov, α_reg, θ_dam_ref, N_iter)
-  
-    
-  θ_bar = kiobj.θ_bar
-  linestyle, marker = "--", "^"
+  fig_loss, ax_loss = PyPlot.subplots(ncols = 2, nrows=1, sharex=true, sharey=false, figsize=(12,5))
+  ax1, ax2 = ax_loss[1], ax_loss[2]
 
-  label = label*" (α = "*string(α_reg)*")"
-  
-  ites = Array(LinRange(1, N_iter, N_iter))
-  errors = zeros(Float64, (2, N_iter))
+  N_iter = min(length(kiobj.y_pred), length(kiobj.θθ_cov))
+  errors = zeros(Float64, N_iter)
+  Fnorm = zeros(Float64, N_iter)
+
   for i = 1:N_iter
-    
-    θ_dam = Get_θ_Dam_From_Raw(phys_params.domain_c, phys_params.interp_e, phys_params.interp_sdata, θ_bar[i])
-    
-    
-    errors[1, i] = norm(θ_dam_ref - θ_dam)/norm(θ_dam_ref)
-    errors[2, i] = 0.5*(kiobj.g_bar[i] - kiobj.g_t)'*(kiobj.obs_cov\(kiobj.g_bar[i] - kiobj.g_t))
-    
+    errors[i] = 0.5*(kiobj.y_pred[i] - kiobj.y)'*(kiobj.Σ_η\(kiobj.y_pred[i] - kiobj.y))
+    Fnorm[i] = norm(kiobj.θθ_cov[i])
   end
   
-  
-  if (!isnothing(ax1)  &&  !isnothing(ax2))
-    ax1.plot(ites, errors[1, :], linestyle=linestyle, marker=marker, fillstyle="none", markevery=10, label= label)
-    ax1.set_ylabel("Relative L₂ norm error")
-    ax1.grid(true)
+  ites = Array(0 : N_iter-1)
+
     
-    
-    ax2.semilogy(ites, errors[2, :], linestyle=linestyle, marker = marker,fillstyle="none", markevery=10, label= label)
-    ax2.set_xlabel("Iterations")
-    ax2.set_ylabel("Optimization error")
-    ax2.grid(true)
-    ax2.legend()
-  end
-  
-  return Get_θ_Dam_From_Raw(phys_params.domain_c, phys_params.interp_e, phys_params.interp_sdata, θ_bar[end])
-  
-  
+  ax1.semilogy(ites, errors, "-o", fillstyle="none", markevery=2)
+  ax1.set_xlabel("Iterations")
+  ax1.set_ylabel("Optimization error")
+  ax1.grid(true)
+
+
+  ax2.semilogy(ites, Fnorm, "-o", fillstyle="none", markevery=2)
+  ax2.set_xlabel("Iterations")
+  ax2.set_ylabel("Frobenius norm")
+  ax2.grid(true)
+
+  fig_loss.tight_layout()
+  fig_loss.savefig("Figs/UKI-Loss.pdf")
 end
 
 
@@ -156,9 +142,8 @@ function Compare()
   # n_test = 2
   n_test = 1
   # fine scale , avoid Bayesian Crime
-  ns, ns_obs, porder, problem, ns_c, porder_c = 8, 5, 2, "Static", 8, 2
-  # ns, ns_obs, porder, problem, ns_c, porder_c = 4, 5, 2, "Static", 4, 2
-
+  ns, ns_obs, porder, problem, ns_c, porder_c = 16, 5, 2, "Static", 16, 2
+  
   phys_params_fine = Params(ns, ns_obs, porder, problem, ns_c, porder_c, n_test)
   
   nodes_fine, _, _, _, _, _, _, _ = Construct_Mesh(phys_params_fine.ns, phys_params_fine.porder, phys_params_fine.ls, phys_params_fine.ngp, phys_params_fine.prop, phys_params_fine.P1, phys_params_fine.P2, phys_params_fine.problem, phys_params_fine.T)
@@ -166,36 +151,23 @@ function Compare()
   θ_dam_fine_ref, t_mean_fine =  Forward_Analytic(phys_params_fine,  "Figs/Damage-disp-fine", "Figs/Damage-E-fine")
   
   nθ = 200
-  # # construct basis 
-  # domain_c = phys_params_fine.domain_c
-  # nθ = size(phys_params_fine.domain_c.nodes, 1)
-  # # it is very sensity to τ
-  σ, s0, τ = 1.0, phys_params_fine.ls/(ns_c * porder_c), 1.0
-  # _, U, Σ = Kernel_function(domain_c, σ, s0, τ)
-  # sqrt_Σ = sqrt.(Σ)
-  # U, sqrt_Σ = U[:, 1:nθ] , sqrt_Σ[1:nθ] 
-  # Random.seed!(42);
-  # θ_c = rand(Normal(0, 10), nθ)
-  # θ_dam_fine_ref, t_mean_fine = Forward_Analytic(phys_params_fine, θ_c, U, sqrt_Σ, "Figs/Damage-disp-fine", "Figs/Damage-E-fine")
   vmin = minimum((1.0 .- θ_dam_fine_ref)*E_max)
   # coarse scale 
 
-  ns, ns_obs, porder, problem, ns_c, porder_c = 4, 5, 2, "Static", 4, 2
+  ns, ns_obs, porder, problem, ns_c, porder_c = 8, 5, 2, "Static", 8, 2
+  # ns, ns_obs, porder, problem, ns_c, porder_c = 4, 5, 2, "Static", 4, 2
+
   phys_params = Params(ns, ns_obs, porder, problem, ns_c, porder_c, n_test)
   nodes, _, _, _, _, _, _, _ = Construct_Mesh(phys_params.ns, phys_params.porder, phys_params.ls, phys_params.ngp, phys_params.prop, phys_params.P1, phys_params.P2, phys_params.problem, phys_params.T)
   E_max = phys_params.prop["E"]
   
-  # nθ = size(phys_params.domain_c.nodes, 1)
-  
   θ0_mean = zeros(Float64, nθ)
-  θθ0_cov = Array(Diagonal(fill(10.0, nθ)))           # standard deviation
+  θθ0_cov = Array(Diagonal(fill(1.0, nθ)))           # standard deviation
   N_iter = 20
   
-  fig_y, ax_y = PyPlot.subplots(ncols = 1, nrows=1, sharex=true, sharey=true, figsize=(6,6))
+  fig_y, ax_y = PyPlot.subplots(ncols = 1, nrows=1, sharex=true, sharey=true, figsize=(7,4))
   
-
-  
-  fig_logk, ax_logk = PyPlot.subplots(ncols = 3, nrows=1, sharex=true, sharey=true, figsize=(12,2))
+  fig_logk, ax_logk = PyPlot.subplots(ncols = 3, nrows=1, sharex=true, sharey=true, figsize=(10,2))
   for ax in ax_logk ;  ax.set_xticks([]) ; ax.set_yticks([]);  end 
   
   noise_level_per = 5
@@ -209,45 +181,22 @@ function Compare()
     noise = similar(t_mean_fine)
     Random.seed!(123);
     for i = 1:length(t_mean_fine)
-        # noise[i] = rand(Normal(0, noise_level*abs(t_mean_fine[i])))
         noise[i] = rand(Normal(0, σ_η))
     end
-
     y .+= noise
   end
 
-  ax_y.plot(t_mean_fine, label = "y-ref")
-  ax_y.plot(y, label = "y-noisy")
+  ax_y.plot(t_mean_fine, color = "red", label = "y (truth)")
+  ax_y.plot(y, "o", fillstyle = "none", color = "red", label = "y (observation)")
 
   # construct basis 
   domain_c = phys_params.domain_c
   # it is very sensity to τ
-  σ, s0, τ = 1.0, phys_params.ls/(ns_c * porder_c), τ
+  σ, s0, τ =  10.0, 100.0, 1.0
   _, U, Σ = Kernel_function(domain_c, σ, s0, τ)
   sqrt_Σ = sqrt.(Σ)
   U, sqrt_Σ = U[:, 1:nθ] , sqrt_Σ[1:nθ] 
-
-  ### Normal System
   
-  # α_reg = 1.0
-  # update_freq = 0
-  # func  = (phys_params, θ_c) -> Forward(phys_params, θ_c, U, sqrt_Σ)
-  # ukiobj = UKI_Run(phys_params, func, 
-  #   θ0_mean, θθ0_cov,
-  #   y, Σ_η,
-  #   α_reg,
-  #   update_freq,
-  #   N_iter)
-
-  # θ_dam = Get_θ_Dam_From_Raw(phys_params.domain_c, phys_params.interp_e, phys_params.interp_sdata, U * (sqrt_Σ .* ukiobj.θ_mean[end]))
-  # Plot_E_Field(phys_params, nodes, (1.0 .- θ_dam)*E_max,  E_max, ax_logk[1]; vmin = vmin)
-
-  # ax_y.plot(ukiobj.y_pred[end], label = "y-uki-1")
-
-
-  
-  # ax_y.plot(ukiobj.y_pred[end], label = "y-uki-1")
-
   ### Extended System
   phys_params.N_y += nθ
   aug_y = [y; θ0_mean]
@@ -269,18 +218,18 @@ function Compare()
   θ_dam = Get_θ_Dam_From_Raw(phys_params.domain_c, phys_params.interp_e, phys_params.interp_sdata, U * (sqrt_Σ .* aug_ukiobj.θ_mean[end]))
   Plot_E_Field(phys_params, nodes, (1.0 .- θ_dam)*E_max,  E_max, ax_logk[1]; vmin = vmin)
 
-  ax_y.plot(aug_ukiobj.y_pred[1][1:length(y)], label = "y-uki-2")
-  ax_y.plot(aug_ukiobj.y_pred[end][1:length(y)], label = "y-uki-3")
-  ax_y.legend()
-  fig_y.savefig("Figs/Y.pdf")
-  close(fig_y)
-
+  ax_y.plot(aug_ukiobj.y_pred[1][1:length(y)], "--", label = "UKI (initial)")
+  ax_y.plot(aug_ukiobj.y_pred[end][1:length(y)], "--", fillstyle = "none", label = "UKI")
+  
+  
+  
+  Converge_Plot(aug_ukiobj)
 
   ### MCMC
   θ0 = aug_ukiobj.θ_mean[end]
   func(phys_params, θ_c) = Forward(phys_params, θ_c, U, sqrt_Σ)
   log_likelihood_func(θ) = log_likelihood(phys_params, θ, func, y,  Σ_η)
-  n_iter = 1*10^6
+  n_iter =2*10^5
   θs = PCN_Run(log_likelihood_func, θ0, θθ0_cov, 0.1, n_iter)
   @save "mcmc.dat" θs
 
@@ -289,6 +238,17 @@ function Compare()
   θ_dam = Get_θ_Dam_From_Raw(phys_params.domain_c, phys_params.interp_e, phys_params.interp_sdata, U * (sqrt_Σ .* mcmc_θ_mean) )
   Plot_E_Field(phys_params, nodes, (1.0 .- θ_dam)*E_max,  E_max, ax_logk[2]; vmin = vmin)
 
+
+  y_mcmc = Forward(phys_params, mcmc_θ_mean, U, sqrt_Σ)
+  ax_y.plot(y_mcmc[1:length(y)], linestyle="dashdot", fillstyle = "none", label = "MCMC")
+
+  ax_y.legend()
+  ax_y.set_xlabel("Measurement")
+  ax_y.set_ylabel("Displacement")
+
+  fig_y.tight_layout()
+  fig_y.savefig("Figs/Y.pdf")
+  close(fig_y)
 
   ### Reference
   
