@@ -2,6 +2,7 @@ using LinearAlgebra
 using Distributions
 using Random
 using SparseArrays
+using NPZ
 include("../Inversion/Plot.jl")
 include("../Inversion/KalmanInversion.jl")
 include("Spectral-Navier-Stokes.jl");
@@ -19,9 +20,11 @@ obs_ΔNx, obs_ΔNy, obs_ΔNt = 16, 16, 5000        #observation
 N_KL = 0
 N_θ = 100
 
-Random.seed!(1);
+plot_ω = false
+
+Random.seed!(42);
 N_data = 2000
-θθ = rand(Normal(0,1),8, N_data)
+θθ = rand(TruncatedNormal(0, 1, -1, 1), 8, N_data)
 mesh = Spectral_Mesh(N, N, L, L)
 ωω = zeros(N,N, N_data)
 
@@ -45,7 +48,7 @@ for i_d = 1:N_data
 
     solver = Spectral_NS_Solver(mesh, ν; fx = s_param.fx, fy = s_param.fy, ω0 = ω0_ref, ub = ub, vb = vb)  
     
-    if i_d == 1
+    if plot_ω && i_d == 1
         PyPlot.figure(figsize = (4,3))
         Visual(mesh, solver.ω, "ω")
     end
@@ -53,13 +56,15 @@ for i_d = 1:N_data
     Δt = T/N_t 
     for i = 1:N_t
         Solve!(solver, Δt, method)
-        if i%N_t == 0
+        if plot_ω && i%N_t == 0
             Update_Grid_Vars!(solver)
             PyPlot.figure(figsize = (4,3))
             Visual(mesh, solver.ω, "ω")
         end
     end
+    Update_Grid_Vars!(solver)
     ωω[:, : , i_d] .= solver.ω
+    @info "i_d = ", i_d, "   ",  norm(solver.ω)
 end
 
 npzwrite("random_8_direct_theta.npy", θθ)
