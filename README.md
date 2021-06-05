@@ -1,5 +1,6 @@
 # InverseProblems
 
+<img src="../Figs/InverseProblems.png" width="400" />
 
 InverseProblems is a
 
