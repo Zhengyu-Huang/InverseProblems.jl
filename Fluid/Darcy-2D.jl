@@ -347,7 +347,12 @@ end
 
 
 
-
+function aug_forward(darcy::Setup_Param{FT, IT}, θ::Array{FT, 1}) where {FT<:AbstractFloat, IT<:Int}
+  
+    
+    y = forward(darcy, θ)
+    return [y ; θ]
+end
 
 
 
