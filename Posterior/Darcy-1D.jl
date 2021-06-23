@@ -187,7 +187,7 @@ function aug_forward(darcy::Setup_Param, θ::Array{FT, 1}) where {FT<:AbstractFl
 end
 
 # plot any 1D field, with/without highligh the observations by scatter
-function plot_field(darcy::Setup_Param, u::Array{FT, 1}, plot_obs::Bool,  filename::String = "None") where {FT<:AbstractFloat}
+function plot_field(darcy::Setup_Param, u::Array{FT, 1}, plot_obs::Bool,  filename::String = "None"; y_obs = u[darcy.y_locs]) where {FT<:AbstractFloat}
     N_x = darcy.N_x
     xx = darcy.xx
 
