@@ -189,7 +189,25 @@ function compute_logκ_2d(darcy::Setup_Param{FT, IT}, θ::Array{FT, 1}) where {F
     return logκ_2d
 end
 
+function compute_dκ_dθ(darcy::Setup_Param{FT, IT}, θ::Array{FT, 1}) where {FT<:AbstractFloat, IT<:Int}
+    N, N_KL = darcy.N, darcy.N_KL
+    λ, φ = darcy.λ, darcy.φ
+    N_θ = length(θ)
+    
+    @assert(N_θ <= N_KL) 
+    logκ_2d = zeros(FT, N*N)
+    dκ_dθ = zeros(FT, N*N, N_θ)
 
+    for i = 1:N_θ
+        logκ_2d .+= (θ[i] * sqrt(λ[i]) * φ[i, :, :])[:]
+    end
+    
+    for i = 1:N_θ
+        dκ_dθ[:, i] = (sqrt(λ[i]) * φ[i, :, :])[:] .* exp.(logκ_2d)
+    end
+
+    return dκ_dθ
+end
 
 
 #=
@@ -318,8 +336,6 @@ function adjoint_Darcy_2D(darcy::Setup_Param{FT, IT}, κ_2d::Array{FT,2}, h_2d::
     indy = IT[]
     vals = FT[]
     
-    f_2d = darcy.f_2d
-    
     𝓒 = Δx^2
     for iy = 2:N-1
         for ix = 2:N-1
@@ -333,16 +349,16 @@ function adjoint_Darcy_2D(darcy::Setup_Param{FT, IT}, κ_2d::Array{FT,2}, h_2d::
                 push!(indy, ixy)
                 push!(vals, (κ_2d[ix, iy] + κ_2d[ix, iy+1])/2.0/𝓒)
 
-                dG_dk[ixy, ind_all(ix, iy)]   = h_2d[ix,iy]/2/𝓒
-                dG_dk[ixy, ind_all(ix, iy+1)] = h_2d[ix,iy]/2/𝓒
+                dG_dk[ixy, ind_all(darcy, ix, iy)]   += h_2d[ix,iy]/2/𝓒
+                dG_dk[ixy, ind_all(darcy, ix, iy+1)] += h_2d[ix,iy]/2/𝓒
             else
                 #ft = -(κ_2d[ix, iy] + κ_2d[ix, iy+1])/2.0 * (h_2d[ix,iy+1] - h_2d[ix,iy])
                 append!(indx, [ixy, ixy])
                 append!(indy, [ixy, ind(darcy, ix, iy+1)])
                 append!(vals, [(κ_2d[ix, iy] + κ_2d[ix, iy+1])/2.0/𝓒, -(κ_2d[ix, iy] + κ_2d[ix, iy+1])/2.0/𝓒])
                 
-                dG_dk[ixy, ind_all(ix, iy)]   -= (h_2d[ix,iy+1] - h_2d[ix,iy])/2.0/𝓒
-                dG_dk[ixy, ind_all(ix, iy+1)] -= (h_2d[ix,iy+1] - h_2d[ix,iy])/2.0/𝓒
+                dG_dk[ixy, ind_all(darcy, ix, iy)]   -= (h_2d[ix,iy+1] - h_2d[ix,iy])/2.0/𝓒
+                dG_dk[ixy, ind_all(darcy, ix, iy+1)] -= (h_2d[ix,iy+1] - h_2d[ix,iy])/2.0/𝓒
             end
             
             #bottom
@@ -352,16 +368,16 @@ function adjoint_Darcy_2D(darcy::Setup_Param{FT, IT}, κ_2d::Array{FT,2}, h_2d::
                 push!(indy, ixy)
                 push!(vals,  (κ_2d[ix, iy] + κ_2d[ix, iy-1])/2.0/𝓒)
 
-                dG_dk[ixy, ind_all(ix, iy)]   = h_2d[ix,iy]/2/𝓒
-                dG_dk[ixy, ind_all(ix, iy-1)] = h_2d[ix,iy]/2/𝓒
+                dG_dk[ixy, ind_all(darcy, ix, iy)]   += h_2d[ix,iy]/2/𝓒
+                dG_dk[ixy, ind_all(darcy, ix, iy-1)] += h_2d[ix,iy]/2/𝓒
             else
                 #fb = (κ_2d[ix, iy] + κ_2d[ix, iy-1])/2.0 * (h_2d[ix,iy] - h_2d[ix,iy-1])
                 append!(indx, [ixy, ixy])
                 append!(indy, [ixy, ind(darcy, ix, iy-1)])
                 append!(vals, [(κ_2d[ix, iy] + κ_2d[ix, iy-1])/2.0/𝓒, -(κ_2d[ix, iy] + κ_2d[ix, iy-1])/2.0/𝓒])
 
-                dG_dk[ixy, ind_all(ix, iy)]   = (h_2d[ix,iy] - h_2d[ix,iy-1])/2.0/𝓒
-                dG_dk[ixy, ind_all(ix, iy-1)] = (h_2d[ix,iy] - h_2d[ix,iy-1])/2.0/𝓒
+                dG_dk[ixy, ind_all(darcy, ix, iy)]   += (h_2d[ix,iy] - h_2d[ix,iy-1])/2.0/𝓒
+                dG_dk[ixy, ind_all(darcy, ix, iy-1)] += (h_2d[ix,iy] - h_2d[ix,iy-1])/2.0/𝓒
             end
             
             #right
@@ -371,16 +387,16 @@ function adjoint_Darcy_2D(darcy::Setup_Param{FT, IT}, κ_2d::Array{FT,2}, h_2d::
                 push!(indy, ixy)
                 push!(vals, (κ_2d[ix, iy] + κ_2d[ix+1, iy])/2.0/𝓒)
 
-                dG_dk[ixy, ind_all(ix+1, iy)] = h_2d[ix,iy]/2/𝓒
-                dG_dk[ixy, ind_all(ix, iy)]   = h_2d[ix,iy]/2/𝓒
+                dG_dk[ixy, ind_all(darcy, ix+1, iy)] += h_2d[ix,iy]/2/𝓒
+                dG_dk[ixy, ind_all(darcy, ix, iy)]   += h_2d[ix,iy]/2/𝓒
             else
                 #fr = -(κ_2d[ix, iy] + κ_2d[ix+1, iy])/2.0 * (h_2d[ix+1,iy] - h_2d[ix,iy])
                 append!(indx, [ixy, ixy])
                 append!(indy, [ixy, ind(darcy, ix+1, iy)])
                 append!(vals, [(κ_2d[ix, iy] + κ_2d[ix+1, iy])/2.0/𝓒, -(κ_2d[ix, iy] + κ_2d[ix+1, iy])/2.0/𝓒])
 
-                dG_dk[ixy, ind_all(ix+1, iy)]   -= (h_2d[ix+1,iy] - h_2d[ix,iy])/2.0/𝓒
-                dG_dk[ixy, ind_all(ix, iy)]     -= (h_2d[ix+1,iy] - h_2d[ix,iy])/2.0/𝓒
+                dG_dk[ixy, ind_all(darcy, ix+1, iy)]   -= (h_2d[ix+1,iy] - h_2d[ix,iy])/2.0/𝓒
+                dG_dk[ixy, ind_all(darcy, ix, iy)]     -= (h_2d[ix+1,iy] - h_2d[ix,iy])/2.0/𝓒
             end  
             
             #left
@@ -390,16 +406,16 @@ function adjoint_Darcy_2D(darcy::Setup_Param{FT, IT}, κ_2d::Array{FT,2}, h_2d::
                 push!(indy, ixy)
                 push!(vals, (κ_2d[ix, iy] + κ_2d[ix-1, iy])/2.0/𝓒)
 
-                dG_dk[ixy, ind_all(ix, iy)]   = h_2d[ix,iy]/2/𝓒
-                dG_dk[ixy, ind_all(ix-1, iy)] = h_2d[ix,iy]/2/𝓒
+                dG_dk[ixy, ind_all(darcy, ix, iy)]   += h_2d[ix,iy]/2/𝓒
+                dG_dk[ixy, ind_all(darcy, ix-1, iy)] += h_2d[ix,iy]/2/𝓒
             else
                 #fl = (κ_2d[ix, iy] + κ_2d[ix-1, iy])/2.0 * (h_2d[ix,iy] - h_2d[ix-1,iy])
                 append!(indx, [ixy, ixy])
                 append!(indy, [ixy, ind(darcy, ix-1, iy)])
                 append!(vals, [(κ_2d[ix, iy] + κ_2d[ix-1, iy])/2.0/𝓒, -(κ_2d[ix, iy] + κ_2d[ix-1, iy])/2.0/𝓒])
 
-                dG_dk[ixy, ind_all(ix, iy)]   = (h_2d[ix,iy] - h_2d[ix-1,iy])/2.0/𝓒
-                dG_dk[ixy, ind_all(ix-1, iy)] = (h_2d[ix,iy] - h_2d[ix-1,iy])/2.0/𝓒
+                dG_dk[ixy, ind_all(darcy, ix, iy)]   += (h_2d[ix,iy] - h_2d[ix-1,iy])/2.0/𝓒
+                dG_dk[ixy, ind_all(darcy, ix-1, iy)] += (h_2d[ix,iy] - h_2d[ix-1,iy])/2.0/𝓒
             end
             
         end
@@ -421,7 +437,19 @@ function compute_obs(darcy::Setup_Param{FT, IT}, h_2d::Array{FT, 2}) where {FT<:
     return obs_2d[:]
 end
 
-
+#=
+Compute observation values
+=#
+function dcompute_obs(darcy::Setup_Param{FT, IT}, h_2d::Array{FT, 2}) where {FT<:AbstractFloat, IT<:Int}
+    # X---X(1)---X(2) ... X(obs_N)---X
+    dobs_dh = zeros(Float64,  length(darcy.x_locs), length(darcy.y_locs),  (N-2)^2)
+    for i = 1:length(darcy.x_locs)
+        for j = 1:length(darcy.y_locs)
+            dobs_dh[i, j , ind(darcy, darcy.x_locs[i], darcy.y_locs[j])] = 1.0
+        end
+    end
+    return reshape(dobs_dh, length(darcy.x_locs)*length(darcy.y_locs),  (N-2)^2)
+end
 
 function plot_field(darcy::Setup_Param{FT, IT}, u_2d::Array{FT, 2}, plot_obs::Bool,  filename::String = "None") where {FT<:AbstractFloat, IT<:Int}
     N = darcy.N
@@ -463,6 +491,26 @@ function forward(darcy::Setup_Param{FT, IT}, θ::Array{FT, 1}) where {FT<:Abstra
     return y
 end
 
+
+function dforward(darcy::Setup_Param{FT, IT}, θ::Array{FT, 1}) where {FT<:AbstractFloat, IT<:Int}
+    logκ_2d = compute_logκ_2d(darcy, θ)
+
+    κ_2d = exp.(logκ_2d)
+
+    h_2d = solve_Darcy_2D(darcy, κ_2d)
+
+    df, dG_dk = adjoint_Darcy_2D(darcy, κ_2d, h_2d)
+
+    dobs_dh = dcompute_obs(darcy, h_2d)
+
+    dκ_dθ = compute_dκ_dθ(darcy, θ)
+
+    dh_dθ = -df'\(dG_dk* dκ_dθ)
+
+    dobs_dθ = dobs_dh*dh_dθ
+
+    return dobs_dθ
+end
 
 
 function aug_forward(darcy::Setup_Param{FT, IT}, θ::Array{FT, 1}) where {FT<:AbstractFloat, IT<:Int}
