@@ -15,6 +15,9 @@ function forward(s_param::Setup_Param, θ::Array{FT, 1}) where {FT<:AbstractFloa
     return G * θ
 end
 
-
+function forward_aug(s_param::Setup_Param, θ::Array{FT, 1}) where {FT<:AbstractFloat}
+    G = s_param.G 
+    return [G * θ; θ]
+end
 
 

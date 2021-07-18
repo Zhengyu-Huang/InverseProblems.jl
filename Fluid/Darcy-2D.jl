@@ -189,6 +189,7 @@ function compute_logκ_2d(darcy::Setup_Param{FT, IT}, θ::Array{FT, 1}) where {F
     return logκ_2d
 end
 
+
 function compute_dκ_dθ(darcy::Setup_Param{FT, IT}, θ::Array{FT, 1}) where {FT<:AbstractFloat, IT<:Int}
     N, N_KL = darcy.N, darcy.N_KL
     λ, φ = darcy.λ, darcy.φ
@@ -256,7 +257,6 @@ function solve_Darcy_2D(darcy::Setup_Param{FT, IT}, κ_2d::Array{FT,2}) where {F
                 append!(indx, [ixy, ixy])
                 append!(indy, [ixy, ind(darcy, ix, iy+1)])
                 append!(vals, [(κ_2d[ix, iy] + κ_2d[ix, iy+1])/2.0/𝓒, -(κ_2d[ix, iy] + κ_2d[ix, iy+1])/2.0/𝓒])
-                
             end
             
             #bottom

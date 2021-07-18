@@ -299,8 +299,8 @@ function UKI_Run(s_param, forward::Function,
         
         update_ensemble!(ukiobj, ens_func) 
 
-        @info "optimization error at iter $(i) = ", 0.5*(ukiobj.y_pred[i] - ukiobj.y)'*(ukiobj.Σ_η\(ukiobj.y_pred[i] - ukiobj.y))
-        @info "Frobenius norm of the covariance at iter $(i) = ", norm(ukiobj.θθ_cov[i])
+        #@info "optimization error at iter $(i) = ", 0.5*(ukiobj.y_pred[i] - ukiobj.y)'*(ukiobj.Σ_η\(ukiobj.y_pred[i] - ukiobj.y))
+        #@info "Frobenius norm of the covariance at iter $(i) = ", norm(ukiobj.θθ_cov[i])
     end
     
     return ukiobj

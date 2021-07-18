@@ -83,6 +83,10 @@ function EKIObj(filter_type::String,
     
     Z_ω = sqrt(2-α_reg^2)*θθ0_cov_sqrt
     Σ_ν = 2*Σ_η
+
+    # todo original EKI
+    Z_ω .= 0.0
+    Σ_ν = Σ_η
     
     r = θ0_mean
     
