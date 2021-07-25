@@ -182,6 +182,15 @@ function Comp_Mean_Cov(ση)
   
   obs_mean = dropdims(mean(obs_box, dims=2), dims = 2)
   
+  # obs_mean = dropdims(mean(obs_box, dims=2), dims = 2)
+  # obs_cov = zeros(Float64, n_data, n_data)
+  # for i = 1:n_obs_box
+  #   obs_cov += (obs_box[:,i] - obs_mean) *(obs_box[:,i] - obs_mean)'
+  # end
+  # obs_cov ./= (n_obs_box - 1)
+  # return obs_mean, obs_cov
+
+
   Random.seed!(123);
   noise = rand(Normal(0, ση), length(obs_mean))
   return obs_mean + noise
