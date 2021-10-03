@@ -43,20 +43,12 @@ mutable struct EKIObj{FT<:AbstractFloat, IT<:Int}
     N_θ::IT
     "size of y"
     N_y::IT
-    "Covariance matrix square root of the evolution error"
-    Z_ω
-    "Covariance matrix of the observation error"
-    Σ_ν
-    "regularization parameter"
-    α_reg::FT
-    "regularization vector"
-    r::Array{FT, 1}
-    "update frequency"
-    update_freq::IT
+    "inflation factor for evolution"
+    γ_ω::FT
+    "inflation factor for observation"
+    γ_η::FT
     "current iteration number"
     iter::IT
-    "original or not"
-    original::Bool
 end
 
 # outer constructors
@@ -67,9 +59,8 @@ function EKIObj(filter_type::String,
     θθ0_cov_sqrt::Array{FT,2},
     y::Array{FT, 1},
     Σ_η,
-    α_reg::FT,
-    update_freq::IT,
-    original::Bool = true) where {FT<:AbstractFloat, IT<:Int}
+    γ_ω::FT,
+    γ_η::FT = (γ_ω + 1)/γ_ω) where {FT<:AbstractFloat, IT<:Int}
     
     
     N_θ = size(θ0_mean,1)
@@ -84,16 +75,6 @@ function EKIObj(filter_type::String,
     # prediction
     y_pred = Array{FT, 1}[]  # array of Array{FT, 2}'s
     
-    Z_ω = sqrt(2-α_reg^2)*θθ0_cov_sqrt
-    Σ_ν = 2*Σ_η
-
-    # todo original EKI
-    if original
-        Z_ω .= 0.0
-        Σ_ν = Σ_η
-    end
-    
-    r = θ0_mean
     
     iter = 0
 
@@ -102,9 +83,7 @@ function EKIObj(filter_type::String,
     y_pred, 
     y, Σ_η, 
     N_ens, N_θ, N_y, 
-    Z_ω, Σ_ν,
-    α_reg, r, 
-    update_freq, iter, original)
+    γ_ω, γ_η, iter)
 end
 
 """
@@ -162,104 +141,29 @@ end
 function update_ensemble!(eki::EKIObj{FT}, ens_func::Function) where {FT<:AbstractFloat}
 
     eki.iter += 1
-    # update evolution covariance matrix
-    if eki.update_freq > 0 && eki.iter%eki.update_freq == 0
-        # todo
-        eki.Z_ω = sqrt(2 - eki.α_reg^2) * construct_cov_sqrt(eki, eki.θ[end])
-    end
-
- 
-
 
     # θ: N_ens x N_θ
     N_ens, N_θ, N_y = eki.N_ens, eki.N_θ, eki.N_y
     
     θ = eki.θ[end]
 
-    
-    r = eki.r
-    α_reg = eki.α_reg
-    @assert(α_reg ≈ 1.0)
+
 
     # evolution and observation covariance matrices
-    Z_ω, Σ_ν = eki.Z_ω, eki.Σ_ν
+    Σ_ν = eki.γ_η * eki.Σ_η
     filter_type = eki.filter_type
 
     
     ############# Prediction step
 
-    θ_p_mean = α_reg*dropdims(mean(θ, dims=1), dims=1) + (1-α_reg)*r
+    θ_p_mean =  dropdims(mean(θ, dims=1), dims=1)  
 
     θ_p = copy(θ)
 
     for j = 1:N_ens
-        θ_p[j, :] .= θ_p_mean + sqrt(2)*(θ_p[j, :] - θ_p_mean)
+        θ_p[j, :] .= θ_p_mean + sqrt(eki.γ_ω + 1)*(θ_p[j, :] - θ_p_mean)
     end
         
-        
-    # # construct square root matrix for  θ̂ - m̂
-    # Z_p_t = copy(θ)
-    # for j = 1:N_ens;    Z_p_t[j, :] .-=  θ_p_mean;    end
-    # Z_p_t ./= sqrt(N_ens - 1)
-
-    # @info "before: ", Z_p_t' * Z_p_t
-        
-    # # construct square root matrix for  g - g_mean
-    # Y_p_t = copy(Z_p_t)  
-                         
-    # X = Y_p_t/Σ_ω*Y_p_t'
-
-    # svd_X = svd(X)
-    # P, Γ = svd_X.U, svd_X.S
-
-    
-    # if filter_type == "EKI"
-    #     # generate evolution error
-    #     noise = MvNormal_sqrt(N_ens, zeros(N_θ), Z_ω)
-    #     θ_p = copy(θ)
-    #     for j = 1:N_ens
-    #         θ_p[j, :] .= α_reg*θ[j, :] + (1-α_reg)*r + noise[j, :]
-    #     end
-    # elseif filter_type == "EAKI"
-
-    #     F, sqrt_D_p, V =  trunc_svd(Z_p_t') 
-        
-    #     # I + Y_p_t/Σ_ν*Y_p_t' = P (Γ + I) P'
-    #     # Y = V' /(I + Y_p_t/Σ_ν*Y_p_t') * V
-    #     Y = V' * P ./ (Γ .+ 1.0)' * P' * V
-        
-    #     svd_Y = svd(Y)
-        
-    #     U, D = svd_Y.U, svd_Y.S
-        
-    #     A = (F .* sqrt_D_p' * U .* sqrt.(D)') * (sqrt_D_p .\ F')
-        
-        
-    #     θ_p = similar(θ) 
-    #     for j = 1:N_ens
-    #         θ_p[j, :] .= θ_p_mean + A * (θ[j, :] - θ_p_mean) # N_ens x N_θ
-    #     end
-
-    # elseif filter_type == "ETKI"
-
-    #     T = P ./ sqrt.(Γ .+ 1)' * P'
-        
-    #     # Z_p'
-    #     θ_p = similar(θ) 
-    #     for j = 1:N_ens;  θ_p[j, :] .=  θ[j, :] - θ_p_mean;  end
-    #     # Z' = （Z_p * T)' = T' * Z_p
-    #     θ_p .= T' * θ_p
-    #     for j = 1:N_ens;  θ_p[j, :] .+=  θ_p_mean;  end
-    # else
-    #     error("Filter type :", filter_type, " has not implemented yet!")
-    # end
-
-    # ############## Debug
-    # @assert(θ_p_mean ≈ dropdims(mean(θ_p, dims=1), dims=1))
-    # Z_p_t_debug = copy(θ_p)
-    # for j = 1:N_ens;    Z_p_t_debug[j, :] .-=  θ_p_mean;    end
-    # Z_p_t_debug ./= sqrt(N_ens - 1)
-    # @info "after: ", Z_p_t_debug' * Z_p_t_debug
     
     ############# Analysis step
     
@@ -396,10 +300,9 @@ function EKI_Run(s_param, forward::Function,
     θ0_mean, θθ0_cov_sqrt,
     N_ens,
     y, Σ_η,
-    α_reg,
-    update_freq,
-    N_iter,
-    original = true)
+    γ_ω,
+    γ_η,
+    N_iter)
     
     θ_names = s_param.θ_names
     
@@ -410,9 +313,8 @@ function EKI_Run(s_param, forward::Function,
     θθ0_cov_sqrt,
     y,
     Σ_η,
-    α_reg,
-    update_freq,
-    original)
+    γ_ω,
+    γ_η)
     
     
     ens_func(θ_ens) = ensemble(s_param, θ_ens, forward) 
