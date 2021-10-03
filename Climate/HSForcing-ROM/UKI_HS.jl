@@ -13,8 +13,6 @@ function HS_run(id::Int64, params::Array{Float64, 1})
   
   mesh_size = (id == 1 && ROM ? "T42" : "T21")
   
-
-
   kt_1, kt_2, ΔT_y, Δθ_z = constraint(params)
   
   physics_params = Dict{String,Float64}("σ_b"=>0.7, "k_f" => 1.0, 
@@ -73,36 +71,37 @@ function HS_ensemble(params_i::Array{Float64, 2},  end_day::Int64, spinup_day::I
 end
 
 
-function constraint(θ_bar_raw_arr::Array{Float64, 1})
-  θ_bar_arr = similar(θ_bar_raw_arr)
-  θ_bar_arr[1] = exp(θ_bar_raw_arr[1])
-  θ_bar_arr[2] = exp(θ_bar_raw_arr[2])
-  θ_bar_arr[3] = exp(θ_bar_raw_arr[3])
-  θ_bar_arr[4] = exp(θ_bar_raw_arr[4])
-  
-  return θ_bar_arr
+function constraint(θ_mean_raw_arr::Array{Float64, 1})
+  θ_mean_arr = similar(θ_mean_raw_arr)
+  θ_mean_arr[1] = 1.0/(1 + exp(θ_mean_raw_arr[1]))
+  θ_mean_arr[2] = 1.0/(1 + exp(θ_mean_raw_arr[2]))
+  θ_mean_arr[3] = 100.0/(1 + exp(θ_mean_raw_arr[3]))
+  θ_mean_arr[4] = 100.0/(1 + exp(θ_mean_raw_arr[4]))
+
+
+  return θ_mean_arr
 end
 
-function constraint_all(θ_bar_raw_arr::Array{Float64, 2})
-  θ_bar_arr = similar(θ_bar_raw_arr)
-  N = size(θ_bar_arr, 2)
+function constraint_all(θ_mean_raw_arr::Array{Float64, 2})
+  θ_mean_arr = similar(θ_mean_raw_arr)
+  N = size(θ_mean_arr, 2)
   for i = 1:N
-    θ_bar_arr[:, i] = constraint(θ_bar_raw_arr[:, i])
+    θ_mean_arr[:, i] = constraint(θ_mean_raw_arr[:, i])
   end
-  return θ_bar_arr
+  return θ_mean_arr
 end
 
 function visualize(ukiobj::UKIObj{Float64}, θ_ref::Array{Float64, 1}, file_name::String)
   
-  θ_bar_raw_arr = hcat(ukiobj.θ_bar...)
-  θ_bar_arr = constraint_all(θ_bar_raw_arr)
+  θ_mean_raw_arr = hcat(ukiobj.θ_mean...)
+  θ_mean_arr = constraint_all(θ_mean_raw_arr)
   
-  n_θ, N_ite = size(θ_bar_arr,1), size(θ_bar_arr,2)-1
+  n_θ, N_ite = size(θ_mean_arr,1), size(θ_mean_arr,2)-1
   ites = Array(LinRange(1, N_ite+1, N_ite+1))
   
-  parameter_names = ukiobj.unames
+  parameter_names = ukiobj.θ_names
   for i_θ = 1:n_θ
-    plot(ites, θ_bar_arr[i_θ,:], "--o", fillstyle="none", label=parameter_names[i_θ])
+    plot(ites, θ_mean_arr[i_θ,:], "--o", fillstyle="none", label=parameter_names[i_θ])
     plot(ites, fill(θ_ref[i_θ], N_ite+1), "--", color="gray")
   end
   
@@ -117,7 +116,7 @@ end
 
 
 
-function HS_UKI(t_mean::Array{Float64,1}, t_cov::Array{Float64,2}, θ_bar::Array{Float64,1}, θθ_cov::Array{Float64,2}, 
+function HS_UKI(t_mean::Array{Float64,1}, t_cov::Array{Float64,2}, θ_mean::Array{Float64,1}, θθ_cov::Array{Float64,2}, 
   end_day::Int64, spinup_day::Int64, N_y::Int64, α_reg::Float64, 
   N_iter::Int64 = 100)
   
@@ -126,18 +125,19 @@ function HS_UKI(t_mean::Array{Float64,1}, t_cov::Array{Float64,2}, θ_bar::Array
   ens_func(θ_ens) = HS_ensemble(θ_ens, end_day, spinup_day, N_y)
   
   ukiobj = UKIObj(parameter_names,
-  θ_bar, 
+  θ_mean, 
   θθ_cov,
   t_mean, # observation
   t_cov,
-  α_reg)
+  α_reg,
+  1)
   
   θ_ref = [1.0/40.0; 1.0/4.0; 60.0; 10.0]
   for i in 1:N_iter
     
-    params_i = deepcopy(ukiobj.θ_bar[end])
+    params_i = deepcopy(ukiobj.θ_mean[end])
     
-    @info "At iter ", i, " params_i : ", params_i
+    @info "At iter ", i, " params_i : ", constraint(params_i)
     @info "At iter ", i, " params_i : ", ukiobj.θθ_cov[end]
     
     update_ensemble!(ukiobj, ens_func) 
@@ -149,7 +149,7 @@ function HS_UKI(t_mean::Array{Float64,1}, t_cov::Array{Float64,2}, θ_bar::Array
     end
   end
   
-  @info "θ is ", ukiobj.θ_bar[end], " θ_ref is ",  
+  @info "θ is ", ukiobj.θ_mean[end], " θ_ref is ",  
   
   return ukiobj
   
@@ -181,10 +181,12 @@ function Comp_Mean_Cov(ση)
   
   
   obs_mean = dropdims(mean(obs_box, dims=2), dims = 2)
-  
-  Random.seed!(123);
-  noise = rand(Normal(0, ση), length(obs_mean))
-  return obs_mean + noise
+
+  return obs_mean  
+
+  # Random.seed!(123);
+  # noise = rand(Normal(0, ση), length(obs_mean))
+  # return obs_mean + noise
 end
 
 ###############################################################################################
@@ -194,7 +196,8 @@ end
 end_day = 400
 spinup_day = 200
 
-ση = 1.0
+
+ση = 3.0
 t_mean = Comp_Mean_Cov(ση)
 N_y = length(t_mean)
 
@@ -203,8 +206,10 @@ t_cov = Array(Diagonal(fill(ση^2, N_y)))
 # initial distribution is 
 # θ0_bar = [1.0; 1.0/40.0; 1.0/4.0-1.0/40.0; 60.0; 10.0]
 
-θ0_bar = [0.0; 0.0; 0.0 ; 0.0]                                  # mean 
+θ0_bar = [0.0; 0.0; 0.0 ; 0.0]                                        # mean 
 θθ0_cov = Array(Diagonal([1.0^2; 1.0^2; 1.0^2; 1.0^2]))           # standard deviation
+N_θ = length(θ0_bar)
+
 
 N_ite = 20
 α_reg = 1.0
