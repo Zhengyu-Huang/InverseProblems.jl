@@ -43,16 +43,10 @@ mutable struct EKIObj{FT<:AbstractFloat, IT<:Int}
     N_θ::IT
     "size of y"
     N_y::IT
-    "Covariance matrix square root of the evolution error"
-    Z_ω
-    "Covariance matrix of the observation error"
-    Σ_ν
-    "regularization parameter"
-    α_reg::FT
-    "regularization vector"
-    r::Array{FT, 1}
-    "update frequency"
-    update_freq::IT
+    "inflation factor for evolution"
+    γ_ω::FT
+    "inflation factor for observation"
+    γ_η::FT
     "current iteration number"
     iter::IT
 end
@@ -65,8 +59,8 @@ function EKIObj(filter_type::String,
     θθ0_cov_sqrt::Array{FT,2},
     y::Array{FT, 1},
     Σ_η,
-    α_reg::FT,
-    update_freq::IT) where {FT<:AbstractFloat, IT<:Int}
+    γ_ω::FT,
+    γ_η::FT = (γ_ω + 1)/γ_ω) where {FT<:AbstractFloat, IT<:Int}
     
     
     N_θ = size(θ0_mean,1)
@@ -81,14 +75,6 @@ function EKIObj(filter_type::String,
     # prediction
     y_pred = Array{FT, 1}[]  # array of Array{FT, 2}'s
     
-    Z_ω = sqrt(2-α_reg^2)*θθ0_cov_sqrt
-    Σ_ν = 2*Σ_η
-
-    # todo original EKI
-    Z_ω .= 0.0
-    Σ_ν = Σ_η
-    
-    r = θ0_mean
     
     iter = 0
 
@@ -97,9 +83,7 @@ function EKIObj(filter_type::String,
     y_pred, 
     y, Σ_η, 
     N_ens, N_θ, N_y, 
-    Z_ω, Σ_ν,
-    α_reg, r, 
-    update_freq, iter)
+    γ_ω, γ_η, iter)
 end
 
 """
@@ -126,14 +110,13 @@ Construct the initial parameters, by sampling N_ens samples from specified
 prior distributions.
 """
 function construct_cov_sqrt(eki::EKIObj{FT}, x::Array{FT,2}) where {FT<:AbstractFloat}
-    N_ens, N_x = eki.N_ens, size(x_mean,1)
-
+    N_ens, N_x = eki.N_ens, size(x,2)
     x_mean = dropdims(mean(x, dims=1), dims=1)
     
     x_cov_sqrt = zeros(FT, N_x, N_ens)
     
     for i = 1: N_ens
-        xy_cov[:, i] .+= (x[i,:] - x_mean)
+        x_cov_sqrt[:, i] .+= (x[i,:] - x_mean)
     end
     
     return x_cov_sqrt/sqrt(N_ens - 1)
@@ -158,42 +141,29 @@ end
 function update_ensemble!(eki::EKIObj{FT}, ens_func::Function) where {FT<:AbstractFloat}
 
     eki.iter += 1
-    # update evolution covariance matrix
-    if eki.update_freq > 0 && eki.iter%eki.update_freq == 0
-        # todo
-        eki.Z_ω = (2 - eki.α_reg^2) * construct_cov_sqrt(eki, eki.θ[end])
-    end
-
- 
-
 
     # θ: N_ens x N_θ
     N_ens, N_θ, N_y = eki.N_ens, eki.N_θ, eki.N_y
     
     θ = eki.θ[end]
 
-    r = eki.r
-    α_reg = eki.α_reg
-    # evolution and observation covariance matrices
-    Z_ω, Σ_ν = eki.Z_ω, eki.Σ_ν
 
+
+    # evolution and observation covariance matrices
+    Σ_ν = eki.γ_η * eki.Σ_η
     filter_type = eki.filter_type
+
     
     ############# Prediction step
 
-    # generate evolution error
-    noise = MvNormal_sqrt(N_ens, zeros(N_θ), Z_ω)
-    # todo important
-    # Σ_ω = Array(Diagonal(fill(10.0, N_θ)))
-    # noise = (rand(MvNormal(zeros(N_θ), Σ_ω), N_ens))'# N_ens
-
-
+    θ_p_mean =  dropdims(mean(θ, dims=1), dims=1)  
 
     θ_p = copy(θ)
+
     for j = 1:N_ens
-        θ_p[j, :] .= α_reg*θ[j, :] + (1-α_reg)*r + noise[j, :]
+        θ_p[j, :] .= θ_p_mean + sqrt(eki.γ_ω + 1)*(θ_p[j, :] - θ_p_mean)
     end
-    θ_p_mean = dropdims(mean(θ_p, dims=1), dims=1)
+        
     
     ############# Analysis step
     
@@ -330,8 +300,8 @@ function EKI_Run(s_param, forward::Function,
     θ0_mean, θθ0_cov_sqrt,
     N_ens,
     y, Σ_η,
-    α_reg,
-    update_freq,
+    γ_ω,
+    γ_η,
     N_iter)
     
     θ_names = s_param.θ_names
@@ -343,8 +313,8 @@ function EKI_Run(s_param, forward::Function,
     θθ0_cov_sqrt,
     y,
     Σ_η,
-    α_reg,
-    update_freq)
+    γ_ω,
+    γ_η)
     
     
     ens_func(θ_ens) = ensemble(s_param, θ_ens, forward) 
