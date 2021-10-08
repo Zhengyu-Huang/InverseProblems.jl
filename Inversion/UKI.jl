@@ -104,29 +104,31 @@ function UKIObj(θ_names::Array{String,1},
         mean_weights = zeros(FT, N_ens)
         cov_weights = zeros(FT, N_ens)
 
+        # todo cov parameter
         α = 1.0
-        
-        c_weights[1,1], c_weights[1,2] = -1/sqrt(2α), 1/sqrt(2α)
+        IM = zeros(FT, N_θ, N_θ+1)
+        IM[1,1], IM[1,2] = -1/sqrt(2α), 1/sqrt(2α)
         for i = 2:N_θ
             for j = 1:i
-                c_weights[i,j] = 1/sqrt(α*i*(i+1))
+                IM[i,j] = 1/sqrt(α*i*(i+1))
             end
-            c_weights[i,i+1] = -i/sqrt(α*i*(i+1))
+            IM[i,i+1] = -i/sqrt(α*i*(i+1))
         end
-
+        c_weights[:, 2:end] .= IM
 
         if unscented_transform == "original-n+2"
-            # todo mean weight
             mean_weights .= 1/(N_θ+1)
+            mean_weights[1] = 0.0
+
             cov_weights .= α
-            mean_weights[N_θ+2] = 0.0
-            cov_weights[N_θ+2] = 0.0
+            cov_weights[1] = 0.0
 
         else unscented_transform == "modified-n+2"
-            mean_weights[N_θ+2] = 1.0
-            mean_weights[1:N_θ+1] .= 0.0
+            mean_weights .= 0.0
+            mean_weights[1] = 1.0
+            
             cov_weights .= α
-            cov_weights[N_θ+2] = 0.0
+            cov_weights[1] = 0.0
         end
 
     else
@@ -185,8 +187,8 @@ function construct_sigma_ensemble(uki::UKIObj{FT, IT}, x_mean::Array{FT}, x_cov:
         end
     elseif ndims(c_weights) == 2
         x = zeros(FT, N_ens, N_x)
-        x[N_x + 2, :] = x_mean
-        for i = 1: N_x + 1
+        x[1, :] = x_mean
+        for i = 2: N_x + 2
             x[i,     :] = x_mean + chol_xx_cov * c_weights[:, i]
         end
     else
