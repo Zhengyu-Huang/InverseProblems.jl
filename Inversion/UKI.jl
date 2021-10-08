@@ -116,15 +116,16 @@ function UKIObj(θ_names::Array{String,1},
 
 
         if uscented_transform == "original-n+2"
+            # todo mean weight
             mean_weights .= 1/(N_θ+1)
-            cov_weights .= 1/(N_θ+1)
+            cov_weights .= α
             mean_weights[N_θ+2] = 0.0
             cov_weights[N_θ+2] = 0.0
 
         else uscented_transform == "modified-n+2"
             mean_weights[N_θ+2] = 1.0
             mean_weights[1:N_θ+1] .= 0.0
-            cov_weights .= 1/(N_θ+1)
+            cov_weights .= α
             cov_weights[N_θ+2] = 0.0
         end
 
@@ -186,7 +187,6 @@ function construct_sigma_ensemble(uki::UKIObj{FT, IT}, x_mean::Array{FT}, x_cov:
         x = zeros(FT, N_ens, N_x)
         x[N_x + 2, :] = x_mean
         for i = 1: N_x + 1
-            @show chol_xx_cov, c_weights[:, i]
             x[i,     :] = x_mean + chol_xx_cov * c_weights[:, i]
         end
     else
@@ -283,14 +283,18 @@ function update_ensemble!(uki::UKIObj{FT, IT}, ens_func::Function) where {FT<:Ab
     θθ_p_cov = α_reg^2*θθ_cov + Σ_ω
     
 
-    @info θθ_cov, θθ_p_cov
+    # @show θθ_cov, θθ_p_cov
     ############ Generate sigma points
     θ_p = construct_sigma_ensemble(uki, θ_p_mean, θθ_p_cov)
 
 
-    @show θ_p
+    # @show θ_p
     # play the role of symmetrizing the covariance matrix
     θθ_p_cov = construct_cov(uki, θ_p, θ_p_mean)
+
+    # @show θθ_p_cov
+
+    # error("STOP")
 
     ###########  Analysis step
     g = zeros(FT, N_ens, N_y)
