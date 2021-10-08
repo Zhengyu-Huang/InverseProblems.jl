@@ -60,7 +60,7 @@ function UKIObj(θ_names::Array{String,1},
                 Σ_η,
                 α_reg::FT,
                 update_freq::IT;
-                modified_uscented_transform::Bool = true) where {FT<:AbstractFloat, IT<:Int}
+                modified_unscented_transform::Bool = true) where {FT<:AbstractFloat, IT<:Int}
 
     
     N_θ = size(θ0_mean,1)
@@ -87,7 +87,7 @@ function UKIObj(θ_names::Array{String,1},
     cov_weights[1] = λ/(N_θ + λ) + 1 - α^2 + β
     cov_weights[2:N_ens] .= 1/(2(N_θ + λ))
 
-    if modified_uscented_transform
+    if modified_unscented_transform
         mean_weights[1] = 1.0
         mean_weights[2:N_ens] .= 0.0
     end
@@ -266,7 +266,7 @@ function UKI_Run(s_param, forward::Function,
     α_reg,
     update_freq,
     N_iter;
-    modified_uscented_transform::Bool = true,
+    modified_unscented_transform::Bool = true,
     θ_basis = nothing)
     
     θ_names = s_param.θ_names
@@ -279,7 +279,7 @@ function UKI_Run(s_param, forward::Function,
     Σ_η,
     α_reg,
     update_freq;
-    modified_uscented_transform = modified_uscented_transform)
+    modified_unscented_transform = modified_unscented_transform)
     
     
     

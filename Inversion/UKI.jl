@@ -53,7 +53,7 @@ g_t::Array{FT,1} : observation
 obs_cov::Array{FT, 2} : observation covariance
 α_reg::FT : regularization parameter toward θ0 (0 < α_reg <= 1), default should be 1, without regulariazion
 
-uscented_transform : "original-2n+1", "modified-2n+1", "original-n+2", "modified-n+2" 
+unscented_transform : "original-2n+1", "modified-2n+1", "original-n+2", "modified-n+2" 
 """
 function UKIObj(θ_names::Array{String,1},
                 θ0_mean::Array{FT}, 
@@ -62,7 +62,7 @@ function UKIObj(θ_names::Array{String,1},
                 Σ_η,
                 α_reg::FT,
                 update_freq::IT;
-                uscented_transform::String = "modified-2n+1") where {FT<:AbstractFloat, IT<:Int}
+                unscented_transform::String = "modified-2n+1") where {FT<:AbstractFloat, IT<:Int}
 
     
     N_θ = size(θ0_mean,1)
@@ -71,7 +71,7 @@ function UKIObj(θ_names::Array{String,1},
 
  
 
-    if uscented_transform == "original-2n+1" ||  uscented_transform == "modified-2n+1"
+    if unscented_transform == "original-2n+1" ||  unscented_transform == "modified-2n+1"
 
         # ensemble size
         N_ens = 2*N_θ+1
@@ -92,12 +92,12 @@ function UKIObj(θ_names::Array{String,1},
         cov_weights[1] = λ/(N_θ + λ) + 1 - α^2 + β
         cov_weights[2:N_ens] .= 1/(2(N_θ + λ))
 
-        if uscented_transform == "modified-2n+1"
+        if unscented_transform == "modified-2n+1"
             mean_weights[1] = 1.0
             mean_weights[2:N_ens] .= 0.0
         end
 
-    elseif uscented_transform == "original-n+2" ||  uscented_transform == "modified-n+2"
+    elseif unscented_transform == "original-n+2" ||  unscented_transform == "modified-n+2"
 
         N_ens = N_θ+2
         c_weights = zeros(FT, N_θ, N_ens)
@@ -115,14 +115,14 @@ function UKIObj(θ_names::Array{String,1},
         end
 
 
-        if uscented_transform == "original-n+2"
+        if unscented_transform == "original-n+2"
             # todo mean weight
             mean_weights .= 1/(N_θ+1)
             cov_weights .= α
             mean_weights[N_θ+2] = 0.0
             cov_weights[N_θ+2] = 0.0
 
-        else uscented_transform == "modified-n+2"
+        else unscented_transform == "modified-n+2"
             mean_weights[N_θ+2] = 1.0
             mean_weights[1:N_θ+1] .= 0.0
             cov_weights .= α
@@ -131,7 +131,7 @@ function UKIObj(θ_names::Array{String,1},
 
     else
 
-        error("uscented_transform: ", uscented_transform, " is not recognized")
+        error("unscented_transform: ", unscented_transform, " is not recognized")
     
     end
 
@@ -325,7 +325,7 @@ function UKI_Run(s_param, forward::Function,
     α_reg,
     update_freq,
     N_iter;
-    uscented_transform::String = "modified-2n+1",
+    unscented_transform::String = "modified-2n+1",
     θ_basis = nothing)
     
     θ_names = s_param.θ_names
@@ -338,7 +338,7 @@ function UKI_Run(s_param, forward::Function,
     Σ_η,
     α_reg,
     update_freq;
-    uscented_transform = uscented_transform)
+    unscented_transform = unscented_transform)
     
     
     
