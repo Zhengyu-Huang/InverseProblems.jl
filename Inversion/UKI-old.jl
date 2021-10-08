@@ -25,7 +25,7 @@ mutable struct UKIObj{FT<:AbstractFloat, IT<:Int}
      "size of y"
      N_y::IT
      "weights in UKI"
-     c_weights::Union{Array{FT, 1}, Array{FT, 2}}
+     c_weights::Array{FT, 1}
      mean_weights::Array{FT, 1}
      cov_weights::Array{FT, 1}
      "covariance of the artificial evolution error"
@@ -52,8 +52,6 @@ parameter_names::Array{String,1} : parameter name vector
 g_t::Array{FT,1} : observation 
 obs_cov::Array{FT, 2} : observation covariance
 α_reg::FT : regularization parameter toward θ0 (0 < α_reg <= 1), default should be 1, without regulariazion
-
-uscented_transform : "original-2n+1", "modified-2n+1", "original-n+2", "modified-n+2" 
 """
 function UKIObj(θ_names::Array{String,1},
                 θ0_mean::Array{FT}, 
@@ -62,76 +60,36 @@ function UKIObj(θ_names::Array{String,1},
                 Σ_η,
                 α_reg::FT,
                 update_freq::IT;
-                uscented_transform::String = "modified-2n+1") where {FT<:AbstractFloat, IT<:Int}
+                modified_uscented_transform::Bool = true) where {FT<:AbstractFloat, IT<:Int}
 
     
     N_θ = size(θ0_mean,1)
     N_y = size(y, 1)
-    
+    # ensemble size
+    N_ens = 2*N_θ+1
 
  
+    c_weights = zeros(FT, N_θ)
+    mean_weights = zeros(FT, N_ens)
+    cov_weights = zeros(FT, N_ens)
 
-    if uscented_transform == "original-2n+1" ||  uscented_transform == "modified-2n+1"
+    # todo parameters λ, α, β
 
-        # ensemble size
-        N_ens = 2*N_θ+1
-
-        c_weights = zeros(FT, N_θ)
-        mean_weights = zeros(FT, N_ens)
-        cov_weights = zeros(FT, N_ens)
-
-        κ = 0.0
-        β = 2.0
-        α = min(sqrt(4/(N_θ + κ)), 1.0)
-        λ = α^2*(N_θ + κ) - N_θ
+    κ = 0.0
+    β = 2.0
+    α = min(sqrt(4/(N_θ + κ)), 1.0)
+    λ = α^2*(N_θ + κ) - N_θ
 
 
-        c_weights[1:N_θ]     .=  sqrt(N_θ + λ)
-        mean_weights[1] = λ/(N_θ + λ)
-        mean_weights[2:N_ens] .= 1/(2(N_θ + λ))
-        cov_weights[1] = λ/(N_θ + λ) + 1 - α^2 + β
-        cov_weights[2:N_ens] .= 1/(2(N_θ + λ))
+    c_weights[1:N_θ]     .=  sqrt(N_θ + λ)
+    mean_weights[1] = λ/(N_θ + λ)
+    mean_weights[2:N_ens] .= 1/(2(N_θ + λ))
+    cov_weights[1] = λ/(N_θ + λ) + 1 - α^2 + β
+    cov_weights[2:N_ens] .= 1/(2(N_θ + λ))
 
-        if uscented_transform == "modified-2n+1"
-            mean_weights[1] = 1.0
-            mean_weights[2:N_ens] .= 0.0
-        end
-
-    else if uscented_transform == "original-n+2" ||  uscented_transform == "modified-n+2"
-
-        N_ens = N_θ+1
-        c_weights = zeros(FT, N_θ, N_ens)
-        mean_weights = zeros(FT, N_ens)
-        cov_weights = zeros(FT, N_ens)
-
-        α = 1.0
-        
-        c_weights[1,1], c_weights[1,2] = -1/sqrt(2α), 1/sqrt(2α)
-        for i = 2:N_θ
-            for j = 1:i
-                c_weights[i,j] = 1/sqrt(α*i*(i+1))
-            end
-            c_weights[i,i+1] = -i/sqrt(α*i*(i+1))
-        end
-
-
-        if uscented_transform == "modified-n+2"
-            mean_weights .= 1/(N_θ+1)
-            cov_weights .= 1/(N_θ+1)
-            mean_weights[N_θ+2] = 0.0
-            cov_weights[N_θ+2] = 0.0
-
-        else uscented_transform == "modified-n+2"
-            mean_weights[1] = 1.0
-            mean_weights .= 1/(N_θ+1)
-            cov_weights .= 1/(N_θ+1)
-            cov_weights[N_θ+2] = 0.0
-        end
-
-    else
-
-        error("uscented_transform: ", uscented_transform, " is not recognized")
-    
+    if modified_uscented_transform
+        mean_weights[1] = 1.0
+        mean_weights[2:N_ens] .= 0.0
     end
 
     
@@ -175,21 +133,13 @@ function construct_sigma_ensemble(uki::UKIObj{FT, IT}, x_mean::Array{FT}, x_cov:
 
     chol_xx_cov = cholesky(Hermitian(x_cov)).L
 
-    if ndims(c_weights) == 1
-        x = zeros(FT, 2*N_x+1, N_x)
-        x[1, :] = x_mean
-        for i = 1: N_x
-            x[i+1,     :] = x_mean + c_weights[i]*chol_xx_cov[:,i]
-            x[i+1+N_x, :] = x_mean - c_weights[i]*chol_xx_cov[:,i]
-        end
-    else if ndims(c_weights) == 2
-        x = zeros(FT, N_x+1, N_x)
-        x[1, :] = x_mean
-        for i = 1: N_x + 1
-            x[1,     :] = x_mean + chol_xx_cov * c_weights[:, i]
-        end
-    else
+    x = zeros(FT, 2*N_x+1, N_x)
+    x[1, :] = x_mean
+    for i = 1: N_x
+        x[i+1,     :] = x_mean + c_weights[i]*chol_xx_cov[:,i]
+        x[i+1+N_x, :] = x_mean - c_weights[i]*chol_xx_cov[:,i]
     end
+
     return x
 end
 
@@ -433,10 +383,3 @@ function plot_opt_errors(ukiobj::UKIObj{FT, IT},
     end
     
 end
-
-
-
-
-
-
-
