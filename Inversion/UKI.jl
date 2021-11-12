@@ -106,6 +106,7 @@ function UKIObj(θ_names::Array{String,1},
 
         # todo cov parameter
         α = N_θ/(4*(N_θ+1))
+	
         IM = zeros(FT, N_θ, N_θ+1)
         IM[1,1], IM[1,2] = -1/sqrt(2α), 1/sqrt(2α)
         for i = 2:N_θ
@@ -302,7 +303,7 @@ function update_ensemble!(uki::UKIObj{FT, IT}, ens_func::Function) where {FT<:Ab
     ###########  Analysis step
     g = zeros(FT, N_ens, N_y)
 
-    @info "θ_p = ", θ_p
+    # @info "θ_p = ", θ_p
     g .= ens_func(θ_p)
 
     g_mean = construct_mean(uki, g)
