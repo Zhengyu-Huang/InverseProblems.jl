@@ -105,7 +105,7 @@ function UKIObj(θ_names::Array{String,1},
         cov_weights = zeros(FT, N_ens)
 
         # todo cov parameter
-        α = 1.0
+        α = N_θ/(4*(N_θ+1))
         IM = zeros(FT, N_θ, N_θ+1)
         IM[1,1], IM[1,2] = -1/sqrt(2α), 1/sqrt(2α)
         for i = 2:N_θ
@@ -189,6 +189,7 @@ function construct_sigma_ensemble(uki::UKIObj{FT, IT}, x_mean::Array{FT}, x_cov:
         x = zeros(FT, N_ens, N_x)
         x[1, :] = x_mean
         for i = 2: N_x + 2
+	    # @info chol_xx_cov,  c_weights[:, i],  chol_xx_cov * c_weights[:, i]
             x[i,     :] = x_mean + chol_xx_cov * c_weights[:, i]
         end
     else
@@ -300,6 +301,8 @@ function update_ensemble!(uki::UKIObj{FT, IT}, ens_func::Function) where {FT<:Ab
 
     ###########  Analysis step
     g = zeros(FT, N_ens, N_y)
+
+    @info "θ_p = ", θ_p
     g .= ens_func(θ_p)
 
     g_mean = construct_mean(uki, g)
@@ -343,17 +346,11 @@ function UKI_Run(s_param, forward::Function,
     unscented_transform = unscented_transform)
     
     
-    
-    
-    
     ens_func(θ_ens) = (θ_basis == nothing) ? 
     ensemble(s_param, θ_ens, forward) : 
     # θ_ens is N_ens × N_θ
     # θ_basis is N_θ × N_θ_high
     ensemble(s_param, θ_ens * θ_basis, forward)
-    
-    
-    
     
     
     for i in 1:N_iter

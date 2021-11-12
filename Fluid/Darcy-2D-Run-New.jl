@@ -71,12 +71,12 @@ darcy.N_y = (N_y + N_θ)
 update_freq = 1
 N_iter = 10
 α_reg = 1.0
-ukiobj = UKI_Run(darcy,  aug_forward, θ0_mean, θθ0_cov, aug_y, aug_Σ_η, α_reg, update_freq, N_iter+1);
+ukiobj = UKI_Run(darcy,  aug_forward, θ0_mean, θθ0_cov, aug_y, aug_Σ_η, α_reg, update_freq, N_iter+1; unscented_transform="modified-n+2");
 
 γ_ω = 1.0
 γ_η = (γ_ω + 1)/γ_ω
 # EKI
-N_ens = 128*2+1
+N_ens = 128 + 2
 filter_type = "EAKI"
 eakiobj = EKI_Run(darcy,  aug_forward, filter_type, θ0_mean, θθ0_cov_sqrt, N_ens, aug_y, aug_Σ_η, γ_ω, γ_η, N_iter+1);
 filter_type = "ETKI"
