@@ -35,6 +35,38 @@ function Data_Gen(θ, G, Σ_η)
 end
 
 
+function UKI_Run(t_mean, t_cov, θ_bar, θθ_cov,  G,  N_iter::Int64 = 100,  alpha::Float64 = 1.0)
+    parameter_names = ["θ"]
+    
+    ny, nθ = size(G)
+    
+    #todo delete
+    #θθ_cov =[0.02 0.01; 0.01 0.03]
+    ens_func(θ_ens) = run_linear_ensemble(θ_ens, G)
+    
+    ukiobj = ExKIObj(parameter_names,
+    θ_bar, 
+    θθ_cov,
+    t_mean, # observation
+    t_cov,
+    alpha)
+    
+    
+    for i in 1:N_iter
+        
+        params_i = deepcopy(ukiobj.θ_bar[end])
+        
+        #@info "At iter ", i, " θ: ", params_i
+        
+        update_ensemble!(ukiobj, ens_func) 
+        
+    end
+    
+    return ukiobj
+    
+end
+
+
 function UKI_Run(t_mean, t_cov, θ_bar, θθ_cov,  G,  N_iter::Int64 = 100,  update_cov::Int64 = 0)
     parameter_names = ["θ"]
     
@@ -71,7 +103,7 @@ function UKI_Run(t_mean, t_cov, θ_bar, θθ_cov,  G,  N_iter::Int64 = 100,  upd
 end
 
 
-function EKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov,  G,  N_ens, N_iter::Int64 = 100)
+function EKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov,  G,  N_ens, N_iter::Int64 = 100, original::Bool=false)
     parameter_names = ["θ"]
     
     ny, nθ = size(G)
@@ -87,7 +119,8 @@ function EKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov,  G,  N_ens, N_iter::Int64 = 
     initial_params, 
     θθ0_cov,
     t_mean, # observation
-    t_cov)
+    t_cov,
+    original)
     
     
     for i in 1:N_iter
@@ -133,8 +166,11 @@ function Linear_Test(update_cov::Int64 = 0, case::String = "square", N_ite::Int6
         G = [1.0 2.0;]
         
         ukiobj = UKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov, G, N_ite, update_cov)
-        
-        
+
+        alpha = 0.5
+        ukiobj_reg = UKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov, G, N_ite, alpha)
+
+        ukiobj = [ukiobj, ukiobj_reg]
     end
     
     if (case == "over-determined")
@@ -180,11 +216,13 @@ function Hilbert_Test(nθ::Int64 = 10, N_ite::Int64 = 1000)
     ukiobj = UKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov, G, N_ite)
     ekiobj_1 = EKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov, G, 2nθ+1, N_ite)
     ekiobj_2 = EKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov, G, 100nθ+1, N_ite)
+    ekiobj_3 = EKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov, G, 2nθ+1, N_ite, true)
+    ekiobj_4 = EKI_Run(t_mean, t_cov, θ0_bar, θθ0_cov, G, 100nθ+1, N_ite, true)
     
     
     # Plot
     ites = Array(LinRange(1, N_ite+1, N_ite+1))
-    errors = zeros(Float64, (3,N_ite+1))
+    errors = zeros(Float64, (5, N_ite+1))
     for i = 1:N_ite+1
         errors[1, i] = norm(ukiobj.θ_bar[i] .- 1.0)
 
@@ -193,12 +231,20 @@ function Hilbert_Test(nθ::Int64 = 10, N_ite::Int64 = 1000)
 
         θ_bar = dropdims(mean(ekiobj_2.θ[i], dims=1), dims=1)
         errors[3, i] = norm(θ_bar .- 1.0)
+
+        θ_bar = dropdims(mean(ekiobj_3.θ[i], dims=1), dims=1)
+        errors[4, i] = norm(θ_bar .- 1.0)
+
+        θ_bar = dropdims(mean(ekiobj_4.θ[i], dims=1), dims=1)
+        errors[5, i] = norm(θ_bar .- 1.0)
     end
  
     
     semilogy(ites, errors[1, :], "--o", fillstyle="none", color="C1", markevery=50, label= "UKI")
     semilogy(ites, errors[2, :], "--s", fillstyle="none", color="C2", markevery=50, label= "EKI (\$J=2N_{θ}+1)\$")
     semilogy(ites, errors[3, :], "--^", fillstyle="none", color="C3", markevery=50, label= "EKI (\$J=100N_{θ}+1)\$")
+    semilogy(ites, errors[4, :], "--s", fillstyle="none", color="C4", markevery=50, label= "Original EKI (\$J=2N_{θ}+1)\$")
+    semilogy(ites, errors[5, :], "--^", fillstyle="none", color="C5", markevery=50, label= "Original EKI (\$J=100N_{θ}+1)\$")
     xlabel("Iterations")
     ylabel("\$L_2\$ norm error")
     #ylim((0.1,15))
@@ -213,35 +259,40 @@ function Hilbert_Test(nθ::Int64 = 10, N_ite::Int64 = 1000)
 end
 
 # mission : "2params" "Hilbert"
-# mission = "2params"
-mission = "Hilbert"
+mission = "2params"
+# mission = "Hilbert"
 if mission == "2params"
-    ukiobj_ssub = Linear_Test(0, "square", 100)
-    ukiobj_sopt = Linear_Test(5, "square", 100)
-    ukiobj_sopt.θθ_cov[1] = Array(Diagonal(fill(0.5^2, 2 )))
+    ukiobj_ssub = Linear_Test(0, "square", 50)
+    # ukiobj_sopt = Linear_Test(5, "square", 100)
+    # ukiobj_sopt.θθ_cov[1] = Array(Diagonal(fill(0.5^2, 2 )))
     θ_s = [1;1]
     
-    ukiobj_usub = Linear_Test(0, "under-determined", 50)
-    ukiobj_uopt = Linear_Test(5, "under-determined", 50)
-    ukiobj_uopt.θθ_cov[1] = Array(Diagonal(fill(0.5^2, 2 )))
+    ukiobj_usub, ukiobj_reg_usub= Linear_Test(0, "under-determined", 100)
+    # ukiobj_uopt = Linear_Test(5, "under-determined", 50)
+    # ukiobj_uopt.θθ_cov[1] = Array(Diagonal(fill(0.5^2, 2 )))
     θ_u = [0.6, 1.2]
+    θ_u_reg = ukiobj_reg_usub.θ_bar[end]
+
+    @info "θ_u = ", θ_u, " θ_u_reg = ", θ_u_reg
     
-    ukiobj_osub = Linear_Test(0, "over-determined", 100)
-    ukiobj_oopt = Linear_Test(5, "over-determined", 100)
-    ukiobj_oopt.θθ_cov[1] = Array(Diagonal(fill(0.5^2, 2 )))
+    ukiobj_osub = Linear_Test(0, "over-determined", 50)
+    # ukiobj_oopt = Linear_Test(5, "over-determined", 100)
+    # ukiobj_oopt.θθ_cov[1] = Array(Diagonal(fill(0.5^2, 2 )))
     θ_o = [1/3, 8.5/6]
 
     # Plot θ error
     N_ite = 50
     ites = Array(LinRange(1, N_ite+1, N_ite+1))
-    errors = zeros(Float64, (6, N_ite+1))
+    errors = zeros(Float64, (7, N_ite+1))
     for i = 1:N_ite+1
         errors[1, i] = norm(ukiobj_ssub.θ_bar[i] .- θ_s)
-        errors[2, i] = norm(ukiobj_sopt.θ_bar[i] .- θ_s)
+        #errors[2, i] = norm(ukiobj_sopt.θ_bar[i] .- θ_s)
         errors[3, i] = norm(ukiobj_usub.θ_bar[i] .- θ_u)
-        errors[4, i] = norm(ukiobj_uopt.θ_bar[i] .- θ_u)
+        #errors[4, i] = norm(ukiobj_uopt.θ_bar[i] .- θ_u)
         errors[5, i] = norm(ukiobj_osub.θ_bar[i] .- θ_o)
-        errors[6, i] = norm(ukiobj_oopt.θ_bar[i] .- θ_o)
+        #errors[6, i] = norm(ukiobj_oopt.θ_bar[i] .- θ_o)
+
+        errors[7, i] = norm(ukiobj_reg_usub.θ_bar[i] .- θ_u_reg)
     end
     
     
@@ -249,7 +300,9 @@ if mission == "2params"
     # semilogy(ites, errors[2, :], "--o", fillstyle="none", label="NS (update)")
     semilogy(ites, errors[5, :], "--s", fillstyle="none", color="C2", label="OD")
     # semilogy(ites, errors[6, :], "--o", fillstyle="none", label="OD (update)")
-    semilogy(ites, errors[3, :], "--^", fillstyle="none", color="C3", label="UD")
+    semilogy(ites, errors[3, :], "--^", fillstyle="none", color="C3", label="UD (α=1)")
+
+    semilogy(ites, errors[7, :], "--*", fillstyle="none", color="C4", label="UD (α=0.5)")
     # semilogy(ites, errors[4, :], "--o", fillstyle="none", label="UD (update)")
     
     xlabel("Iterations")
@@ -264,14 +317,15 @@ if mission == "2params"
     # Plot θθ_cov error
     N_ite = 50
     ites = Array(LinRange(1, N_ite+1, N_ite+1))
-    errors = zeros(Float64, (6, N_ite+1))
+    errors = zeros(Float64, (7, N_ite+1))
     for i = 1:N_ite+1
         errors[1, i] = norm(ukiobj_ssub.θθ_cov[i] .- ukiobj_ssub.θθ_cov[end])
-        errors[2, i] = norm(ukiobj_sopt.θθ_cov[i] .- ukiobj_sopt.θθ_cov[end])
+        # errors[2, i] = norm(ukiobj_sopt.θθ_cov[i] .- ukiobj_sopt.θθ_cov[end])
         errors[3, i] = norm(ukiobj_usub.θθ_cov[i] .- ukiobj_usub.θθ_cov[end])
-        errors[4, i] = norm(ukiobj_uopt.θθ_cov[i] .- ukiobj_uopt.θθ_cov[end])
+        # errors[4, i] = norm(ukiobj_uopt.θθ_cov[i] .- ukiobj_uopt.θθ_cov[end])
         errors[5, i] = norm(ukiobj_osub.θθ_cov[i] .- ukiobj_osub.θθ_cov[end])
-        errors[6, i] = norm(ukiobj_oopt.θθ_cov[i] .- ukiobj_oopt.θθ_cov[end])
+        # errors[6, i] = norm(ukiobj_oopt.θθ_cov[i] .- ukiobj_oopt.θθ_cov[end])
+        errors[7, i] = norm(ukiobj_reg_usub.θθ_cov[i] .- ukiobj_reg_usub.θθ_cov[end])
     end
     
     
@@ -279,6 +333,7 @@ if mission == "2params"
     # semilogy(ites, errors[2, :], "--o", fillstyle="none", label="NS (update)")
     semilogy(ites, errors[5, :], "--s", fillstyle="none", color="C2", label="OD")
     # semilogy(ites, errors[6, :], "--o", fillstyle="none", label="OD (update)")
+    semilogy(ites, errors[7, :], "--*", fillstyle="none", color="C4", label="UD (α=0.5)")
     xlabel("Iterations")
     ylabel("Frobenius norm error")
     grid("on")
@@ -295,18 +350,18 @@ if mission == "2params"
     errors = zeros(Float64, (6, N_ite+1))
     for i = 1:N_ite+1
         errors[1, i] = norm(ukiobj_ssub.θθ_cov[i])
-        errors[2, i] = norm(ukiobj_sopt.θθ_cov[i])
+        # errors[2, i] = norm(ukiobj_sopt.θθ_cov[i])
         errors[3, i] = norm(ukiobj_usub.θθ_cov[i])
-        errors[4, i] = norm(ukiobj_uopt.θθ_cov[i])
+        # errors[4, i] = norm(ukiobj_uopt.θθ_cov[i])
         errors[5, i] = norm(ukiobj_osub.θθ_cov[i])
-        errors[6, i] = norm(ukiobj_oopt.θθ_cov[i])
+        # errors[6, i] = norm(ukiobj_oopt.θθ_cov[i])
     end
     
     
     semilogy(ites, errors[3, :], "--^", fillstyle="none", color="C3", label="UD")
     # semilogy(ites, errors[4, :], "--o", fillstyle="none", label="UD (update)")
     xlabel("Iterations")
-    ylabel("Frobenius norm error")
+    ylabel("Frobenius norm")
     grid("on")
     legend()
     tight_layout()

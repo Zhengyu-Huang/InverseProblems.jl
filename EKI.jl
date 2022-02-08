@@ -26,6 +26,8 @@ struct EKIObj{FT<:AbstractFloat, IT<:Int}
      N_ens::IT
      "function size"
      N_g::IT
+     "original EKI or not"
+     original::Bool
 end
 
 # outer constructors
@@ -33,7 +35,8 @@ function EKIObj(parameter_names::Vector{String},
                 θ0::Array{FT, 2},
                 θθ0_cov::Array{FT, 2},
                 g_t,
-                obs_cov::Array{FT, 2}) where {FT<:AbstractFloat}
+                obs_cov::Array{FT, 2},
+                original::Bool = false) where {FT<:AbstractFloat}
 
     # ensemble size
     N_ens = size(θ0)[1]
@@ -45,7 +48,7 @@ function EKIObj(parameter_names::Vector{String},
     g = Vector{FT}[]
     N_g = size(g_t, 1)
 
-    EKIObj{FT,IT}(θ, θθ0_cov, parameter_names, g_t, obs_cov, N_ens, N_g)
+    EKIObj{FT,IT}(θ, θθ0_cov, parameter_names, g_t, obs_cov, N_ens, N_g, original)
 end
 
 
@@ -92,10 +95,13 @@ function update_ensemble!(eki::EKIObj{FT}, ens_func::Function) where {FT}
     N_g = eki.N_g
     ############# Prediction 
     θ_p = copy(eki.θ[end])
-    noise = rand(MvNormal(zeros(N_params), eki.θθ0_cov), N_ens) # N_ens
 
-    for j = 1:N_ens
-        θ_p[j, :] += noise[:, j]
+    if !eki.original
+        noise = rand(MvNormal(zeros(N_params), eki.θθ0_cov), N_ens) # N_ens
+
+        for j = 1:N_ens
+            θ_p[j, :] += noise[:, j]
+        end
     end
 
     θ_p_bar = dropdims(mean(θ_p, dims=1), dims=1)
@@ -107,7 +113,9 @@ function update_ensemble!(eki::EKIObj{FT}, ens_func::Function) where {FT}
 
     g_bar = dropdims(mean(g, dims=1), dims=1)
 
-    gg_cov = construct_cov(eki, g, g_bar, g, g_bar) + 2eki.obs_cov
+    obs_cov = (eki.original ? eki.obs_cov : 2*eki.obs_cov) 
+
+    gg_cov = construct_cov(eki, g, g_bar, g, g_bar) + obs_cov
     θg_cov = construct_cov(eki, θ_p, θ_p_bar, g, g_bar)
     
 
@@ -115,7 +123,7 @@ function update_ensemble!(eki::EKIObj{FT}, ens_func::Function) where {FT}
 
 
     y = zeros(FT, N_ens, N_g)
-    noise = rand(MvNormal(zeros(N_g), 2*eki.obs_cov), N_ens) # N_ens
+    noise = rand(MvNormal(zeros(N_g), obs_cov), N_ens) 
     for j = 1:N_ens
         y[j, :] = g[j, :] + noise[:, j]
     end

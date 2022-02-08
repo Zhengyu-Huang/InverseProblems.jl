@@ -32,6 +32,8 @@ struct EKIObj{FT<:AbstractFloat, IT<:Int}
      N_g::IT
      "regularization parameter"
      α_reg::Float64
+     "original or not"
+     original::Bool
 end
 
 # outer constructors
@@ -41,7 +43,8 @@ function EKIObj(parameter_names::Vector{String},
                 θθ0_cov::Array{FT, 2},
                 g_t,
                 obs_cov::Array{FT, 2},
-                α_reg::Float64) where {FT<:AbstractFloat}
+                α_reg::Float64,
+                original::Bool = false) where {FT<:AbstractFloat}
 
     # ensemble size
     N_ens = size(θ0)[1]
@@ -55,7 +58,7 @@ function EKIObj(parameter_names::Vector{String},
     g = Vector{FT}[]
     N_g = size(g_t, 1)
 
-    EKIObj{FT,IT}(parameter_names, θ, θ0_bar, θθ0_cov,  g_t, obs_cov, g_bar, N_ens, N_g, α_reg)
+    EKIObj{FT,IT}(parameter_names, θ, θ0_bar, θθ0_cov,  g_t, obs_cov, g_bar, N_ens, N_g, α_reg, original)
 end
 
 
@@ -105,10 +108,12 @@ function update_ensemble!(eki::EKIObj{FT}, ens_func::Function) where {FT}
     θ0_bar = eki.θ0_bar
     α_reg = eki.α_reg
 
-    noise = rand(MvNormal(zeros(N_params), (2-α_reg^2)*eki.θθ0_cov), N_ens) # N_ens
+    if !eki.original
+        noise = rand(MvNormal(zeros(N_params), (2-α_reg^2)*eki.θθ0_cov), N_ens) # N_ens
 
-    for j = 1:N_ens
-        θ_p[j, :] .= α_reg*θ_p[j, :] + (1-α_reg)*θ0_bar + noise[:, j]
+        for j = 1:N_ens
+            θ_p[j, :] .= α_reg*θ_p[j, :] + (1-α_reg)*θ0_bar + noise[:, j]
+        end
     end
 
     θ_p_bar = dropdims(mean(θ_p, dims=1), dims=1)
@@ -120,7 +125,9 @@ function update_ensemble!(eki::EKIObj{FT}, ens_func::Function) where {FT}
 
     g_bar = dropdims(mean(g, dims=1), dims=1)
 
-    gg_cov = construct_cov(eki, g, g_bar, g, g_bar) + 2eki.obs_cov
+    obs_cov = (eki.original ? eki.obs_cov : 2*eki.obs_cov)
+
+    gg_cov = construct_cov(eki, g, g_bar, g, g_bar) + obs_cov
     θg_cov = construct_cov(eki, θ_p, θ_p_bar, g, g_bar)
     
 
@@ -128,7 +135,7 @@ function update_ensemble!(eki::EKIObj{FT}, ens_func::Function) where {FT}
 
 
     y = zeros(FT, N_ens, N_g)
-    noise = rand(MvNormal(zeros(N_g), 2*eki.obs_cov), N_ens) # N_ens
+    noise = rand(MvNormal(zeros(N_g), obs_cov), N_ens) 
     for j = 1:N_ens
         y[j, :] = g[j, :] + noise[:, j]
     end

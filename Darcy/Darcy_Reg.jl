@@ -202,8 +202,10 @@ function Compare_32()
     τ = 3.0
     KL_trunc = 256
     darcy = Param_Darcy(N, obs_ΔN, L, KL_trunc, α, τ)
-    N_ite = 50
     
+    N_ite = 50
+    # N_ite = 2
+
     κ_2d = exp.(darcy.logκ_2d)
     h_2d = solve_GWF(darcy, κ_2d)
     plot_field(darcy, h_2d, true, "Figs/Darcy-obs-ref.pdf")
@@ -213,7 +215,7 @@ function Compare_32()
     
     
     # field plot
-    fig_logk, ax_logk = PyPlot.subplots(ncols = 3, nrows=3, sharex=true, sharey=true, figsize=(12,12))
+    fig_logk, ax_logk = PyPlot.subplots(ncols = 3, nrows=3, sharex=true, sharey=true, figsize=(14,12), constrained_layout=true)
     for ax in ax_logk ;  ax.set_xticks([]) ; ax.set_yticks([]) ; end
     clim = (minimum(darcy.logκ_2d), maximum(darcy.logκ_2d))
 
@@ -264,10 +266,13 @@ function Compare_32()
     plot_field(darcy, darcy.logκ_2d, clim, ax_logk[9])
     
 
-    fig_logk.tight_layout()
-    cbar_ax = fig_logk.add_axes([0.90, 0.05, 0.02, 0.6])
-    fig_logk.colorbar(im, cbar_ax)
+    # fig_logk.tight_layout()
+    # cbar_ax = fig_logk.add_axes([0.90, 0.05, 0.02, 0.6])
+    # fig_logk.colorbar(im, cbar_ax)
     
+    fig_logk.colorbar(im, ax = ax_logk[:, 3], shrink = 0.8, aspect=25)
+
+
     fig_logk.savefig("Figs/Darcy-"*string(N_θ)*".pdf")
     close(fig_logk)
     
@@ -295,7 +300,8 @@ function Compare_8()
     KL_trunc = 256
     darcy = Param_Darcy(N, obs_ΔN, L, KL_trunc, α, τ)
     N_ite = 50
-    
+    # N_ite = 2
+
     κ_2d = exp.(darcy.logκ_2d)
     h_2d = solve_GWF(darcy, κ_2d)
     plot_field(darcy, h_2d, true, "Figs/Darcy-obs-ref.pdf")
@@ -305,7 +311,7 @@ function Compare_8()
     
     
     
-    fig_logk, ax_logk = PyPlot.subplots(ncols = 4, nrows=1, sharex=true, sharey=true, figsize=(16,4))
+    fig_logk, ax_logk = PyPlot.subplots(ncols = 4, nrows=1, sharex=true, sharey=true, figsize=(18,4), constrained_layout=true)
     for ax in ax_logk ;  ax.set_xticks([]) ; ax.set_yticks([]) ; end
     clim = (minimum(darcy.logκ_2d), maximum(darcy.logκ_2d))
 
@@ -349,10 +355,12 @@ function Compare_8()
     im = plot_field(darcy, darcy.logκ_2d, clim, ax_logk[4])
     
 
-    fig_logk.tight_layout()
-    cbar_ax = fig_logk.add_axes([0.90, 0.15, 0.02, 0.7])
-    fig_logk.colorbar(im, cbar_ax)
+    # fig_logk.tight_layout()
+    # cbar_ax = fig_logk.add_axes([1.02, 0.15, 0.02, 0.7])
+    # fig_logk.colorbar(im, cbar_ax)
+    fig_logk.colorbar(im, ax = ax_logk[4], shrink = 0.8, aspect=50)
     
+
     fig_logk.savefig("Figs/Darcy-"*string(N_θ)*".pdf")
     close(fig_logk)
     

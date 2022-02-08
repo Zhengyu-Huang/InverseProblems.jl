@@ -259,14 +259,14 @@ function Compare()
   θθ0_cov = Array(Diagonal(fill(10.0, 2*na)))           # standard deviation
   
   N_iter = 50 
-  N_ens = 201
+  N_ens  = 201
   
   mesh = Spectral_Mesh(phys_params.nx, phys_params.ny, phys_params.Lx, phys_params.Ly)
   
   ω0_ref, _ =  Generate_Data(phys_params, -1.0,  "Figs/NS-vor.")
 
 
-  fig_vor, ax_vor = PyPlot.subplots(ncols = 3, nrows=3, sharex=true, sharey=true, figsize=(12,12))
+  fig_vor, ax_vor = PyPlot.subplots(ncols = 3, nrows=3, sharex=true, sharey=true, figsize=(14,12), constrained_layout=true)
   for ax in ax_vor ;  ax.set_xticks([]) ; ax.set_yticks([]) ; end
   
   
@@ -323,10 +323,13 @@ function Compare()
   Plot_Field(mesh, ω0_ref, ax_vor[9])
   
   
-  fig_vor.tight_layout()
-  cbar_ax = fig_vor.add_axes([0.90, 0.05, 0.02, 0.5])
-  fig_vor.colorbar(im, cbar_ax)
-  
+  # fig_vor.tight_layout()
+  # cbar_ax = fig_vor.add_axes([0.90, 0.05, 0.02, 0.5])
+  # fig_vor.colorbar(im, cbar_ax)
+
+  fig_vor.colorbar(im, ax = ax_vor[:, 3], shrink = 0.8, aspect=25)
+
+    
   fig_vor.savefig("Figs/NS.pdf")
   close(fig_vor)
   

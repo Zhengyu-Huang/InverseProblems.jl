@@ -51,12 +51,18 @@ function Damage_Test(method::String, phys_params::Params,
     kiobj = EnKI(phys_params, t_mean, t_cov,  θ0_bar, θθ0_cov, N_ens, α_reg, θ_dam_ref, N_iter)
     θ_bar = [dropdims(mean(kiobj.θ[i], dims=1), dims=1) for i = 1:N_iter ]  
     linestyle, marker = "--", "s" 
+  elseif method == "O-EnKI"
+    label = "Original EKI"
+    kiobj = EnKI(phys_params, t_mean, t_cov,  θ0_bar, θθ0_cov, N_ens, α_reg, θ_dam_ref, N_iter, true)
+    θ_bar = [dropdims(mean(kiobj.θ[i], dims=1), dims=1) for i = 1:N_iter ]  
+    linestyle, marker = "-.", "d" 
   else
     error("method: ", method, "has not implemented")
   end
   
-  
-  label = label*" (α = "*string(α_reg)*")"
+  if method == "ExKI" || method =="EnKI"
+    label = label*" (α = "*string(α_reg)*")"
+  end
   
   ites = Array(LinRange(1, N_iter, N_iter))
   errors = zeros(Float64, (2, N_iter))
@@ -167,7 +173,7 @@ function EnKI(phys_params::Params,
   t_mean::Array{Float64,1}, t_cov::Array{Float64,2}, 
   θ0_bar::Array{Float64,1}, θθ0_cov::Array{Float64,2}, 
   N_ens::Int64, α_reg::Float64, 
-  θ_dam_ref::Array{Float64,1}, N_iter::Int64 = 100)
+  θ_dam_ref::Array{Float64,1}, N_iter::Int64 = 100, original::Bool=false)
   
   
   parameter_names = ["E"]
@@ -182,7 +188,8 @@ function EnKI(phys_params::Params,
   θθ0_cov,
   t_mean, # observation
   t_cov,
-  α_reg)
+  α_reg,
+  original)
   
   
   for i in 1:N_iter
@@ -283,13 +290,16 @@ function Compare()
   θ0_bar = zeros(Float64, nθ)
   θθ0_cov = Array(Diagonal(fill(1.0, nθ)))           # standard deviation
   N_iter = 50
-  N_ens = 500
+  N_ens = 2nθ+1 #500
+
+  # N_iter = 2
+  # N_ens = 10
 
   
   θ_dam_ref, t_mean =  Run_Damage(phys_params, "Analytic", nothing,  "Figs/Damage-disp", "Figs/Damage-E")
   
   
-  fig_logk, ax_logk = PyPlot.subplots(ncols = 3, nrows=4, sharex=true, sharey=true, figsize=(24,16))
+  fig_logk, ax_logk = PyPlot.subplots(ncols = 3, nrows=4, sharex=true, sharey=true, figsize=(26,16), constrained_layout=true)
   for ax in ax_logk ;  ax.set_xticks([]) ; ax.set_yticks([]);  end
   
   
@@ -316,6 +326,7 @@ function Compare()
     if noise_level_per == 0
       Plot_E_Field(phys_params,nodes, (1.0 .- θ_bar)*E_max,  E_max, ax_logk[5])
     end
+
     
     
     
@@ -349,6 +360,11 @@ function Compare()
       end
 
     end
+
+
+    θ_bar = Damage_Test("O-EnKI", phys_params, t_mean, t_cov, θ0_bar, θθ0_cov, N_ens, α_reg, θ_dam_ref, N_iter, ax1, ax2)
+    
+    
     
     
     
@@ -365,10 +381,11 @@ function Compare()
   Plot_E_Field(phys_params,nodes, (1.0 .- θ_dam_ref)*E_max,  E_max, ax_logk[12])
   
   
-  fig_logk.tight_layout()
-  cbar_ax = fig_logk.add_axes([0.90, 0.05, 0.02, 0.5])
-  fig_logk.colorbar(im, cbar_ax)
-  
+  # fig_logk.tight_layout()
+  # cbar_ax = fig_logk.add_axes([0.90, 0.05, 0.02, 0.5])
+  # fig_logk.colorbar(im, cbar_ax)
+  fig_logk.colorbar(im, ax = ax_logk[:, 3], shrink = 0.8, aspect=25)
+
   fig_logk.savefig("Figs/Damage.pdf")
   close(fig_logk)
   
