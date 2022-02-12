@@ -162,13 +162,19 @@ function update_ensemble!(eks::EKSObj{FT}, ens_func::Function) where {FT<:Abstra
     D = (1/eks.N_ens) * (E' * (eks.Σ_η \ R))
 
     Δt = 1/(norm(D) + 1e-8)
+    
+    
+    
+    # @info norm(u_cov)
+    noise = MvNormal(Matrix(Hermitian(u_cov)))
 
-    noise = MvNormal(u_cov)
-
+    # the paper has prior_mean, now the prior is added
     implicit = (1 * Matrix(I, size(u)[2], size(u)[2]) + Δt * (prior_cov' \ u_cov')') \
                   (u'
                     .- Δt * ( u' .- u_mean) * D
                     .+ Δt * u_cov * (prior_cov \ prior_mean)
+                    # TODO correction
+                    .+ Δt * (length(u_mean) + 1)/N_ens * (u' .- u_mean)
                   )
 
     u = implicit' + sqrt(2*Δt) * rand(noise, eks.N_ens)'

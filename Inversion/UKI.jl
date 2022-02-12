@@ -282,7 +282,8 @@ function update_ensemble!(uki::UKIObj{FT, IT}, ens_func::Function) where {FT<:Ab
 
     N_θ, N_y, N_ens = uki.N_θ, uki.N_y, uki.N_ens
     ############# Prediction step:
-
+    
+    
     θ_p_mean  = α_reg*θ_mean + (1-α_reg)*r
     θθ_p_cov = α_reg^2*θθ_cov + Σ_ω
     
@@ -299,23 +300,27 @@ function update_ensemble!(uki::UKIObj{FT, IT}, ens_func::Function) where {FT<:Ab
     # @show θθ_p_cov
 
     # error("STOP")
+    
 
     ###########  Analysis step
     g = zeros(FT, N_ens, N_y)
-
+    
+    
     # @info "θ_p = ", θ_p
     g .= ens_func(θ_p)
-
+    
+    
     g_mean = construct_mean(uki, g)
     gg_cov = construct_cov(uki, g, g_mean) + Σ_ν
     θg_cov = construct_cov(uki, θ_p, θ_p_mean, g, g_mean)
-
-    tmp = θg_cov/gg_cov
+    
+ 
+    tmp = θg_cov / gg_cov
 
     θ_mean =  θ_p_mean + tmp*(y - g_mean)
 
     θθ_cov =  θθ_p_cov - tmp*θg_cov' 
-
+    
 
     ########### Save resutls
     push!(uki.y_pred, g_mean) # N_ens x N_data
@@ -358,8 +363,7 @@ function UKI_Run(s_param, forward::Function,
         
         update_ensemble!(ukiobj, ens_func) 
 
-        #@info "optimization error at iter $(i) = ", 0.5*(ukiobj.y_pred[i] - ukiobj.y)'*(ukiobj.Σ_η\(ukiobj.y_pred[i] - ukiobj.y))
-        #@info "Frobenius norm of the covariance at iter $(i) = ", norm(ukiobj.θθ_cov[i])
+        
     end
     
     return ukiobj
