@@ -163,7 +163,9 @@ function update_ensemble!(eki::EKIObj{FT}, ens_func::Function) where {FT<:Abstra
     for j = 1:N_ens
         θ_p[j, :] .= θ_p_mean + sqrt(eki.γ_ω + 1)*(θ_p[j, :] - θ_p_mean)
     end
-        
+    
+    # Cov_p = construct_cov(eki, θ_p,  θ_p_mean, θ_p,  θ_p_mean)  
+    # θ_p .+= rand(MvNormal(zeros(N_θ), eki.γ_ω * Cov_p), N_ens)' 
     
     ############# Analysis step
     
