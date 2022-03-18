@@ -7,8 +7,7 @@ mutable struct CTKIObj{FT<:AbstractFloat, IT<:Int}
     filter_type::String
     "vector of parameter names"
     θ_names::Array{String, 1}
-    "a vector of arrays of size N_ensemble x N_parameters containing the parameters (in each EKI iteration a new array of paramet\
-ers is added)"
+    "a vector of arrays of size N_ensemble x N_parameters containing the parameters (in each EKI iteration a new array of parameters is added)"
     θ::Vector{Array{FT, 2}}
     "a vector of arrays of size N_ensemble x N_y containing the predicted observation (in each CTUKI iteration a new array of predicted observation is added)"
     y_pred::Vector{Array{FT, 2}}
