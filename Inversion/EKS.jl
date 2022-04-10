@@ -161,12 +161,17 @@ function update_ensemble!(eks::EKSObj{FT}, ens_func::Function) where {FT<:Abstra
     # D: N_ens × N_ens
     D = (1/eks.N_ens) * (E' * (eks.Σ_η \ R))
 
-    Δt = 1/(norm(D) + 1e-8)
     
+    Δt = 1/(norm(D) + 1e-8)
+
+
+    Δt = min(Δt, 0.01)
     
     
     # @info norm(u_cov)
     noise = MvNormal(Matrix(Hermitian(u_cov)))
+
+    # @info "u mean: ", dropdims(mean(u, dims=1), dims=1)
 
     # the paper has prior_mean, now the prior is added
     implicit = (1 * Matrix(I, size(u)[2], size(u)[2]) + Δt * (prior_cov' \ u_cov')') \
@@ -174,10 +179,15 @@ function update_ensemble!(eks::EKSObj{FT}, ens_func::Function) where {FT<:Abstra
                     .- Δt * ( u' .- u_mean) * D
                     .+ Δt * u_cov * (prior_cov \ prior_mean)
                     # TODO correction
-                    .+ Δt * (length(u_mean) + 1)/N_ens * (u' .- u_mean)
+                    # .+ Δt * (length(u_mean) + 1)/N_ens * (u' .- u_mean)
                   )
 
+    # @info "implicit mean: ", dropdims(mean(implicit', dims=1), dims=1)
+
     u = implicit' + sqrt(2*Δt) * rand(noise, eks.N_ens)'
+    # @info "new u mean: ", dropdims(mean(rand(noise, eks.N_ens)', dims=1), dims=1)
+
+    # @info sqrt(2*Δt),  "new u mean: ", sqrt(2*Δt) * dropdims(mean(rand(noise, eks.N_ens)', dims=1), dims=1)
 
 
     
