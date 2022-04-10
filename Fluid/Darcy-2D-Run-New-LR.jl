@@ -240,7 +240,7 @@ fig, ax = PyPlot.subplots(figsize=(15,5))
 
 
 
-ax.plot(θ_ind , θ_ref[θ_ind], "--o", color="grey", fillstyle="none", label="Reference")
+ax.plot(θ_ind , θ_ref[θ_ind], "--o", color="grey", fillstyle="none", label="Truth")
 θ_ind = Array(1:64)
 ax.plot(θ_ind , mcmc_θ_mean[θ_ind],"-s", color="C1", fillstyle="none" , label="MCMC")
 ax.plot(θ_ind , mcmc_θ_mean[θ_ind] + 3.0*mcmc_θθ_std[θ_ind], fillstyle="none", "--s", color ="C1")
@@ -272,7 +272,7 @@ ax.plot(θ_ind , etki_θ_mean[θ_ind] - 3.0*etki_θθ_std[θ_ind], fillstyle="no
 
 
 
-ax.legend()
+ax.legend(bbox_to_anchor=(0.95, 0.8))
 # plot MCMC results 
 ax.set_xlabel("θ indices")
 fig.tight_layout()
