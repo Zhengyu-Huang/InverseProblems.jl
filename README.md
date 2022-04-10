@@ -24,7 +24,7 @@ Let's start! (⚠️ under construction)
     * What are inverse problems, why are they important?
     * [Bayesian inversion, Bayesian inference, and Bayesian calibration](Lectures/Bayesian.ipynb) 
 * Optimization approaches
-* [Probabilistic approaches](Lectures/Probablistic.ipynb) 
+* [Probabilistic approaches](Lectures/Probabilistic.ipynb) 
     * Variational inference
     * Invariant and ergodic measures
       * Langevin dynamics
