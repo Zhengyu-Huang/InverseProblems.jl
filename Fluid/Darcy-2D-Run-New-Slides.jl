@@ -44,7 +44,7 @@ plot_field(darcy, darcy.logκ_2d, false, "Darcy-2D-logk-ref.pdf")
     
 
 # N_θ = 32 case with 5% Gaussian error
-
+N_θ = darcy.N_θ = N_KL
 noise_level = 0.05
 N_y = length(y_noiseless)
 # observation
@@ -58,50 +58,32 @@ end
 Σ_η = Array(Diagonal(fill(1.0, length(y))))
 
 # initial mean and covariance
+θ0_mean = zeros(Float64, N_θ)  # mean 
+θθ0_cov = Array(Diagonal(fill(1.0, N_θ)))
+θθ0_cov_sqrt = Array(Diagonal(fill(1.0, N_θ)))
+
+aug_y     = [y; zeros(Float64, N_θ)] 
+aug_Σ_η   = [Σ_η zeros(Float64, N_y, N_θ); zeros(Float64, N_θ, N_y) θθ0_cov]  
+darcy.N_y = (N_y + N_θ)
+
+
 # UKI
 update_freq = 1
 N_iter = 10
 α_reg  = 1.0
-
-N_θ = darcy.N_θ = 29
-θ0_mean = zeros(Float64, N_θ)  # mean 
-θθ0_cov = Array(Diagonal(fill(1.0, N_θ)))
-θθ0_cov_sqrt = Array(Diagonal(fill(1.0, N_θ)))
-aug_y     = [y; zeros(Float64, N_θ)] 
-aug_Σ_η   = [Σ_η zeros(Float64, N_y, N_θ); zeros(Float64, N_θ, N_y) θθ0_cov]  
-darcy.N_y = (N_y + N_θ)
 ukiobj = UKI_Run(darcy,  aug_forward, θ0_mean, θθ0_cov, aug_y, aug_Σ_η, α_reg, update_freq, N_iter+1; unscented_transform = "modified-n+2" );
-@info "Finish modified-n+2"
 
-N_θ = darcy.N_θ = 15
-θ0_mean = zeros(Float64, N_θ)  # mean 
-θθ0_cov = Array(Diagonal(fill(1.0, N_θ)))
-θθ0_cov_sqrt = Array(Diagonal(fill(1.0, N_θ)))
-aug_y     = [y; zeros(Float64, N_θ)] 
-aug_Σ_η   = [Σ_η zeros(Float64, N_y, N_θ); zeros(Float64, N_θ, N_y) θθ0_cov]  
-darcy.N_y = (N_y + N_θ)
 uki_2np1_obj = UKI_Run(darcy,  aug_forward, θ0_mean, θθ0_cov, aug_y, aug_Σ_η, α_reg, update_freq, N_iter+1; unscented_transform = "modified-2n+1");
-@info "Finish modified-2n+1"
 
 γ_ω = 1.0
 γ_η = (γ_ω + 1)/γ_ω
-
 # EKI
-N_ens = 31
-N_θ = darcy.N_θ = N_KL
-θ0_mean = zeros(Float64, N_KL)  # mean 
-θθ0_cov = Array(Diagonal(fill(1.0, N_KL)))
-θθ0_cov_sqrt = Array(Diagonal(fill(1.0, N_KL)))
-aug_y     = [y; zeros(Float64, N_θ)] 
-aug_Σ_η   = [Σ_η zeros(Float64, N_y, N_θ); zeros(Float64, N_θ, N_y) θθ0_cov]  
-darcy.N_y = (N_y + N_θ)
+N_ens = 128 + 2
 filter_type = "EAKI"
 eakiobj = EKI_Run(darcy,  aug_forward, filter_type, θ0_mean, θθ0_cov_sqrt, N_ens, aug_y, aug_Σ_η, γ_ω, γ_η, N_iter+1);
-@info "Finish EAKI"
-
 filter_type = "ETKI"
 etkiobj = EKI_Run(darcy,  aug_forward, filter_type, θ0_mean, θθ0_cov_sqrt, N_ens, aug_y, aug_Σ_η, γ_ω, γ_η, N_iter+1);
-@info "Finish ETKI"
+
 
 ##################################################
 
@@ -136,31 +118,31 @@ for i = 1:N_iter+1
     errors[3, i, 4] = norm(uki_2np1_obj.θθ_cov[i])
 end
 
-ax1.plot(ites, errors[1, :, 1], "-.x", color = "C0", fillstyle="none", markevery=1, label= "UKI-1 (J=$N_ens)")
-ax1.plot(ites, errors[1, :, 4], "-o",  color = "C0", fillstyle="none", markevery=1, label= "UKI-2 (J=$N_ens)")
+ax1.plot(ites, errors[1, :, 1], "-.x", color = "C0", fillstyle="none", markevery=1, label= "UKI-1 (J=$(N_θ+2))")
+ax1.plot(ites, errors[1, :, 4], "-o",  color = "C0", fillstyle="none", markevery=1, label= "UKI-2 (J=$(2N_θ+1))")
 ax1.plot(ites, errors[1, :, 2], "-^",  color = "C2", fillstyle="none", markevery=1, label= "EAKI (J=$N_ens)")
 ax1.plot(ites, errors[1, :, 3], "-d",  color = "C3", fillstyle="none", markevery=1, label= "ETKI (J=$N_ens)")
 ax1.set_xlabel("Iterations")
 ax1.set_ylabel("Rel. error of loga")
 ax1.legend()
 
-ax2.plot(ites, errors[2, :, 1], "-.x",  color = "C0", fillstyle="none", markevery=1, label= "UKI-1 (J=$N_ens)")
-ax2.plot(ites, errors[2, :, 4], "-o",   color = "C0", fillstyle="none", markevery=1, label= "UKI-2 (J=$N_ens)")
+ax2.plot(ites, errors[2, :, 1], "-.x",  color = "C0", fillstyle="none", markevery=1, label= "UKI-1 (J=$(N_θ+2))")
+ax2.plot(ites, errors[2, :, 4], "-o",   color = "C0", fillstyle="none", markevery=1, label= "UKI-2 (J=$(2N_θ+1))")
 ax2.plot(ites, errors[2, :, 2], "-^",   color = "C2", fillstyle="none", markevery=1, label= "EAKI (J=$N_ens)")
 ax2.plot(ites, errors[2, :, 3], "-d",   color = "C3", fillstyle="none", markevery=1, label= "ETKI (J=$N_ens)")
 ax2.set_xlabel("Iterations")
 ax2.set_ylabel("Optimization error")
 ax2.legend()
 
-ax3.plot(ites, errors[3, :, 1], "-.x",  color = "C0", fillstyle="none", markevery=1, label= "UKI-1 (J=$N_ens)")
-ax3.plot(ites, errors[3, :, 4], "-o",   color = "C0", fillstyle="none", markevery=1, label= "UKI-2 (J=$N_ens)")
+ax3.plot(ites, errors[3, :, 1], "-.x",  color = "C0", fillstyle="none", markevery=1, label= "UKI-1 (J=$(N_θ+2))")
+ax3.plot(ites, errors[3, :, 4], "-o",   color = "C0", fillstyle="none", markevery=1, label= "UKI-2 (J=$(2N_θ+1))")
 ax3.plot(ites, errors[3, :, 2], "-^",   color = "C2", fillstyle="none", markevery=1, label= "EAKI (J=$N_ens)")
 ax3.plot(ites, errors[3, :, 3], "-d",   color = "C3", fillstyle="none", markevery=1, label= "ETKI (J=$N_ens)")
 ax3.set_xlabel("Iterations")
 ax3.set_ylabel("Frobenius norm of covariance")
 ax3.legend()
 fig.tight_layout()
-fig.savefig("Darcy-2D-Loss-LR.pdf")
+fig.savefig("Darcy-2D-Loss.pdf")
 ##################################################
 
 # compute posterior distribution by MCMC
@@ -241,33 +223,32 @@ fig, ax = PyPlot.subplots(figsize=(15,5))
 
 
 ax.plot(θ_ind , θ_ref[θ_ind], "--o", color="grey", fillstyle="none", label="Truth")
-θ_ind = Array(1:64)
+
 ax.plot(θ_ind , mcmc_θ_mean[θ_ind],"-s", color="C1", fillstyle="none" , label="MCMC")
 ax.plot(θ_ind , mcmc_θ_mean[θ_ind] + 3.0*mcmc_θθ_std[θ_ind], fillstyle="none", "--s", color ="C1")
 ax.plot(θ_ind , mcmc_θ_mean[θ_ind] - 3.0*mcmc_θθ_std[θ_ind], fillstyle="none", "--s", color ="C1")
 
 
-θ_ind = Array(1:length(uki_θ_mean))
-ax.plot(θ_ind , uki_θ_mean[θ_ind],"-x", color="C0", fillstyle="none",  label="UKI-1")
-ax.plot(θ_ind , uki_θ_mean[θ_ind] + 3.0*uki_θθ_std[θ_ind], fillstyle="none", "--x", color="C0")
-ax.plot(θ_ind , uki_θ_mean[θ_ind] - 3.0*uki_θθ_std[θ_ind], fillstyle="none", "--x", color="C0")
 
-θ_ind = Array(1:length(uki_2np1_θ_mean))
-ax.plot(θ_ind , uki_2np1_θ_mean[θ_ind],"-o", color="C0", fillstyle="none",  label="UKI-2")
+# ax.plot(θ_ind , uki_θ_mean[θ_ind],"-x", color="C0", fillstyle="none",  label="UKI-1")
+# ax.plot(θ_ind , uki_θ_mean[θ_ind] + 3.0*uki_θθ_std[θ_ind], fillstyle="none", "--x", color="C0")
+# ax.plot(θ_ind , uki_θ_mean[θ_ind] - 3.0*uki_θθ_std[θ_ind], fillstyle="none", "--x", color="C0")
+
+ax.plot(θ_ind , uki_2np1_θ_mean[θ_ind],"-o", color="C0", fillstyle="none",  label="UKI")
 ax.plot(θ_ind , uki_2np1_θ_mean[θ_ind] + 3.0*uki_2np1_θθ_std[θ_ind], fillstyle="none", "--o", color="C0")
 ax.plot(θ_ind , uki_2np1_θ_mean[θ_ind] - 3.0*uki_2np1_θθ_std[θ_ind], fillstyle="none", "--o", color="C0")
 
 
 
-θ_ind = Array(1:64)
-ax.plot(θ_ind , eaki_θ_mean[θ_ind],"-^", color="C2", fillstyle="none",  label="EAKI")
-ax.plot(θ_ind , eaki_θ_mean[θ_ind] + 3.0*eaki_θθ_std[θ_ind], fillstyle="none", "--^", color="C2")
-ax.plot(θ_ind , eaki_θ_mean[θ_ind] - 3.0*eaki_θθ_std[θ_ind], fillstyle="none", "--^", color="C2")
 
-θ_ind = Array(1:64)
-ax.plot(θ_ind , etki_θ_mean[θ_ind],"-d", color="C3", fillstyle="none",  label="ETKI")
-ax.plot(θ_ind , etki_θ_mean[θ_ind] + 3.0*etki_θθ_std[θ_ind], fillstyle="none",  "--d",color="C3")
-ax.plot(θ_ind , etki_θ_mean[θ_ind] - 3.0*etki_θθ_std[θ_ind], fillstyle="none",  "--d", color="C3")
+ax.plot(θ_ind , eaki_θ_mean[θ_ind],"-^", color="C3", fillstyle="none",  label="EAKI")
+ax.plot(θ_ind , eaki_θ_mean[θ_ind] + 3.0*eaki_θθ_std[θ_ind], fillstyle="none", "--^", color="C3")
+ax.plot(θ_ind , eaki_θ_mean[θ_ind] - 3.0*eaki_θθ_std[θ_ind], fillstyle="none", "--^", color="C3")
+
+
+# ax.plot(θ_ind , etki_θ_mean[θ_ind],"-d", color="C3", fillstyle="none",  label="ETKI")
+# ax.plot(θ_ind , etki_θ_mean[θ_ind] + 3.0*etki_θθ_std[θ_ind], fillstyle="none",  "--d",color="C3")
+# ax.plot(θ_ind , etki_θ_mean[θ_ind] - 3.0*etki_θθ_std[θ_ind], fillstyle="none",  "--d", color="C3")
 
 
 
@@ -276,7 +257,7 @@ ax.legend(bbox_to_anchor=(0.95, 0.8))
 # plot MCMC results 
 ax.set_xlabel("θ indices")
 fig.tight_layout()
-fig.savefig("Darcy-2D-theta-LR.pdf")
+fig.savefig("Darcy-2D-theta.pdf")
 
 # fig, ax = PyPlot.subplots(figsize=(18,6))
 
@@ -305,7 +286,7 @@ plot_field(darcy, compute_logκ_2d(darcy, etki_θ_mean ),      color_lim, ax_log
 
 
 fig_logk.tight_layout()
-fig_logk.savefig("Darcy-2D-logk-LR.pdf")
+fig_logk.savefig("Darcy-2D-logk.pdf")
 
 
 
