@@ -18,62 +18,70 @@ while enabling researchers to quickly and easily develop and test novel inverse 
 ## Tutorial
 Let's start! (⚠️ under construction)
 
-* What are inverse problems, why are they important?
 
-* Inverse methods
+
+* Overview
+    * What are inverse problems, why are they important?
     * [Bayesian inversion, Bayesian inference, and Bayesian calibration](Lectures/Bayesian.ipynb) 
-    * [Markov Chain Monte Carlo method](Lectures/MonteCarlo.ipynb) 
-    * [Sequential Monte Carlo method](Lectures/MonteCarlo.ipynb)
-    * [Kalman filters and Gaussian approximation algorithm](Lectures/Kalman.ipynb)
-    * [Unscented Kalman inversion and its variants](Lectures/Unscented.ipynb)
-    * Ensemble Kalman inversion and its variants
+* Optimization approaches
+* [Probabilistic approaches](Lectures/Probablistic.ipynb) 
+    * Variational inference
+    * Invariant and ergodic measures
+      * Langevin dynamics
+      * [Markov Chain Monte Carlo methods](Lectures/MonteCarlo.ipynb) 
+      * Interacting particle methods
+    * Coupling ideas
+       * Filtering    
+          * [Sequential Monte Carlo method](Lectures/MonteCarlo.ipynb)
+          * [Kalman filters and Gaussian approximation algorithm](Lectures/Kalman.ipynb)
+          * [Unscented Kalman inversion and its variants](Lectures/Unscented.ipynb)
+          * Ensemble Kalman inversion and its variants
+       * Transport map
     * [When is posterior distribution close to Gaussian](Lectures/Posterior.ipynb)
     * All models are wrong
+* Examples
+   * Linear inverse problems
+      * [Well-determined, under-determined, and over-determined inverse problems](Linear/Linear-2-parameter.ipynb)
+      * [Ill-conditioned matrix: inverse of Hilbert matrix](Linear/Hilbert-matrix.ipynb)
+      * [High-dimensional inverse problem: 1-D elliptic equation](Linear/Elliptic.ipynb)
+      * [High-dimensional inverse problem: Bernoulli random vector](Linear/Bernoulli.ipynb)
 
-* Linear inverse problems
-    * [Well-determined, under-determined, and over-determined inverse problems](Linear/Linear-2-parameter.ipynb)
-    * [Ill-conditioned matrix: inverse of Hilbert matrix](Linear/Hilbert-matrix.ipynb)
-    * [High-dimensional inverse problem: 1-D elliptic equation](Linear/Elliptic.ipynb)
-    * [High-dimensional inverse problem: Bernoulli random vector](Linear/Bernoulli.ipynb)
+   * Posterior distribution estimation
+       * [Some nonlinear maps](Posterior/Nonlinear-Maps.ipynb)
+       * [2-Parameter elliptic equation](Posterior/Elliptic.ipynb)
+       * [1D Darcy flow](Posterior/Darcy-1D.ipynb)
 
-* Posterior distribution estimation
-    * [Some nonlinear maps](Posterior/Nonlinear-Maps.ipynb)
-    * [2-Parameter elliptic equation](Posterior/Elliptic.ipynb)
-    * [1D Darcy flow](Posterior/Darcy-1D.ipynb)
+   * Chaotic system
+       * [Chaos and butterfly effects](Chaotic/Chaos.ipynb)
+       * [Lorenz63 model](Chaotic/Lorenz63.ipynb)
+       * [Lorenz96 model](Chaotic/Lorenz96.ipynb)
 
-* Chaotic system
-    * [Chaos and butterfly effects](Chaotic/Chaos.ipynb)
-    * [Lorenz63 model](Chaotic/Lorenz63.ipynb)
-    * [Lorenz96 model](Chaotic/Lorenz96.ipynb)
+   * Structure mechanics problems
+       * Damage detection of a "bridge"
+       * Consitutive modeling of a multiscale fiber-reinforced plate
 
-* Structure mechanics problems
-    * Damage detection of a "bridge"
-    * Consitutive modeling of a multiscale fiber-reinforced plate
- 
-* Fluid mechanics problems
-    * [2D Darcy flow](Fluid/Darcy-2D.ipynb)
-    * [Navier-Stokes initial condition recovery](Fluid/Navier-Stokes.ipynb)
+   * Fluid mechanics problems
+       * [2D Darcy flow](Fluid/Darcy-2D.ipynb)
+       * [Navier-Stokes initial condition recovery](Fluid/Navier-Stokes.ipynb)
 
-* Fluid structure interaction problems
-    * Piston problem
-        * [Receding piston (analytical solution)](FSI-Piston/Receding-Piston-Exact.ipynb)
-        * [Piston system calibration](FSI-Piston/FSI.ipynb)
-    * [Airfoil damage detection during transonic buffeting](FSI-AERO/README.md)
+   * Fluid structure interaction problems
+       * Piston problem
+           * [Receding piston (analytical solution)](FSI-Piston/Receding-Piston-Exact.ipynb)
+           * [Piston system calibration](FSI-Piston/FSI.ipynb)
+       * [Airfoil damage detection during transonic buffeting](FSI-AERO/README.md)
 
 
-* Climate Modeling
-    * Barotropic climate model
-    * Idealized general circulation model (Held-Suarez benchmark)
+   * Climate Modeling
+       * Barotropic climate model
+       * Idealized general circulation model (Held-Suarez benchmark)
 
 
 ## Submit an issue
 You are welcome to submit an issue for any questions related to InverseProblems. 
 
 ## Here are some research papers using InverseProblem
-1. Daniel Z. Huang, Tapio Schneider, and Andrew M. Stuart. "[Unscented Kalman Inversion](https://arxiv.org/pdf/2102.01580.pdf)."
+1. Daniel Zhengyu Huang, Tapio Schneider, and Andrew M. Stuart. "[Unscented Kalman Inversion](https://arxiv.org/pdf/2102.01580.pdf)."
 
-2. Daniel Z. Huang, Jiaoyang Huang. "[Improve Unscented Kalman Inversion With Low-Rank Approximation and Reduced-Order Model](https://arxiv.org/pdf/2102.10677.pdf)."
+2. Daniel Zhengyu Huang, Jiaoyang Huang, Sebastian Reich, and Andrew M. Stuart. "[Efficient Derivative-free Bayesian Inference for Large-Scale Inverse Problems](https://arxiv.org/pdf/*.pdf)."
 
-3. Daniel Z. Huang, Jiaoyang Huang. "[Unscented Kalman Inversion: Efficient Gaussian Approximation to the Posterior Distribution](https://arxiv.org/pdf/2103.00277.pdf)."
-
-4. Shunxiang Cao, Daniel Z. Huang. "[Bayesian Calibration for Large-Scale Fluid Structure Interaction Problems Under Embedded/Immersed Boundary Framework](https://arxiv.org/pdf/2105.09497.pdf)."
+3. Shunxiang Cao, Daniel Zhengyu Huang. "[Bayesian Calibration for Large-Scale Fluid Structure Interaction Problems Under Embedded/Immersed Boundary Framework](https://arxiv.org/pdf/2105.09497.pdf)."
