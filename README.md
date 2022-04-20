@@ -31,9 +31,10 @@ Let's start! (⚠️ under construction)
       * [Markov Chain Monte Carlo methods](Lectures/MonteCarlo.ipynb) 
       * Interacting particle methods
     * Coupling ideas
-       * Filtering    
+       * [Filtering](Lectures/Filtering.ipynb)
+         * [Kalman Filters](Lectures/KalmanFilters.ipynb)
+       * Inversion 
           * [Sequential Monte Carlo method](Lectures/MonteCarlo.ipynb)
-          * [Kalman filters and Gaussian approximation algorithm](Lectures/Kalman.ipynb)
           * [Unscented Kalman inversion and its variants](Lectures/Unscented.ipynb)
           * Ensemble Kalman inversion and its variants
        * Transport map
@@ -82,6 +83,6 @@ You are welcome to submit an issue for any questions related to InverseProblems.
 ## Here are some research papers using InverseProblem
 1. Daniel Zhengyu Huang, Tapio Schneider, and Andrew M. Stuart. "[Unscented Kalman Inversion](https://arxiv.org/pdf/2102.01580.pdf)."
 
-2. Daniel Zhengyu Huang, Jiaoyang Huang, Sebastian Reich, and Andrew M. Stuart. "[Efficient Derivative-free Bayesian Inference for Large-Scale Inverse Problems](https://arxiv.org/pdf/*.pdf)."
+2. Daniel Zhengyu Huang, Jiaoyang Huang, Sebastian Reich, and Andrew M. Stuart. "[Efficient Derivative-free Bayesian Inference for Large-Scale Inverse Problems](https://arxiv.org/pdf/2204.04386.pdf)."
 
 3. Shunxiang Cao, Daniel Zhengyu Huang. "[Bayesian Calibration for Large-Scale Fluid Structure Interaction Problems Under Embedded/Immersed Boundary Framework](https://arxiv.org/pdf/2105.09497.pdf)."
