@@ -64,7 +64,7 @@ function TUKIObj(θ_names::Vector{String},
     Σ_η,
     α_reg::FT,
     update_freq::IT;
-    modified_uscented_transform::Bool = true) where {FT<:AbstractFloat, IT<:Int}
+    modified_unscented_transform::Bool = true) where {FT<:AbstractFloat, IT<:Int}
 
     # ensemble size
     N_θ = size(θ0_mean,1)
@@ -93,7 +93,7 @@ function TUKIObj(θ_names::Vector{String},
 
     Z_ω, Σ_ν =  sqrt(2-α_reg^2)*θθ0_cov_sqrt, 2*Σ_η
 
-    if modified_uscented_transform
+    if modified_unscented_transform
         mean_weights[1] = 1.0
         mean_weights[2:N_ens] .= 0.0
     end
@@ -319,7 +319,7 @@ function TUKI_Run(s_param, forward::Function,
     α_reg,
     update_freq,
     N_iter;
-    modified_uscented_transform::Bool = true,
+    modified_unscented_transform::Bool = true,
     θ_basis = nothing)
     
     θ_names = s_param.θ_names
@@ -333,7 +333,7 @@ function TUKI_Run(s_param, forward::Function,
     Σ_η,
     α_reg,
     update_freq;
-    modified_uscented_transform = modified_uscented_transform)
+    modified_unscented_transform = modified_unscented_transform)
     
     
     ens_func(θ_ens) = ensemble(s_param, θ_ens, forward)

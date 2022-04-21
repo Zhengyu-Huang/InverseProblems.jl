@@ -25,11 +25,9 @@ mutable struct UKIObj{FT<:AbstractFloat, IT<:Int}
      "size of y"
      N_y::IT
      "weights in UKI"
-     c_weights::Union{Array{FT, 1}, Array{FT, 2}}
+     c_weights::Array{FT, 1}
      mean_weights::Array{FT, 1}
      cov_weights::Array{FT, 1}
-     "parameter for Σ_ω and Σ_ν"
-     γ::FT
      "covariance of the artificial evolution error"
      Σ_ω::Array{FT, 2}
      "covariance of the artificial observation error"
@@ -54,8 +52,6 @@ parameter_names::Array{String,1} : parameter name vector
 g_t::Array{FT,1} : observation 
 obs_cov::Array{FT, 2} : observation covariance
 α_reg::FT : regularization parameter toward θ0 (0 < α_reg <= 1), default should be 1, without regulariazion
-
-unscented_transform : "original-2n+1", "modified-2n+1", "original-n+2", "modified-n+2" 
 """
 function UKIObj(θ_names::Array{String,1},
                 θ0_mean::Array{FT}, 
@@ -64,81 +60,36 @@ function UKIObj(θ_names::Array{String,1},
                 Σ_η,
                 α_reg::FT,
                 update_freq::IT;
-                γ::FT = 1.0,
-                unscented_transform::String = "modified-2n+1") where {FT<:AbstractFloat, IT<:Int}
+                modified_unscented_transform::Bool = true) where {FT<:AbstractFloat, IT<:Int}
 
     
     N_θ = size(θ0_mean,1)
     N_y = size(y, 1)
-    
+    # ensemble size
+    N_ens = 2*N_θ+1
 
  
+    c_weights = zeros(FT, N_θ)
+    mean_weights = zeros(FT, N_ens)
+    cov_weights = zeros(FT, N_ens)
 
-    if unscented_transform == "original-2n+1" ||  unscented_transform == "modified-2n+1"
+    # todo parameters λ, α, β
 
-        # ensemble size
-        N_ens = 2*N_θ+1
-
-        c_weights = zeros(FT, N_θ)
-        mean_weights = zeros(FT, N_ens)
-        cov_weights = zeros(FT, N_ens)
-
-        κ = 0.0
-        β = 2.0
-        α = min(sqrt(4/(N_θ + κ)), 1.0)
-        λ = α^2*(N_θ + κ) - N_θ
+    κ = 0.0
+    β = 2.0
+    α = min(sqrt(4/(N_θ + κ)), 1.0)
+    λ = α^2*(N_θ + κ) - N_θ
 
 
-        c_weights[1:N_θ]     .=  sqrt(N_θ + λ)
-        mean_weights[1] = λ/(N_θ + λ)
-        mean_weights[2:N_ens] .= 1/(2(N_θ + λ))
-        cov_weights[1] = λ/(N_θ + λ) + 1 - α^2 + β
-        cov_weights[2:N_ens] .= 1/(2(N_θ + λ))
+    c_weights[1:N_θ]     .=  sqrt(N_θ + λ)
+    mean_weights[1] = λ/(N_θ + λ)
+    mean_weights[2:N_ens] .= 1/(2(N_θ + λ))
+    cov_weights[1] = λ/(N_θ + λ) + 1 - α^2 + β
+    cov_weights[2:N_ens] .= 1/(2(N_θ + λ))
 
-        if unscented_transform == "modified-2n+1"
-            mean_weights[1] = 1.0
-            mean_weights[2:N_ens] .= 0.0
-        end
-
-    elseif unscented_transform == "original-n+2" ||  unscented_transform == "modified-n+2"
-
-        N_ens = N_θ+2
-        c_weights = zeros(FT, N_θ, N_ens)
-        mean_weights = zeros(FT, N_ens)
-        cov_weights = zeros(FT, N_ens)
-
-        # todo cov parameter
-        α = N_θ/(4*(N_θ+1))
-	
-        IM = zeros(FT, N_θ, N_θ+1)
-        IM[1,1], IM[1,2] = -1/sqrt(2α), 1/sqrt(2α)
-        for i = 2:N_θ
-            for j = 1:i
-                IM[i,j] = 1/sqrt(α*i*(i+1))
-            end
-            IM[i,i+1] = -i/sqrt(α*i*(i+1))
-        end
-        c_weights[:, 2:end] .= IM
-
-        if unscented_transform == "original-n+2"
-            mean_weights .= 1/(N_θ+1)
-            mean_weights[1] = 0.0
-
-            cov_weights .= α
-            cov_weights[1] = 0.0
-
-        else unscented_transform == "modified-n+2"
-            mean_weights .= 0.0
-            mean_weights[1] = 1.0
-            
-            cov_weights .= α
-            cov_weights[1] = 0.0
-        end
-
-    else
-
-        error("unscented_transform: ", unscented_transform, " is not recognized")
-    
+    if modified_unscented_transform
+        mean_weights[1] = 1.0
+        mean_weights[2:N_ens] .= 0.0
     end
 
     
@@ -151,8 +102,8 @@ function UKIObj(θ_names::Array{String,1},
     y_pred = Array{FT, 1}[]  # array of Array{FT, 2}'s
    
 
-    Σ_ω = (γ + 1 - α_reg^2)*θθ0_cov
-    Σ_ν = (γ + 1)/γ * Σ_η
+    Σ_ω = (2 - α_reg^2)*θθ0_cov
+    Σ_ν = 2*Σ_η
 
     r = θ0_mean
     
@@ -162,7 +113,7 @@ function UKIObj(θ_names::Array{String,1},
                   y,   Σ_η, 
                   N_ens, N_θ, N_y, 
                   c_weights, mean_weights, cov_weights, 
-                  γ, Σ_ω, Σ_ν, α_reg, r, 
+                  Σ_ω, Σ_ν, α_reg, r, 
                   update_freq, iter)
 
 end
@@ -175,30 +126,20 @@ Construct the sigma ensemble, based on the mean x_mean, and covariance x_cov
 function construct_sigma_ensemble(uki::UKIObj{FT, IT}, x_mean::Array{FT}, x_cov::Array{FT,2}) where {FT<:AbstractFloat, IT<:Int}
     N_ens = uki.N_ens
     N_x = size(x_mean,1)
-    @assert(N_ens == 2*N_x+1 || N_ens == N_x+2)
+    @assert(N_ens == 2*N_x+1)
 
     c_weights = uki.c_weights
 
 
     chol_xx_cov = cholesky(Hermitian(x_cov)).L
 
-    if ndims(c_weights) == 1
-        x = zeros(FT, N_ens, N_x)
-        x[1, :] = x_mean
-        for i = 1: N_x
-            x[i+1,     :] = x_mean + c_weights[i]*chol_xx_cov[:,i]
-            x[i+1+N_x, :] = x_mean - c_weights[i]*chol_xx_cov[:,i]
-        end
-    elseif ndims(c_weights) == 2
-        x = zeros(FT, N_ens, N_x)
-        x[1, :] = x_mean
-        for i = 2: N_x + 2
-	    # @info chol_xx_cov,  c_weights[:, i],  chol_xx_cov * c_weights[:, i]
-            x[i,     :] = x_mean + chol_xx_cov * c_weights[:, i]
-        end
-    else
-        error("c_weights dimensionality error")
+    x = zeros(FT, 2*N_x+1, N_x)
+    x[1, :] = x_mean
+    for i = 1: N_x
+        x[i+1,     :] = x_mean + c_weights[i]*chol_xx_cov[:,i]
+        x[i+1+N_x, :] = x_mean - c_weights[i]*chol_xx_cov[:,i]
     end
+
     return x
 end
 
@@ -266,13 +207,12 @@ define the function as
     ens_func(θ_ens) = MyG(phys_params, θ_ens, other_params)
 use G(θ_mean) instead of FG(θ)
 """
-function update_ensemble!(uki::UKIObj{FT, IT}, ens_func::Function; γ::FT = uki.γ) where {FT<:AbstractFloat, IT<:Int}
+function update_ensemble!(uki::UKIObj{FT, IT}, ens_func::Function) where {FT<:AbstractFloat, IT<:Int}
     
     uki.iter += 1
     # update evolution covariance matrix
     if uki.update_freq > 0 && uki.iter%uki.update_freq == 0
-        uki.Σ_ω = (γ + 1 - uki.α_reg^2)uki.θθ_cov[end]
-        uki.Σ_ν = (γ + 1)/γ * uki.Σ_η
+        uki.Σ_ω = (2 - uki.α_reg^2)uki.θθ_cov[end]
     end
 
     θ_mean  = uki.θ_mean[end]
@@ -286,45 +226,31 @@ function update_ensemble!(uki::UKIObj{FT, IT}, ens_func::Function; γ::FT = uki.
 
     N_θ, N_y, N_ens = uki.N_θ, uki.N_y, uki.N_ens
     ############# Prediction step:
-    
-    
+
     θ_p_mean  = α_reg*θ_mean + (1-α_reg)*r
     θθ_p_cov = α_reg^2*θθ_cov + Σ_ω
     
 
-    # @show θθ_cov, θθ_p_cov
+
     ############ Generate sigma points
     θ_p = construct_sigma_ensemble(uki, θ_p_mean, θθ_p_cov)
-
-
-    # @show θ_p
     # play the role of symmetrizing the covariance matrix
     θθ_p_cov = construct_cov(uki, θ_p, θ_p_mean)
 
-    # @show θθ_p_cov
-
-    # error("STOP")
-    
-
     ###########  Analysis step
     g = zeros(FT, N_ens, N_y)
-    
-    
-    # @info "θ_p = ", θ_p
     g .= ens_func(θ_p)
-    
-    
+
     g_mean = construct_mean(uki, g)
     gg_cov = construct_cov(uki, g, g_mean) + Σ_ν
     θg_cov = construct_cov(uki, θ_p, θ_p_mean, g, g_mean)
-    
- 
-    tmp = θg_cov / gg_cov
+
+    tmp = θg_cov/gg_cov
 
     θ_mean =  θ_p_mean + tmp*(y - g_mean)
 
     θθ_cov =  θθ_p_cov - tmp*θg_cov' 
-    
+
 
     ########### Save resutls
     push!(uki.y_pred, g_mean) # N_ens x N_data
@@ -340,8 +266,7 @@ function UKI_Run(s_param, forward::Function,
     α_reg,
     update_freq,
     N_iter;
-    γ = 1.0,
-    unscented_transform::String = "modified-2n+1",
+    modified_unscented_transform::Bool = true,
     θ_basis = nothing)
     
     θ_names = s_param.θ_names
@@ -354,8 +279,10 @@ function UKI_Run(s_param, forward::Function,
     Σ_η,
     α_reg,
     update_freq;
-    unscented_transform = unscented_transform,
-    γ = γ)
+    modified_unscented_transform = modified_unscented_transform)
+    
+    
+    
     
     
     ens_func(θ_ens) = (θ_basis == nothing) ? 
@@ -365,11 +292,15 @@ function UKI_Run(s_param, forward::Function,
     ensemble(s_param, θ_ens * θ_basis, forward)
     
     
+    
+    
+    
     for i in 1:N_iter
         
         update_ensemble!(ukiobj, ens_func) 
 
-        
+        #@info "optimization error at iter $(i) = ", 0.5*(ukiobj.y_pred[i] - ukiobj.y)'*(ukiobj.Σ_η\(ukiobj.y_pred[i] - ukiobj.y))
+        #@info "Frobenius norm of the covariance at iter $(i) = ", norm(ukiobj.θθ_cov[i])
     end
     
     return ukiobj
@@ -452,10 +383,3 @@ function plot_opt_errors(ukiobj::UKIObj{FT, IT},
     end
     
 end
-
-
-
-
-
-
-

@@ -181,9 +181,13 @@ function forward(darcy::Setup_Param, θ::Array{FT, 1}) where {FT<:AbstractFloat}
     return y
 end
 
+function aug_forward(darcy::Setup_Param, θ::Array{FT, 1}) where {FT<:AbstractFloat}
+    y = forward(darcy, θ)  
+    return [y ; θ]
+end
 
 # plot any 1D field, with/without highligh the observations by scatter
-function plot_field(darcy::Setup_Param, u::Array{FT, 1}, plot_obs::Bool,  filename::String = "None") where {FT<:AbstractFloat}
+function plot_field(darcy::Setup_Param, u::Array{FT, 1}, plot_obs::Bool,  filename::String = "None"; y_obs = u[darcy.y_locs]) where {FT<:AbstractFloat}
     N_x = darcy.N_x
     xx = darcy.xx
 
@@ -192,7 +196,7 @@ function plot_field(darcy::Setup_Param, u::Array{FT, 1}, plot_obs::Bool,  filena
 
     if plot_obs
         y_locs = darcy.y_locs
-        x_obs, y_obs = xx[y_locs], u[y_locs]
+        x_obs = xx[y_locs]
         PyPlot.scatter(x_obs, y_obs, color="black")
     end
 

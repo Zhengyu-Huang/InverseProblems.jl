@@ -23,7 +23,6 @@ Let's start! (⚠️ under construction)
 * Overview
     * What are inverse problems, why are they important?
     * [Bayesian inversion, Bayesian inference, and Bayesian calibration](Lectures/Bayesian.ipynb) 
-* Optimization approaches
 * [Probabilistic approaches](Lectures/Probabilistic.ipynb) 
     * Variational inference
     * Invariant and ergodic measures
@@ -33,10 +32,10 @@ Let's start! (⚠️ under construction)
     * Coupling ideas
        * [Filtering](Lectures/Filtering.ipynb)
          * [Kalman Filters](Lectures/KalmanFilters.ipynb)
-       * Inversion 
+       * [Inversion](Lectures/Inversion.ipynb)
           * [Sequential Monte Carlo method](Lectures/MonteCarlo.ipynb)
-          * [Unscented Kalman inversion and its variants](Lectures/Unscented.ipynb)
-          * Ensemble Kalman inversion and its variants
+          * [Kalman inversion Part I : Stochastic Dynamical System](Lectures/KalmanInversionPartI.ipynb)
+          * [Kalman inversion Part II : Implementation](Lectures/KalmanInversionPartII.ipynb)
        * Transport map
     * [When is posterior distribution close to Gaussian](Lectures/Posterior.ipynb)
     * All models are wrong
