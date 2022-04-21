@@ -9,17 +9,17 @@ using DocStringExtensions
 include("Utility.jl")
 
 # Kalman Inversion methods 
-# which sample the posterior in an infinity time horizontal
-include("UKI.jl")
-include("EKI.jl")
-# include("TUKI.jl")
+# which sample posterior in an infinite time horizon 
+include("KI.jl")
+
+# Iterative Kalman Filtering, continous time Kalman inversion, 
+# which trasport the prior to the posterior in one time unit
+include("IKF.jl")
 
 # Ensemble Kalman sampler
 include("EKS.jl")
 
-# Iterative Kalman Filtering, continous time Kalman inversion, 
-# which trasport the prior to the posterior in one time unit
-include("CTKI.jl")
+
 
 # Consensus-based sampler
 include("CBS.jl")
