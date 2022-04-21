@@ -48,7 +48,7 @@ mutable struct EKIObj{FT<:AbstractFloat, IT<:Int}
     "inflation factor for evolution"
     γ_ω::FT
     "inflation factor for observation"
-    γ_η::FT
+    γ_ν::FT
     "regularization parameter"
     α_reg::FT
     "regularization vector"
@@ -72,31 +72,34 @@ function EKIObj(
     prior_cov_sqrt::Array{FT,2},
     y::Array{FT, 1},
     Σ_η,
-    γ_ω::FT,
+    γ::FT,
     α_reg::FT = 1.0,
     update_freq::IT = 0) where {FT<:AbstractFloat, IT<:Int}
     
     ## check EKI hyperparameters
-    if γ_ω ≈ 0.0 
+
+    if update_freq > 0
+        @info "Start ", filter_type, " on the mean-field stochastic dynamical system for Bayesian inference "
+        @assert(γ > 0.0)
+        @assert(α_reg ≈ 1.0)
+        γ_ω = γ 
+        γ_ν = (γ  + 1.0)/γ 
+        Z_ω = nothing
+    elseif γ ≈ 1.0
         @info "Start original ", filter_type, " for optimization "
         @assert(α_reg ≈ 1.0 && update_freq == 0)
-
-        γ_η = 1
+        γ_ω = 0.0
+        γ_ν = 1.0
         Z_ω = nothing
-    elseif update_freq == 0
+    else
         @info "Start ", filter_type, " on the regularized stochastic dynamical system for optimization "
-        @assert(γ_ω > 1.0)
+        @assert(γ > 1.0)
         @assert(α_reg >= 0.0 && α_reg <= 1.0)
-
-        γ_η = γ_ω / (γ_ω - 1.0)
+        γ_ω = γ/(γ - 1) - α_reg^2
+        γ_ν = γ
         Z_ω = γ_ω * prior_cov_sqrt
 
-    else 
-        @info "Start ", filter_type, " on the mean-field stochastic dynamical system for Bayesian inference "
-        @assert(γ_ω > 0.0)
-        @assert(α_reg ≈ 1.0)
-        γ_η = (γ_ω  + 1.0)/γ_ω 
-        Z_ω = nothing
+    
     end
     
     N_θ = size(θ0_mean,1)
@@ -121,7 +124,7 @@ function EKIObj(
     y_pred, 
     y, Σ_η, 
     N_ens, N_θ, N_y, 
-    Z_ω, γ_ω, γ_η, α_reg, r, update_freq, iter)
+    Z_ω, γ_ω, γ_ν, α_reg, r, update_freq, iter)
 end
 
 """
@@ -182,12 +185,12 @@ function update_ensemble!(eki::EKIObj{FT}, ens_func::Function) where {FT<:Abstra
 
     filter_type = eki.filter_type
     N_ens, N_θ, N_y = eki.N_ens, eki.N_θ, eki.N_y
-    r, α_reg, update_freq, γ_η, γ_ω = eki.r, eki.α_reg, eki.update_freq, eki.γ_η, eki.γ_ω
+    r, α_reg, update_freq, γ_ν, γ_ω = eki.r, eki.α_reg, eki.update_freq, eki.γ_ν, eki.γ_ω
     
     # θ: N_ens x N_θ
     θ = eki.θ[end]
     # compute the observation covariance matrices
-    Σ_ν = γ_η * eki.Σ_η
+    Σ_ν = γ_ν * eki.Σ_η
     
 
     ############# Prediction step
@@ -346,14 +349,14 @@ function update_ensemble!(eki::EKIObj{FT}, ens_func::Function) where {FT<:Abstra
 end
 
 # the evolution error covariance is γ_ω * C_n or  γ_ω * C_0
-# the observation error covariance is Σ_ν = γ_η * Σ_η
+# the observation error covariance is Σ_ν = γ_ν * Σ_η
 function EKI_Run(s_param, forward::Function, 
     filter_type,
     θ0_mean, θθ0_cov_sqrt,
     prior_mean, prior_cov_sqrt,
     N_ens,
     y, Σ_η,
-    γ_ω,
+    γ,
     α_reg,
     update_freq,
     N_iter)
@@ -368,7 +371,7 @@ function EKI_Run(s_param, forward::Function,
     θ0_mean, θθ0_cov_sqrt,
     prior_mean, prior_cov_sqrt,
     y, Σ_η,
-    γ_ω,
+    γ,
     α_reg, update_freq)
     
     
@@ -422,7 +425,7 @@ mutable struct UKIObj{FT<:AbstractFloat, IT<:Int}
     "inflation factor for evolution"
     γ_ω::FT
     "inflation factor for observation"
-    γ_η::FT
+    γ_ν::FT
     "regularization parameter"
     α_reg::FT
     "regularization vector"
@@ -455,32 +458,34 @@ function UKIObj(θ_names::Array{String,1},
                 prior_cov_sqrt::Array{FT,2},
                 y::Array{FT,1},
                 Σ_η::Array{FT,2},
-                γ_ω::FT,
+                γ::FT,
                 α_reg::FT,
                 update_freq::IT;
                 unscented_transform::String = "modified-2n+1") where {FT<:AbstractFloat, IT<:Int}
 
     ## check UKI hyperparameters
-    if γ_ω ≈ 0.0 
+
+    if update_freq > 0 
+        @info "Start UKI on the mean-field stochastic dynamical system for Bayesian inference "
+        @assert(γ > 0.0)
+        @assert(α_reg ≈ 1.0)
+        γ_ω = γ
+        γ_ν = (γ  + 1.0)/γ 
+        Σ_ω = nothing
+
+    elseif γ ≈ 1.0 
         @info "Start original UKI for optimization "
         @assert(α_reg ≈ 1.0 && update_freq == 0)
-
-        γ_η = 1
+        γ_ω = 0.0
+        γ_ν = 1
         Σ_ω = nothing
-    elseif update_freq == 0
+    else
         @info "Start UKI on the regularized stochastic dynamical system for optimization "
-        @assert(γ_ω > 1.0)
+        @assert(γ > 1.0)
         @assert(α_reg >= 0.0 && α_reg <= 1.0)
-
-        γ_η = γ_ω / (γ_ω - 1.0)
+        γ_ν = γ
+        γ_ω = γ/(γ - 1) - α_reg^2
         Σ_ω = γ_ω * prior_cov_sqrt
-
-    else 
-        @info "Start UKI on the mean-field stochastic dynamical system for Bayesian inference "
-        @assert(γ_ω > 0.0)
-        @assert(α_reg ≈ 1.0)
-        γ_η = (γ_ω  + 1.0)/γ_ω 
-        Σ_ω = nothing
     end
 
 
@@ -574,7 +579,7 @@ function UKIObj(θ_names::Array{String,1},
                   y,   Σ_η, 
                   N_ens, N_θ, N_y, 
                   c_weights, mean_weights, cov_weights, 
-                  Σ_ω, γ_ω, γ_η, α_reg, r, 
+                  Σ_ω, γ_ω, γ_ν, α_reg, r, 
                   update_freq, iter)
 
 end
@@ -683,10 +688,10 @@ function update_ensemble!(uki::UKIObj{FT, IT}, ens_func::Function) where {FT<:Ab
     uki.iter += 1
 
     N_θ, N_y, N_ens = uki.N_θ, uki.N_y, uki.N_ens
-    r, α_reg, update_freq, γ_η, γ_ω = uki.r, uki.α_reg, uki.update_freq, uki.γ_η, uki.γ_ω
+    r, α_reg, update_freq, γ_ν, γ_ω = uki.r, uki.α_reg, uki.update_freq, uki.γ_ν, uki.γ_ω
     
 
-    Σ_ν = γ_η * uki.Σ_η
+    Σ_ν = γ_ν * uki.Σ_η
     # update evolution covariance matrix
     if update_freq > 0 && uki.iter % update_freq == 0
         Σ_ω = γ_ω * uki.θθ_cov[end]
@@ -701,7 +706,6 @@ function update_ensemble!(uki::UKIObj{FT, IT}, ens_func::Function) where {FT<:Ab
 
     
     ############# Prediction step:
-    
     θ_p_mean  = α_reg*θ_mean + (1-α_reg)*r
     θθ_p_cov = (Σ_ω === nothing ? α_reg^2*θθ_cov : α_reg^2*θθ_cov + Σ_ω)
     
@@ -748,7 +752,7 @@ function UKI_Run(s_param, forward::Function,
     θ0_mean, θθ0_cov,
     prior_mean, prior_cov,
     y, Σ_η,
-    γ_ω,
+    γ,
     α_reg,
     update_freq,
     N_iter;
@@ -762,7 +766,7 @@ function UKI_Run(s_param, forward::Function,
     θ0_mean, θθ0_cov,
     prior_mean, prior_cov,
     y, Σ_η,
-    γ_ω,
+    γ,
     α_reg,
     update_freq;
     unscented_transform = unscented_transform)
