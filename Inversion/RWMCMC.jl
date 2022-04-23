@@ -84,7 +84,7 @@ function PCN_Run(log_likelihood::Function, θ0::Array{FT,1}, θθ0_cov::Array{FT
             # accept
             θs[i, :] = θ
             fs[i] = fs[i]
-            @info "accept i = ", i
+           
         else
             # reject
             θs[i, :] = θ_p
