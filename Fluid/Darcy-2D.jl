@@ -158,8 +158,9 @@ function generate_θ_KL(xx::Array{FT,1}, N_KL::IT, d::FT=2.0, τ::FT=3.0; seed::
         λ[i] = (pi^2*(seq_pairs[i, 1]^2 + seq_pairs[i, 2]^2) + τ^2)^(-d)
     end
     
-    Random.seed!(seed);
-    θ_ref = rand(Normal(0, 1), N_KL)
+#     Random.seed!(seed);
+    rng = MersenneTwister(seed)
+    θ_ref = rand(rng, Normal(0, 1), N_KL)
 
     logκ_2d = zeros(FT, N, N)
     for i = 1:N_KL

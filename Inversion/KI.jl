@@ -455,9 +455,9 @@ function UKIObj(θ_names::Array{String,1},
                 θθ0_cov::Array{FT, 2},
                 # prior information
                 prior_mean::Array{FT},
-                prior_cov_sqrt::Array{FT,2},
+                prior_cov::Array{FT,2},
                 y::Array{FT,1},
-                Σ_η::Array{FT,2},
+                Σ_η,
                 γ::FT,
                 α_reg::FT,
                 update_freq::IT;
@@ -485,7 +485,7 @@ function UKIObj(θ_names::Array{String,1},
         @assert(α_reg >= 0.0 && α_reg <= 1.0)
         γ_ν = γ
         γ_ω = γ/(γ - 1) - α_reg^2
-        Σ_ω = γ_ω * prior_cov_sqrt
+        Σ_ω = γ_ω * prior_cov
     end
 
 

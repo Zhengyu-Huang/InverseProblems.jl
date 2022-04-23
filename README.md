@@ -44,14 +44,8 @@ Let's start! (⚠️ under construction)
       * [Well-determined, under-determined, and over-determined inverse problems](Linear/Linear-2-parameter.ipynb)
       * [Ill-conditioned matrix: inverse of Hilbert matrix](Linear/Hilbert-matrix.ipynb)
       * [High-dimensional inverse problem: 1-D elliptic equation](Linear/Elliptic.ipynb)
-      * [High-dimensional inverse problem: Bernoulli random vector](Linear/Bernoulli.ipynb)
 
-   * Posterior distribution estimation
-       * [Some nonlinear maps](Posterior/Nonlinear-Maps.ipynb)
-       * [2-Parameter elliptic equation](Posterior/Elliptic.ipynb)
-       * [1D Darcy flow](Posterior/Darcy-1D.ipynb)
-
-   * Chaotic system
+   * Chaotic systems
        * [Chaos and butterfly effects](Chaotic/Chaos.ipynb)
        * [Lorenz63 model](Chaotic/Lorenz63.ipynb)
        * [Lorenz96 model](Chaotic/Lorenz96.ipynb)
@@ -71,10 +65,14 @@ Let's start! (⚠️ under construction)
        * [Airfoil damage detection during transonic buffeting](FSI-AERO/README.md)
 
 
-   * Climate Modeling
+   * Climate modeling
        * Barotropic climate model
        * Idealized general circulation model (Held-Suarez benchmark)
-
+    
+   * Other posterior distribution estimations
+       * [Some nonlinear maps](Posterior/Nonlinear-Maps.ipynb)
+       * [2-Parameter elliptic equation](Posterior/Elliptic.ipynb)
+       * [1D Darcy flow](Posterior/Darcy-1D.ipynb)
 
 ## Submit an issue
 You are welcome to submit an issue for any questions related to InverseProblems. 
