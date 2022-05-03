@@ -333,14 +333,10 @@ function update_ensemble!(uki::GMUKIObj{FT, IT}, ens_func::Function) where {FT<:
     for im = 1:N_modes
         logθ_w_p[im] += (γ_ω/(2*(γ_ω + 1)))*log(det(θθ_cov[im,:,:]))
     end
-    # logθ_w_p -= log( sum(exp.(logθ_w_p)) )
-
-    @info "logθ_w_p = ", logθ_w_p
+    
     ############ Generate sigma points
     θ_p = construct_sigma_ensemble(uki, θ_p_mean, θθ_p_cov)
 
-
-    # @show θ_p
     # play the role of symmetrizing the covariance matrix
     θθ_p_cov = construct_cov(uki, θ_p, θ_p_mean)
     
@@ -370,59 +366,25 @@ function update_ensemble!(uki::GMUKIObj{FT, IT}, ens_func::Function) where {FT<:
 
         θθ_cov_n[im, :, :] =  θθ_p_cov[im, :, :] - tmp[im, :, :]*θg_cov[im, :, :]' 
 
-        z = y - g_mean[im, :] - θg_cov[im, :, :]' * (θθ_cov[im, :, :] \θ_mean[im, :])
-
-        @info "z = ", z, " y = ", y, " g_mean[im, :] = ", g_mean[im, :], " θ_p_mean[im, :] = ", θ_p_mean[im, :]
-        @info "Σ_ν ",  Σ_ν
-        # θ_w_n[im] = θ_w[im] * sqrt(det(θθ_cov_n[im, :, :]) / det(θθ_cov[im, :, :])) * 
-        #                       exp( 1/2*( θ_mean_n[im, :]'*(θθ_cov_n[im, :, :]\θ_mean_n[im, :]) -
-        #                       θ_mean[im, :]'*(θθ_cov[im, :, :]\θ_mean[im, :]) - 
-        #                       z'*(Σ_ν\z)) )
-
-        
-        logθ_w_n[im] = 1/2*( θ_mean_n[im, :]'*(θθ_cov_n[im, :, :]\θ_mean_n[im, :]) -
-                              θ_mean[im, :]'*(θθ_cov[im, :, :]\θ_mean[im, :]) - 
-                              z'*(Σ_ν\z))
-        @info "original logθ_w_n[im] ", logθ_w_n[im]
-        # new computing
         z = y - g_mean[im, :]
         temp = θθ_cov[im, :, :]\(θg_cov[im, :, :]*(Σ_ν\z))
         logθ_w_n[im] = 1/2*( temp'*θθ_cov_n[im, :, :]*temp -  z'*(Σ_ν\z))
-        @info "new logθ_w_n[im] ", logθ_w_n[im]
-
-
-        @info " weight = ", θ_mean_n[im, :]'*(θθ_cov_n[im, :, :]\θ_mean_n[im, :]),  θ_mean[im, :]'*(θθ_cov[im, :, :]\θ_mean[im, :]), z'*(Σ_ν\z)
-        @info "mode: im ", im, " weight = ", logθ_w_n[im], " z = ", z
     end
 
    
     for im = 1:N_modes
-    
-        @info "before 1 logθ_w_n[im]     = ", im,  logθ_w_n[im], logθ_w_n
-
         logθ_w_n[im] += logθ_w_p[im] + log(sqrt(det(θθ_cov_n[im, :, :]) / det(θθ_cov[im, :, :])))
-        # @info θθ_cov_n[im, :, :], θθ_cov[im, :, :], det(θθ_cov_n[im, :, :]), det(θθ_cov[im, :, :]), sqrt(det(θθ_cov_n[im, :, :]) / det(θθ_cov[im, :, :]))
-        @info "before 2 logθ_w_n[im]     = ", im,  logθ_w_n[im], logθ_w_n
     end
-    # @info "before θ_w      = ", θ_w_n
-    @info "sum(exp.(logθ_w_n))  = ", sum(exp.(logθ_w_n))
-    @info "logθ_w_n = ", logθ_w_n
 
     logθ_w_n .-= maximum(logθ_w_n)
     logθ_w_n .-= log( sum(exp.(logθ_w_n)) )
-    # θ_w_n /= sum(θ_w_n)
-
-  
-    # @info "θ_w      = ", θ_w_n
-    @info "θ_mean_n = ", θ_mean_n
-    @info "θθ_cov_n = ", θθ_cov_n
-    @info "logθ_w_n = ", logθ_w_n
+    
 
     ########### Save resutls
-    push!(uki.y_pred, g_mean) # N_ens x N_data
-    push!(uki.θ_mean, θ_mean_n) # N_ens x N_params
-    push!(uki.θθ_cov, θθ_cov_n) # N_ens x N_data
-    push!(uki.logθ_w, logθ_w_n)       # N_ens x N_data
+    push!(uki.y_pred, g_mean)     # N_ens x N_data
+    push!(uki.θ_mean, θ_mean_n)   # N_ens x N_params
+    push!(uki.θθ_cov, θθ_cov_n)   # N_ens x N_data
+    push!(uki.logθ_w, logθ_w_n)   # N_ens x N_data
 end
 
 # """
