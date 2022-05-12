@@ -24,7 +24,7 @@ Let's start! (⚠️ under construction)
     * What are inverse problems, why are they important?
     * [Bayesian inversion, Bayesian inference, and Bayesian calibration](Lectures/Bayesian.ipynb) 
 * [Probabilistic approaches](Lectures/Probabilistic.ipynb) 
-    * Variational inference
+    * [Variational inference](Lectures/VariationalInference.ipynb)
     * Invariant and ergodic measures
       * Langevin dynamics
       * [Markov Chain Monte Carlo methods](Lectures/MonteCarlo.ipynb) 
@@ -78,7 +78,7 @@ Let's start! (⚠️ under construction)
 You are welcome to submit an issue for any questions related to InverseProblems. 
 
 ## Here are some research papers using InverseProblem
-1. Daniel Zhengyu Huang, Tapio Schneider, and Andrew M. Stuart. "[Unscented Kalman Inversion](https://arxiv.org/pdf/2102.01580.pdf)."
+1. Daniel Zhengyu Huang, Tapio Schneider, and Andrew M. Stuart. "[Iterated Kalman Methodology For Inverse Problems / Unscented Kalman Inversion](https://arxiv.org/pdf/2102.01580.pdf)."
 
 2. Daniel Zhengyu Huang, Jiaoyang Huang, Sebastian Reich, and Andrew M. Stuart. "[Efficient Derivative-free Bayesian Inference for Large-Scale Inverse Problems](https://arxiv.org/pdf/2204.04386.pdf)."
 
