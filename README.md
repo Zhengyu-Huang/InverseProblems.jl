@@ -26,7 +26,7 @@ Let's start! (⚠️ under construction)
 * [Probabilistic approaches](Lectures/Probabilistic.ipynb) 
     * [Variational inference](Lectures/VariationalInference.ipynb)
     * Invariant and ergodic measures
-      * Langevin dynamics
+      * [Langevin dynamics](Lectures/Langevin.ipynb) 
       * [Markov Chain Monte Carlo methods](Lectures/MonteCarlo.ipynb) 
       * Interacting particle methods
     * Coupling ideas
