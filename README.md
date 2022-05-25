@@ -24,11 +24,11 @@ Let's start! (⚠️ under construction)
     * What are inverse problems, why are they important?
     * [Bayesian inversion, Bayesian inference, and Bayesian calibration](Lectures/Bayesian.ipynb) 
 * [Probabilistic approaches](Lectures/Probabilistic.ipynb) 
-    * [Variational inference](Lectures/VariationalInference.ipynb)
     * Invariant and ergodic measures
       * [Langevin dynamics](Lectures/Langevin.ipynb) 
       * [Markov Chain Monte Carlo methods](Lectures/MonteCarlo.ipynb) 
       * Interacting particle methods
+    * [Variational inference](Lectures/VariationalInference.ipynb)
     * Coupling ideas
        * [Filtering](Lectures/Filtering.ipynb)
          * [Kalman Filters](Lectures/KalmanFilters.ipynb)
