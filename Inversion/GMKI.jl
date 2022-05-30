@@ -333,6 +333,8 @@ function update_ensemble!(uki::GMUKIObj{FT, IT}, ens_func::Function) where {FT<:
     for im = 1:N_modes
         logθ_w_p[im] += (γ_ω/(2*(γ_ω + 1)))*log(det(θθ_cov[im,:,:]))
     end
+
+    # logθ_w_p = logθ_w
     
     ############ Generate sigma points
     θ_p = construct_sigma_ensemble(uki, θ_p_mean, θθ_p_cov)
