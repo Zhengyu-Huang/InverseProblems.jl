@@ -6,9 +6,12 @@ using DocStringExtensions
 
 
 # TODO Delete
+using PyPlot
+include("Plot.jl")
 include("Utility.jl")
-
-
+include("RWMCMC.jl")
+include("SMC.jl")
+include("EKS.jl")
 # generate ensemble
 Random.seed!(123)
 
@@ -297,6 +300,98 @@ function construct_cov(uki::GMUKIObj{FT, IT}, xs::Array{FT,3}, x_means::Array{FT
     return xy_covs
 end
 
+
+
+
+function Gaussian_mixture_density(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_cov::Array{FT,3}, θ::Array{FT,1}) where {FT<:AbstractFloat}
+    ρ = 0.0
+    N_modes, N_θ = size(θ_mean)
+    
+    for i = 1:N_modes
+        ρ += θ_w[i]*exp( -1/2*((θ - θ_mean[i,:])'* (θθ_cov[i,:,:]\(θ - θ_mean[i,:])) ))
+    end
+    return ρ
+end
+
+# θ_w : N_modes array
+# θ_mean: N_modes by N_θ array
+# θθ_cov: N_modes by N_θ by N_θ array
+# method = disjoint, sampling, approximation
+function Gaussian_mixture_power(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_cov::Array{FT,3}, αpower::FT; method="disjoint") where {FT<:AbstractFloat}
+    N_modes, N_θ = size(θ_mean)
+    
+    
+    # default assuming all components have disjoint supports
+    θθ_cov_p = θθ_cov/αpower
+    θ_w_p = copy(θ_w) 
+    for i = 1:N_modes
+        θ_w_p[i] = θ_w[i]^αpower * det(θθ_cov[i,:,:])^((1-αpower)/2)
+    end
+    θ_mean_p = copy(θ_mean)
+    
+    if method == "sampling"
+        
+        N_ens = 2N_θ+1
+        α = sqrt((N_ens-1)/2.0)
+        xs = zeros(N_ens, N_θ)
+        ws = zeros(N_ens)
+        for i = 1:N_modes
+            
+            # construct sigma points
+            chol_xx_cov = cholesky(Hermitian(θθ_cov[i,:,:])).L
+            
+            xs[1, :] = θ_mean[i, :]
+            ws[1] = θ_w[i]*Gaussian_mixture_density(θ_w, θ_mean, θθ_cov, xs[1, :])^(αpower - 1)
+            for j = 1:N_θ
+                xs[j+1,     :] = θ_mean[i, :] + α*chol_xx_cov[:,j]
+                xs[j+1+N_θ, :] = θ_mean[i, :] - α*chol_xx_cov[:,j]
+                
+                ws[j+1]     = θ_w[i]*Gaussian_mixture_density(θ_w, θ_mean, θθ_cov, xs[j+1, :])^(αpower - 1)
+                ws[j+1+N_θ] = θ_w[i]*Gaussian_mixture_density(θ_w, θ_mean, θθ_cov, xs[j+1+N_θ, :])^(αpower - 1)
+            end
+             
+            
+            θ_mean_p[i,:] = ws' * xs / sum(ws)
+
+            θ_mean_p[i,:] = θ_mean[i, :] + 5(θ_mean_p[i,:] - θ_mean[i, :])
+            
+            @show i, θ_mean[i,:], θ_mean_p[i,:]
+        end
+        
+        
+    elseif method == "random-sampling"
+        
+        N_ens = 1000
+        α = sqrt((N_ens-1)/2.0)
+        xs = zeros(N_ens, N_θ)
+        ws = zeros(N_ens)
+        for i = 1:N_modes
+            
+            # construct sigma points
+            
+            
+            xs .= rand(MvNormal(θ_mean[i, :], θθ_cov[i,:,:]), N_ens)'
+            
+            for j = 1:N_ens
+                ws[j] = θ_w[i]*Gaussian_mixture_density(θ_w, θ_mean, θθ_cov, xs[j, :])^(αpower - 1)
+            end
+             
+            
+            θ_mean_p[i,:] = ws' * xs / sum(ws)
+            
+            @show i, θ_mean[i,:], θ_mean_p[i,:]
+        end
+
+    else
+        @error("method :", method, " has not implemented")
+        
+    end
+    θ_w_p ./ sum(θ_w_p)
+    
+    return θ_w_p, θ_mean_p, θθ_cov_p
+end
+
+
 """
 update uki struct
 ens_func: The function g = G(θ)
@@ -327,13 +422,22 @@ function update_ensemble!(uki::GMUKIObj{FT, IT}, ens_func::Function) where {FT<:
     y = uki.y
     ############# Prediction step:
     θ_p_mean  = θ_mean
-    θθ_p_cov = (Σ_ω === nothing ? θθ_cov : θθ_cov + Σ_ω)
+    #TODO push mean
+    # θ_mean_all = mean(θ_mean, dims=1)
+    # θ_p_mean  = ones(N_modes)*θ_mean_all + sqrt(1 +  0.2)*(θ_mean - ones(N_modes)*θ_mean_all)
+    
 
+    θθ_p_cov = (Σ_ω === nothing ? θθ_cov : θθ_cov + Σ_ω)
     logθ_w_p = (1/(γ_ω + 1))  * logθ_w
     for im = 1:N_modes
         logθ_w_p[im] += (γ_ω/(2*(γ_ω + 1)))*log(det(θθ_cov[im,:,:]))
     end
 
+    ##TODO
+    logθ_w_p, θ_p_mean, θθ_p_cov = Gaussian_mixture_power(exp.(logθ_w), θ_mean, θθ_cov, 1/(γ_ω + 1); method="random-sampling")
+    logθ_w_p = log.(logθ_w_p)
+
+    @info "updata : θ_mean = ", θ_mean, " θ_p_mean = ", θ_p_mean
     # logθ_w_p = logθ_w
     
     ############ Generate sigma points
@@ -389,120 +493,6 @@ function update_ensemble!(uki::GMUKIObj{FT, IT}, ens_func::Function) where {FT<:
     push!(uki.logθ_w, logθ_w_n)   # N_ens x N_data
 end
 
-# """
-# update uki struct
-# ens_func: The function g = G(θ)
-# define the function as 
-#     ens_func(θ_ens) = MyG(phys_params, θ_ens, other_params)
-# use G(θ_mean) instead of FG(θ)
-# """
-# function update_ensemble!(uki::GMUKIObj{FT, IT}, ens_func::Function) where {FT<:AbstractFloat, IT<:Int}
-    
-#     uki.iter += 1
-
-#     N_θ, N_y, N_modes, N_ens = uki.N_θ, uki.N_y, uki.N_modes, uki.N_ens
-#     update_freq, γ_ν, γ_ω = uki.update_freq, uki.γ_ν, uki.γ_ω
-    
-
-#     Σ_ν = γ_ν * uki.Σ_η
-#     # update evolution covariance matrix
-#     if update_freq > 0 && uki.iter % update_freq == 0
-#         Σ_ω = γ_ω * uki.θθ_cov[end]
-#     else
-#         Σ_ω = uki.Σ_ω 
-#     end
-
-#     θ_mean  = uki.θ_mean[end]
-#     θθ_cov  = uki.θθ_cov[end]
-#     θ_w     = uki.θ_w[end]
-
-#     y = uki.y
-#     ############# Prediction step:
-#     θ_p_mean  = θ_mean
-#     θθ_p_cov = (Σ_ω === nothing ? θθ_cov : θθ_cov + Σ_ω)
-
-#     θ_w_p = θ_w.^(1/(γ_ω + 1)) 
-#     for im = 1:N_modes
-#         θ_w_p[im] *= det(θθ_cov[im,:,:])^(γ_ω/(2*(γ_ω + 1))) 
-#     end
-#     θ_w_p /= sum(θ_w_p)
-
-#     @info "θ_w_p = ", θ_w_p
-#     ############ Generate sigma points
-#     θ_p = construct_sigma_ensemble(uki, θ_p_mean, θθ_p_cov)
-
-
-#     # @show θ_p
-#     # play the role of symmetrizing the covariance matrix
-#     θθ_p_cov = construct_cov(uki, θ_p, θ_p_mean)
-    
-
-#     ###########  Analysis step
-#     g = zeros(FT, N_modes, N_ens, N_y)
-    
-
-#     g .= ens_func(θ_p)
-    
-    
-#     g_mean = construct_mean(uki, g)
-#     # gg_cov = construct_cov(uki, g, g_mean) + Σ_ν
-#     gg_cov = construct_cov(uki, g, g_mean)
-#     θg_cov = construct_cov(uki, θ_p, θ_p_mean, g, g_mean)
-    
-#     tmp = copy(θg_cov)
-#     θ_mean_n =  copy(θ_p_mean)
-#     θθ_cov_n = copy(θθ_p_cov)
-#     θ_w_n = copy(θ_w)
-
-#     for im = 1:N_modes
-
-#         tmp[im, :, :] = θg_cov[im, :, :] / (gg_cov[im, :, :] + Σ_ν)
-
-#         θ_mean_n[im, :] =  θ_p_mean[im, :] + tmp[im, :, :]*(y - g_mean[im, :])
-
-#         θθ_cov_n[im, :, :] =  θθ_p_cov[im, :, :] - tmp[im, :, :]*θg_cov[im, :, :]' 
-
-#         z = y - g_mean[im, :] - θg_cov[im, :, :]' * (θθ_cov[im, :, :] \θ_mean[im, :])
-
-#         @info "z = ", z, " y = ", y, " g_mean[im, :] = ", g_mean[im, :]
-#         # θ_w_n[im] = θ_w[im] * sqrt(det(θθ_cov_n[im, :, :]) / det(θθ_cov[im, :, :])) * 
-#         #                       exp( 1/2*( θ_mean_n[im, :]'*(θθ_cov_n[im, :, :]\θ_mean_n[im, :]) -
-#         #                       θ_mean[im, :]'*(θθ_cov[im, :, :]\θ_mean[im, :]) - 
-#         #                       z'*(Σ_ν\z)) )
-
-        
-#         θ_w_n[im] = 1/2*( θ_mean_n[im, :]'*(θθ_cov_n[im, :, :]\θ_mean_n[im, :]) -
-#                               θ_mean[im, :]'*(θθ_cov[im, :, :]\θ_mean[im, :]) - 
-#                               z'*(Σ_ν\z))
-#         @info " weight = ", θ_mean_n[im, :]'*(θθ_cov_n[im, :, :]\θ_mean_n[im, :]),  θ_mean[im, :]'*(θθ_cov[im, :, :]\θ_mean[im, :]), z'*(Σ_ν\z)
-#         @info "mode: im ", im, " weight = ", θ_w_n[im], " z = ", z
-#     end
-
-#     _, maxindx =  findmax(θ_w_n + log.(θ_w_p))
-#     θ_w_n .-= θ_w_n[maxindx]
-#     for im = 1:N_modes
-#         θ_w_n[im] = exp.(θ_w_n[im])
-#         @info "before 1 θ_w_n[im]     = ", im,  θ_w_n[im], θ_w_n
-
-#         θ_w_n[im] *= θ_w_p[im] * θ_w_n[im] * sqrt(det(θθ_cov_n[im, :, :]) / det(θθ_cov[im, :, :])) 
-#         @info θθ_cov_n[im, :, :], θθ_cov[im, :, :], det(θθ_cov_n[im, :, :]), det(θθ_cov[im, :, :]), sqrt(det(θθ_cov_n[im, :, :]) / det(θθ_cov[im, :, :]))
-#         @info "before 2 θ_w_n[im]     = ", im,  θ_w_n[im], θ_w_n
-#     end
-#     @info "before θ_w      = ", θ_w_n
-#     θ_w_n /= sum(θ_w_n)
-
-  
-#     @info "θ_w      = ", θ_w_n
-#     @info "θ_mean_n = ", θ_mean_n
-#     @info "θθ_cov_n = ", θθ_cov_n
-
-#     ########### Save resutls
-#     push!(uki.y_pred, g_mean) # N_ens x N_data
-#     push!(uki.θ_mean, θ_mean_n) # N_ens x N_params
-#     push!(uki.θθ_cov, θθ_cov_n) # N_ens x N_data
-#     push!(uki.θ_w, θ_w_n)       # N_ens x N_data
-# end
-
 
 
 function GMUKI_Run(s_param, forward::Function, 
@@ -541,312 +531,170 @@ function GMUKI_Run(s_param, forward::Function,
 end
 
 
-# function plot_param_iter(ukiobj::UKIObj{FT, IT}, θ_ref::Array{FT,1}, θ_ref_names::Array{String}) where {FT<:AbstractFloat, IT<:Int}
+function Posterior_Plot(forward::Function, forward_aug::Function;  θ_ref = 2.0, σ_η = 0.1, μ_0 = 3.0,  σ_0 = 2.0)
+    Run_EKS = false
+    Run_SMC = false
+    Run_MCMC = true
+    N_y, N_θ = 1, 1
+    s_param = Setup_Param(N_θ, N_y)
+    y = forward(s_param, [θ_ref;])
+    Σ_η = reshape([σ_η^2], (N_y, N_y))
+    # prior distribution
+    μ0,  Σ0   = [μ_0;], reshape([σ_0^2],  (N_θ, N_θ))
     
-#     θ_mean = ukiobj.θ_mean
-#     θθ_cov = ukiobj.θθ_cov
-    
-#     N_iter = length(θ_mean) - 1
-#     ites = Array(LinRange(1, N_iter+1, N_iter+1))
-    
-#     θ_mean_arr = abs.(hcat(θ_mean...))
-    
-    
-#     N_θ = length(θ_ref)
-#     θθ_std_arr = zeros(Float64, (N_θ, N_iter+1))
-#     for i = 1:N_iter+1
-#         for j = 1:N_θ
-#             θθ_std_arr[j, i] = sqrt(θθ_cov[i][j,j])
-#         end
-#     end
-    
-#     for i = 1:N_θ
-#         errorbar(ites, θ_mean_arr[i,:], yerr=3.0*θθ_std_arr[i,:], fmt="--o",fillstyle="none", label=θ_ref_names[i])   
-#         plot(ites, fill(θ_ref[i], N_iter+1), "--", color="gray")
-#     end
-    
-#     xlabel("Iterations")
-#     legend()
-#     tight_layout()
-# end
 
 
-# function plot_opt_errors(ukiobj::UKIObj{FT, IT}, 
-#     θ_ref::Union{Array{FT,1}, Nothing} = nothing, 
-#     transform_func::Union{Function, Nothing} = nothing) where {FT<:AbstractFloat, IT<:Int}
+    # compute posterior distribution by UKI
+    update_freq = 1
+    N_iter = 50
+    N_modes = 2
+    θ0_w  = [0.5; 0.5]
+    θ0_mean, θθ0_cov  = zeros(N_modes, N_θ), zeros(N_modes, N_θ, N_θ)
     
-#     θ_mean = ukiobj.θ_mean
-#     θθ_cov = ukiobj.θθ_cov
-#     y_pred = ukiobj.y_pred
-#     Σ_η = ukiobj.Σ_η
-#     y = ukiobj.y
-
-#     N_iter = length(θ_mean) - 1
+    θ0_mean[1, :]    .= -3.0
+    θθ0_cov[1, :, :] .=  reshape([0.5^2],  (1, 1))
+    θ0_mean[2, :]    .=  3.0
+    θθ0_cov[2, :, :] .=  reshape([0.5^2],  (1, 1))
     
-#     ites = Array(LinRange(1, N_iter, N_iter))
-#     N_subfigs = (θ_ref === nothing ? 2 : 3)
+    s_param_aug = Setup_Param(1,2)
+    y_aug = [y ; μ0]
+    Σ_η_aug = [Σ_η zeros(Float64, N_y, N_θ); zeros(Float64, N_θ, N_y) Σ0]
+    γ = 1.0
+    # Δt = γ/(1+γ)
+    ukiobj = GMUKI_Run(s_param_aug, forward_aug, θ0_w, θ0_mean, θθ0_cov, y_aug, Σ_η_aug, γ, update_freq, N_iter; unscented_transform="modified-2n+1")
+    
 
-#     errors = zeros(Float64, N_subfigs, N_iter)
-#     fig, ax = PyPlot.subplots(ncols=N_subfigs, figsize=(N_subfigs*6,6))
-#     for i = 1:N_iter
-#         errors[N_subfigs - 1, i] = 0.5*(y - y_pred[i])'*(Σ_η\(y - y_pred[i]))
-#         errors[N_subfigs, i]     = norm(θθ_cov[i])
+
+    if Run_MCMC
+        # compute posterior distribution by MCMC
+        logρ(θ) = log_bayesian_posterior(s_param, θ, forward, y, Σ_η, μ0, Σ0) 
+        step_length = 1.0
+        N_iter , n_burn_in= 5000000, 1000000
+        us = RWMCMC_Run(logρ, μ0, step_length, N_iter)
+    end
+    
+    # compute posterior distribution by SMC
+    if Run_SMC
+        N_ens = 1000
+        M_threshold = Float64(N_ens)
+        N_t = 100
+        step_length = 1.0
+        smcobj = SMC_Run(s_param, forward,
+        μ0, Σ0, 
+        y, Σ_η,
+        N_ens, 
+        step_length,
+        M_threshold,
+        N_t) 
+    end
+
+    if Run_EKS
+        N_iter = 100
+        N_ens  = 1000
+        eksobj = EKS_Run(s_param, forward, 
+        μ0, Σ0,
+        N_ens,
+        y, Σ_η,
+        N_iter)
+        @info "EKS large J t = ", sum(eksobj.Δt)
+    end
+    
+    
+    # visualization 
+
+    # Visualize different iterations
+    for iter  = 1:length(ukiobj.θ_mean)
+        nrows, ncols = 1, 1
+        fig, ax = PyPlot.subplots(nrows=nrows, ncols=ncols, sharex=true, sharey=true, figsize=(6,6))
+        # plot UKI results 
+
+        Nx = 1000
+        xxs, zzs = zeros(N_modes, Nx), zeros(N_modes, Nx)
+        θ_min = minimum(ukiobj.θ_mean[iter][:,1] .- 5sqrt.(ukiobj.θθ_cov[iter][:,1,1]))
+        θ_max = maximum(ukiobj.θ_mean[iter][:,1] .+ 5sqrt.(ukiobj.θθ_cov[iter][:,1,1]))
         
-#         if N_subfigs == 3
-#             errors[1, i] = norm(θ_ref - (transform_func === nothing ? θ_mean[i] : transform_func(θ_mean[i])))/norm(θ_ref)
-#         end
+        for i =1:N_modes
+            xxs[i, :], zzs[i, :] = Gaussian_1d(ukiobj.θ_mean[iter][i,1], ukiobj.θθ_cov[iter][i,1,1], Nx, θ_min, θ_max)
+            zzs[i, :] *= exp(ukiobj.logθ_w[iter][i])
+            ax.plot(xxs[i,:], zzs[i,:], marker= "o", linestyle=":", color="C"*string(i), fillstyle="none", markevery=100, label="UKI Modal "*string(i))
+        end
+        ax.plot(xxs[1,:], sum(zzs, dims=1)', marker= "*", linestyle="-", color="C0", fillstyle="none", markevery=100, label="UKI")
         
-#     end
-
-#     markevery = max(div(N_iter, 10), 1)
-#     ax[N_subfigs - 1].plot(ites, errors[N_subfigs - 1, :], linestyle="--", marker="o", fillstyle="none", markevery=markevery)
-#     ax[N_subfigs - 1].set_xlabel("Iterations")
-#     ax[N_subfigs - 1].set_ylabel("Optimization error")
-#     ax[N_subfigs - 1].grid()
-    
-#     ax[N_subfigs].plot(ites, errors[N_subfigs, :], linestyle="--", marker="o", fillstyle="none", markevery=markevery)
-#     ax[N_subfigs].set_xlabel("Iterations")
-#     ax[N_subfigs].set_ylabel("Frobenius norm of the covariance")
-#     ax[N_subfigs].grid()
-#     if N_subfigs == 3
-#         ax[1].set_xlabel("Iterations")
-#         ax[1].plot(ites, errors[1, :], linestyle="--", marker="o", fillstyle="none", markevery=markevery)
-#         ax[1].set_ylabel("L₂ norm error")
-#         ax[1].grid()
-#     end
-    
-# end
 
 
-
-
-
-
-
-# ##### Linear Test
-# mutable struct Setup_Param{MAT, IT<:Int}
-#     θ_names::Array{String,1}
-#     G::MAT
-#     N_θ::IT
-#     N_y::IT
-# end
-
-# function Setup_Param(G, N_θ::IT, N_y::IT) where {IT<:Int}
-#     return Setup_Param(["θ"], G, N_θ, N_y)
-# end
-
-
-# function forward(s_param::Setup_Param, θ::Array{FT, 1}) where {FT<:AbstractFloat}
-#     G = s_param.G 
-#     return G * θ
-# end
-
-# function forward_aug(s_param::Setup_Param, θ::Array{FT, 1}) where {FT<:AbstractFloat}
-#     G = s_param.G 
-#     return [G * θ; θ]
-# end
-
-
-# function Two_Param_Linear_Test(problem_type::String, θ0_bar, θθ0_cov)
-    
-#     N_θ = length(θ0_bar)
-
-    
-#     if problem_type == "under-determined"
-#         # under-determined case
-#         θ_ref = [0.6, 1.2]
-#         G = [1.0 2.0;]
         
-#         y = [3.0;]
-#         Σ_η = Array(Diagonal(fill(0.1^2, size(y))))
+        if Run_EKS
+            # plot EKS results 
+            θ = eksobj.θ[end]
+            ax.hist(θ, bins = 40, density = true, histtype = "step", label="EKS", color="C4")
+            ax.legend()
+        end
         
-        
-#     elseif problem_type == "well-determined"
-#         # over-determined case
-#         θ_ref = [1.0, 1.0]
-#         G = [1.0 2.0; 3.0 4.0]
-        
-#         y = [3.0;7.0]
-#         Σ_η = Array(Diagonal(fill(0.1^2, size(y))))
-        
-#     elseif problem_type == "over-determined"
-#         # over-determined case
-#         θ_ref = [1/3, 17/12.0]
-#         G = [1.0 2.0; 3.0 4.0; 5.0 6.0]
-        
-#         y = [3.0;7.0;10.0]
-#         Σ_η = Array(Diagonal(fill(0.1^2, size(y))))
-        
-        
-#     else
-#         error("Problem type : ", problem_type, " has not implemented!")
-#     end
+
+        if Run_MCMC
+            # plot MCMC results 
+            ax.hist(us[n_burn_in:end, 1], bins = 100, density = true, histtype = "step", label="MCMC", color="C3")
+        end
+
+
+        if Run_SMC
+            # plot SMC results 
+            θ = smcobj.θ[end]
+            weights = smcobj.weights[end]
+            ax.hist(θ, bins = 20, weights = weights, density = true, histtype = "step", label="SMC", color="C0")  
+        end
+
+        ax.legend()
+    end
     
-#     Σ_post = inv(G'*(Σ_η\G) + inv(θθ0_cov))
-#     θ_post = θ0_bar + Σ_post*(G'*(Σ_η\(y - G*θ0_bar)))
     
-
-#     return θ_post, Σ_post, G, y, Σ_η, θ_ref
-# end
-
-
-# function construct_cov(x::Array{FT,2}) where {FT<:AbstractFloat}
-    
-#     x_mean = dropdims(mean(x, dims=1), dims=1)
-#     N_ens, N_x = size(x)
-    
-#     x_cov = zeros(FT, N_x, N_x)
-    
-#     for i = 1: N_ens
-#         x_cov .+= (x[i,:] - x_mean)*(x[i,:] - x_mean)'
-#     end
-    
-#     return x_cov/(N_ens - 1)
-# end
+    nrows, ncols = 1, 1
+    fig, ax = PyPlot.subplots(nrows=nrows, ncols=ncols, sharex=true, sharey=true, figsize=(6,6))
+    θ_w = exp.(hcat(ukiobj.logθ_w...))
+    for i =1:N_modes
+        ax.plot(θ_w[i, :], "--o", label="mode"*string(i))
+    end
+    ax.legend()
+end
 
 
-# N_θ = 2
-# N_modes = 2
-# θ0_mean = zeros(Float64, N_modes, N_θ)
-# θθ0_cov = zeros(Float64, N_modes, N_θ, N_θ) 
 
-# θ0_mean[1, :]    = zeros(Float64, N_θ)
-# θθ0_cov[1, :, :] = Array(Diagonal(fill(0.1^2, N_θ)))
-# θ0_mean[2, :]    = ones(Float64, N_θ)
-# θθ0_cov[2, :, :] = Array(Diagonal(fill(1.0^2, N_θ)))
-# θ0_w  = [0.5 ; 0.5]
+mutable struct Setup_Param{IT<:Int}
+    θ_names::Array{String,1}
+    N_θ::IT
+    N_y::IT
+end
 
-# prior_mean, prior_cov = zeros(Float64, N_θ), Array(Diagonal(fill(1.0^2, N_θ)))
+function Setup_Param(N_θ::IT, N_y::IT) where {IT<:Int}
+    return Setup_Param(["θ"], N_θ, N_y)
+end
 
-# FT = Float64
-# uki_objs = Dict()
-# mean_errors = Dict()
+function p1(s_param, θ::Array{Float64,1})  
+    return [θ[1] ;]
+end
 
-# Random.seed!(123)
-# α_reg = 1.0
-# update_freq = 1
-# γ = 1.0
-# N_iter = 30
-# problem_type  = "under-determined" # "well-determined", "over-determined"
-    
-# θ_post, Σ_post, G, y, Σ_η, θ_ref = Two_Param_Linear_Test(problem_type, prior_mean, prior_cov)
+function p1_aug(s_param, θ::Array{Float64,1})  
+    return [θ[1] ; θ[1]]
+end
 
-# N_y = length(y)
-
-# s_param = Setup_Param(G, N_θ, N_y)
-# s_param_aug = Setup_Param(G, N_θ, N_y+N_θ)
-
-# y_aug = [y ; prior_mean]
-# Σ_η_aug = [Σ_η zeros(Float64, N_y, N_θ); zeros(Float64, N_θ, N_y)  prior_cov]
-
-# # UKI
-
-# uki_obj    = GMUKI_Run(s_param_aug, forward_aug, θ0_w, θ0_mean, θθ0_cov, y_aug, Σ_η_aug, γ, update_freq, N_iter; unscented_transform="modified-2n+1")
-# uki_errors = zeros(FT, N_iter+1, 2)
-
-# @info uki_obj.θ_w[end]
-# @info uki_obj.θ_mean[end]
-# @info uki_obj.θθ_cov[end]
-# @info θ_post, Σ_post
-
-# # for i = 1:N_iter+1
-# #     uki_errors[i, 1] = norm(uki_obj.θ_mean[i] .- θ_post)/norm(θ_post)
-# #     uki_errors[i, 2] = norm(uki_obj.θθ_cov[i] .- Σ_post)/norm(Σ_post)
-    
-# #     uki_2np1_errors[i, 1] = norm(uki_2np1_obj.θ_mean[i] .- θ_post)/norm(θ_post)
-# #     uki_2np1_errors[i, 2] = norm(uki_2np1_obj.θθ_cov[i] .- Σ_post)/norm(Σ_post)
-        
-# #     eki_errors[i, 1] = norm(dropdims(mean(eki_obj.θ[i], dims=1), dims=1) .- θ_post)/norm(θ_post)
-# #     eki_errors[i, 2] = norm(construct_cov(eki_obj.θ[i]) .- Σ_post)/norm(Σ_post)
-    
-# #     eaki_errors[i, 1] = norm(dropdims(mean(eaki_obj.θ[i], dims=1), dims=1) .- θ_post)/norm(θ_post)
-# #     eaki_errors[i, 2] = norm(construct_cov(eaki_obj.θ[i]) .- Σ_post)/norm(Σ_post)
-    
-# #     etki_errors[i, 1] = norm(dropdims(mean(etki_obj.θ[i], dims=1), dims=1) .- θ_post)/norm(θ_post)
-# #     etki_errors[i, 2] = norm(construct_cov(etki_obj.θ[i]) .- Σ_post)/norm(Σ_post)
-    
-# #     eks_errors[i, 1] = norm(dropdims(mean(eks_obj.θ[i], dims=1), dims=1) .- θ_post)/norm(θ_post)
-# #     eks_errors[i, 2] = norm(construct_cov(eks_obj.θ[i]) .- Σ_post)/norm(Σ_post)
-    
-# #     cbs_errors[i, 1] = norm(dropdims(mean(cbs_obj.θ[i], dims=1), dims=1) .- θ_post)/norm(θ_post)
-# #     cbs_errors[i, 2] = norm(construct_cov(cbs_obj.θ[i]) .- Σ_post)/norm(Σ_post)
-    
-# #     ###################
-# #     iukf_errors[i, 1] = norm(iukf_obj.θ_mean[i] .- θ_post)/norm(θ_post)
-# #     iukf_errors[i, 2] = norm(iukf_obj.θθ_cov[i] .- Σ_post)/norm(Σ_post)
-    
-# #     iukf_2np1_errors[i, 1] = norm(iukf_2np1_obj.θ_mean[i] .- θ_post)/norm(θ_post)
-# #     iukf_2np1_errors[i, 2] = norm(iukf_2np1_obj.θθ_cov[i] .- Σ_post)/norm(Σ_post)
-    
-# #     iekf_errors[i, 1] = norm(dropdims(mean(iekf_obj.θ[i], dims=1), dims=1) .- θ_post)/norm(θ_post)
-# #     iekf_errors[i, 2] = norm(construct_cov(iekf_obj.θ[i]) .- Σ_post)/norm(Σ_post)
-    
-# #     ietkf_errors[i, 1] = norm(dropdims(mean(ietkf_obj.θ[i], dims=1), dims=1) .- θ_post)/norm(θ_post)
-# #     ietkf_errors[i, 2] = norm(construct_cov(ietkf_obj.θ[i]) .- Σ_post)/norm(Σ_post)
-    
-# #     ieakf_errors[i, 1] = norm(dropdims(mean(ieakf_obj.θ[i], dims=1), dims=1) .- θ_post)/norm(θ_post)
-# #     ieakf_errors[i, 2] = norm(construct_cov(ieakf_obj.θ[i]) .- Σ_post)/norm(Σ_post)
-    
-# #     ieakf_false_errors[i, 1] = norm(dropdims(mean(ieakf_false_obj.θ[i], dims=1), dims=1) .- θ_post)/norm(θ_post)
-# #     ieakf_false_errors[i, 2] = norm(construct_cov(ieakf_false_obj.θ[i]) .- Σ_post)/norm(Σ_post)
-    
-# # end
-
-# # ites = Array(0:N_iter)
+function p1_aug_derivative(s_param, θ::Array{Float64,1})  
+    return [θ[1] ; θ[1]], [1.0 ; 1.0]
+end
 
 
-# # markevery = 5
 
-# # fig, ax = PyPlot.subplots(nrows = 2, ncols=2, sharex=false, sharey="row", figsize=(14,9))
-# # ax[1,1].semilogy(ites, uki_errors[:, 1],   "-.x", color = "C0", fillstyle="none", label="UKI-1 (J=$(N_θ+2))", markevery = markevery)
-# # ax[1,1].semilogy(ites, uki_2np1_errors[:, 1],   "-o", color = "C0", fillstyle="none", label="UKI-2 (J=$(2*N_θ+1))", markevery = markevery)
-# # ax[1,1].semilogy(ites, eki_errors[:, 1], "-s", color = "C1", fillstyle="none", label="EKI (J=$N_ens)", markevery = markevery)
-# # ax[1,1].semilogy(ites, eaki_errors[:, 1], "-^", color = "C2", fillstyle="none", label="EAKI (J=$N_ens)", markevery = markevery)
-# # ax[1,1].semilogy(ites, etki_errors[:, 1], "-d", color = "C3", fillstyle="none", label="ETKI (J=$N_ens)", markevery = markevery)
-# # ax[1,1].semilogy(ites, eks_errors[:, 1], "-*", color = "C4", fillstyle="none", label="EKS (J=$N_ens)", markevery = markevery)
-# # ax[1,1].semilogy(ites, cbs_errors[:, 1], "-v", color = "C5", fillstyle="none", label="CBS (J=$N_ens)", markevery = markevery)
-# # ax[1,1].set_xlabel("Iterations")
-# # ax[1,1].set_ylabel("Rel. mean error")
-# # ax[1,1].grid("on")
-# # ax[1,1].legend(bbox_to_anchor=(1.0, 1.0))
+function p2(s_param, θ::Array{Float64,1})  
+    return [θ[1]^2 ;]
+end
 
-# # ax[1,2].semilogy(ites, iukf_errors[:, 1],   "-.x", color = "C0", fillstyle="none", label="IUKF-1 (J=$(N_θ+2))", markevery = markevery)
-# # ax[1,2].semilogy(ites, iukf_2np1_errors[:, 1],   "-o", color = "C0", fillstyle="none", label="IUKF-2 (J=$(2*N_θ+1))", markevery = markevery)
-# # ax[1,2].semilogy(ites, iekf_errors[:, 1], "-s", color = "C1", fillstyle="none", label="IEnKF (J=$N_ens)", markevery = markevery)
-# # ax[1,2].semilogy(ites, ieakf_errors[:, 1], "-^", color = "C2", fillstyle="none", label="IEAKF (J=$N_ens)", markevery = markevery)
-# # ax[1,2].semilogy(ites, ietkf_errors[:, 1], "-d", color = "C3", fillstyle="none", label="IETKF (J=$N_ens)", markevery = markevery)
-# # # Initialization
-# # ax[1,2].semilogy(ites, ieakf_false_errors[:, 1], "-*", color = "C4", fillstyle="none", label="IEAKF* (J=$N_ens)", markevery = markevery)
+function p2_aug(s_param, θ::Array{Float64,1})  
+    return [θ[1]^2 ; θ[1]]
+end
 
-# # ax[1,2].set_xlabel("Iterations")
-# # #ax[1,2].set_ylabel("Rel. mean error")
-# # ax[1,2].grid("on")
-# # ax[1,2].legend(bbox_to_anchor=(1.0, 1.0))
-
-# # ax[2,1].semilogy(ites, uki_errors[:, 2],   "-.x", color = "C0", fillstyle="none", label="UKI-1 (J=$(N_θ+2))", markevery = markevery)
-# # ax[2,1].semilogy(ites, uki_2np1_errors[:, 2],   "-o", color = "C0", fillstyle="none", label="UKI-2 (J=$(2*N_θ+1))", markevery = markevery)
-# # ax[2,1].semilogy(ites, eki_errors[:, 2], "-s", color = "C1", fillstyle="none", label="EKI (J=$N_ens)", markevery = markevery)
-# # ax[2,1].semilogy(ites, eaki_errors[:, 2], "-^", color = "C2", fillstyle="none", label="EAKI (J=$N_ens)", markevery = markevery)
-# # ax[2,1].semilogy(ites, etki_errors[:, 2], "-d", color = "C3", fillstyle="none", label="ETKI (J=$N_ens)", markevery = markevery)
-# # ax[2,1].semilogy(ites, eks_errors[:, 2], "-*", color = "C4", fillstyle="none", label="EKS (J=$N_ens)", markevery = markevery)
-# # ax[2,1].semilogy(ites, cbs_errors[:, 2], "-v", color = "C5", fillstyle="none", label="CBS (J=$N_ens)", markevery = markevery)
-# # ax[2,1].set_xlabel("Iterations")
-# # ax[2,1].set_ylabel("Rel. covariance error")
-# # ax[2,1].grid("on")
-# # ax[2,1].legend(bbox_to_anchor=(1.0, 1.0))
+function p2_aug_derivative(s_param, θ::Array{Float64,1})  
+    return [θ[1]^2 ; θ[1]], [2θ[1] ; 1.0]
+end
 
 
-# # ax[2,2].semilogy(ites, iukf_errors[:, 2],   "-.x", color = "C0", fillstyle="none", label="IUKF-1 (J=$(N_θ+2))", markevery = markevery)
-# # ax[2,2].semilogy(ites, iukf_2np1_errors[:, 2],   "-o", color = "C0", fillstyle="none", label="IUKF-2 (J=$(2*N_θ+1))", markevery = markevery)
-# # ax[2,2].semilogy(ites, iekf_errors[:, 2], "-s", color = "C1", fillstyle="none", label="IEnKF (J=$N_ens)", markevery = markevery)
-# # ax[2,2].semilogy(ites, ieakf_errors[:, 2], "-^", color = "C2", fillstyle="none", label="IEAKF (J=$N_ens)", markevery = markevery)
-# # ax[2,2].semilogy(ites, ietkf_errors[:, 2], "-d", color = "C3", fillstyle="none", label="IETKF (J=$N_ens)", markevery = markevery)
-# # # Initialization
-# # ax[2,2].semilogy(ites, ieakf_false_errors[:, 2], "-*", color = "C4", fillstyle="none", label="IEAKF* (J=$N_ens)", markevery = markevery)
-# # ax[2,2].set_xlabel("Iterations")
-# # #ax[2,2].set_ylabel("Rel. covariance error")
-# # ax[2,2].grid("on")
-# # ax[2,2].legend(bbox_to_anchor=(1.0, 1.0))
-# # fig.suptitle("Linear 2-Parameter Problem : " * problem_type)
 
-# # fig.tight_layout()
+Posterior_Plot(p2, p2_aug; θ_ref = 1.0, σ_η = 1.0, μ_0 = 3.0,  σ_0 = 2.0) 

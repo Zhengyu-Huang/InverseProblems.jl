@@ -12,11 +12,17 @@ merge!(rcParams, font0)
 
 
 
-function Gaussian_1d(θ_mean::FT, θθ_cov::FT, Nx::IT) where {FT<:AbstractFloat, IT<:Int}
+function Gaussian_1d(θ_mean::FT, θθ_cov::FT, Nx::IT, θ_min=nothing, θ_max=nothing) where {FT<:AbstractFloat, IT<:Int}
     # 1d Gaussian plot
+    if θ_min === nothing
+        θ_min = θ_mean - 5*sqrt(θθ_cov)
+    end
+    if θ_max === nothing
+        θ_max = θ_mean + 5*sqrt(θθ_cov)
+    end
     
-    θ_range = 5*sqrt(θθ_cov)
-    θ = Array(LinRange(θ_mean - θ_range, θ_mean + θ_range, Nx))
+    θ = Array(LinRange(θ_min, θ_max, Nx))
+
     ρθ = similar(θ)
     
     for ix = 1:Nx  
