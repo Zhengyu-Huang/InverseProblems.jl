@@ -5,16 +5,6 @@ using LinearAlgebra
 using DocStringExtensions
 
 
-# TODO Delete
-using PyPlot
-include("Plot.jl")
-include("Utility.jl")
-include("RWMCMC.jl")
-include("SMC.jl")
-include("EKS.jl")
-# generate ensemble
-Random.seed!(123)
-
 """
 UKIObj{FT<:AbstractFloat, IT<:Int}
 Struct that is used in Unscented Kalman Inversion (UKI)
@@ -301,14 +291,19 @@ function construct_cov(uki::GMUKIObj{FT, IT}, xs::Array{FT,3}, x_means::Array{FT
 end
 
 
+function Gaussian_density(θ_mean::Array{FT,1}, θθ_cov::Array{FT,2}, θ::Array{FT,1}) where {FT<:AbstractFloat}
+    N_θ = size(θ_mean,1)
+    
+    return exp( -1/2*((θ - θ_mean)'* (θθ_cov\(θ - θ_mean)) )) / ( (2π)^(N_θ/2)*sqrt(det(θθ_cov)) )
 
+end
 
 function Gaussian_mixture_density(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_cov::Array{FT,3}, θ::Array{FT,1}) where {FT<:AbstractFloat}
     ρ = 0.0
     N_modes, N_θ = size(θ_mean)
     
     for i = 1:N_modes
-        ρ += θ_w[i]*exp( -1/2*((θ - θ_mean[i,:])'* (θθ_cov[i,:,:]\(θ - θ_mean[i,:])) ))
+        ρ += θ_w[i]*Gaussian_density(θ_mean[i,:], θθ_cov[i,:,:], θ)
     end
     return ρ
 end
@@ -329,7 +324,7 @@ function Gaussian_mixture_power(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_co
     end
     θ_mean_p = copy(θ_mean)
     
-    if method == "sampling"
+    if method == "UKF-sampling"
         
         N_ens = 2N_θ+1
         α = sqrt((N_ens-1)/2.0)
@@ -352,10 +347,12 @@ function Gaussian_mixture_power(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_co
              
             
             θ_mean_p[i,:] = ws' * xs / sum(ws)
-
-            θ_mean_p[i,:] = θ_mean[i, :] + 5(θ_mean_p[i,:] - θ_mean[i, :])
+            # TODO 
+            # θ_mean_p[i,:] = θ_mean[i, :] + 5(θ_mean_p[i,:] - θ_mean[i, :])
+            θ_w_p[i] = sum(ws)/N_ens
             
-            @show i, θ_mean[i,:], θ_mean_p[i,:]
+    
+            @show i, θ_mean[i,:], θ_mean_p[i,:], θ_w[i], θ_w_p[i]
         end
         
         
@@ -368,18 +365,112 @@ function Gaussian_mixture_power(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_co
         for i = 1:N_modes
             
             # construct sigma points
-            
-            
-            xs .= rand(MvNormal(θ_mean[i, :], θθ_cov[i,:,:]), N_ens)'
-            
-            for j = 1:N_ens
-                ws[j] = θ_w[i]*Gaussian_mixture_density(θ_w, θ_mean, θθ_cov, xs[j, :])^(αpower - 1)
+            method1 = false
+
+            if method1
+                Random.seed!(123);
+                xs .= rand(MvNormal(θ_mean[i, :], θθ_cov[i,:,:]), N_ens)'
+                
+                for j = 1:N_ens
+                    ws[j] = θ_w[i]*Gaussian_mixture_density(θ_w, θ_mean, θθ_cov, xs[j, :])^(αpower - 1)
+                end
+                
+
+                θ_mean_p[i,:] = ws' * xs / sum(ws)
+                θ_w_p[i] = sum(ws)/N_ens
+            else
+                Random.seed!(123);
+                xs .= rand(MvNormal(θ_mean[i, :], θθ_cov[i,:,:]/αpower), N_ens)'
+                
+                for j = 1:N_ens
+                    ws[j] = (θ_w[i]*Gaussian_density(θ_mean[i,:], θθ_cov[i,:,:], xs[j, :])/Gaussian_mixture_density(θ_w, θ_mean, θθ_cov, xs[j, :]))^(1 - αpower)
+                end
+                
+
+                θ_mean_p[i,:] = ws' * xs / sum(ws)
+                # θ_mean_p[i,:] = θ_mean[i,:] + 0.9*(θ_mean_p[i,:] - θ_mean[i,:])
+                # θθ_cov_p[i,:,:] = (xs - ones(N_ens)*θ_mean_p[i,:]')' * (Diagonal(ws)/sum(ws)) * (xs - ones(N_ens)*θ_mean_p[i,:]')  
+                θ_w_p[i] = θ_w[i]^αpower * det(θθ_cov[i,:,:])^((1-αpower)/2) * sum(ws)/N_ens
             end
-             
+
+
+            @show "mode : ", i, θθ_cov[i,:,:], θ_mean[i,:]
+            @show "mode : ", i, θ_w[i], θ_w_p[i], sum(ws)/N_ens
+    
             
-            θ_mean_p[i,:] = ws' * xs / sum(ws)
-            
-            @show i, θ_mean[i,:], θ_mean_p[i,:]
+        end
+
+    elseif method == "Taylor-expansion"
+        Ĉ_ji = zeros(N_modes, N_θ, N_θ)
+        m̂_ji = zeros(N_modes, N_θ)
+        ŵ_ji = zeros(N_modes)
+        w̃_ji = zeros(N_modes)
+        for i = 1:N_modes
+
+            if θ_w[i] < 1e-6
+                continue
+            end
+
+            for j = 1:N_modes
+                Ĉ_ji[j,:,:] = inv( inv(θθ_cov[j,:,:]) + αpower*inv(θθ_cov[i,:,:]) )
+            end
+            for iter = 1:1
+                for j = 1:N_modes
+                    m̂_ji[j,:] = Ĉ_ji[j,:,:]*(θθ_cov[j,:,:]\θ_mean_p[i, :] + αpower*(θθ_cov[i,:,:]\θ_mean[j, :]))
+                    # @info Ĉ_ji[j,:,:], θθ_cov[j,:,:]\θ_mean_p[i, :] , αpower*θθ_cov[i,:,:]\θ_mean[j, :], αpower
+                    # @info "i, j = ", i, j
+                    # @info "mi, mj, mij",θ_mean_p[i, :],  θ_mean[j, :],  m̂_ji[j,:]
+                    # @info "Ci, Cj, Cij",θθ_cov[i,:,:],  θθ_cov[j,:,:],  Ĉ_ji[j,:,:]
+                    # @info -αpower/2*(θ_mean_p[i, :]'*(θθ_cov[i,:,:]\θ_mean_p[i, :])), 
+                    #       1/2*(θ_mean[j, :]'*(θθ_cov[j,:,:]\θ_mean[j, :])),
+                    #       1/2*(m̂_ji[j,:]'*(Ĉ_ji[j,:,:]\m̂_ji[j,:]))
+                    w̃_ji[j] = exp(-αpower/2*(θ_mean_p[i, :]'*(θθ_cov[i,:,:]\θ_mean_p[i, :])) - 
+                                  1/2*(θ_mean[j, :]'*(θθ_cov[j,:,:]\θ_mean[j, :])) +
+                                  1/2*(m̂_ji[j,:]'*(Ĉ_ji[j,:,:]\m̂_ji[j,:]))) *
+                                  sqrt(det(Ĉ_ji[j,:,:])/det(θθ_cov[j,:,:])/det(θθ_cov[i,:,:]))
+                end
+
+                temp_deno = (αpower*θ_w[i]*w̃_ji[i]  + (1-αpower)*sum(θ_w.*w̃_ji))
+                θ_w_p[i] = θ_w[i]^(αpower + 1)/det(θθ_cov[i,:,:])^(αpower/2)/temp_deno
+                
+                # ÂΔm̂ = b̂
+                temp_Â = θ_w[i]*w̃_ji[i]/(1 + αpower)*I
+                temp_b̂ = zeros(N_θ) 
+                @info "temp_Â, temp_b̂ = ", temp_Â, temp_b̂
+                for j = 1:N_modes
+                    if j != i
+                        temp_Â +=        (1-αpower)*θ_w[j]*w̃_ji[j]* (Ĉ_ji[j,:,:]/θθ_cov[j,:,:])
+                        temp_b̂ -= αpower*(1-αpower)*θ_w[j]*w̃_ji[j]* (Ĉ_ji[j,:,:]*(θθ_cov[i,:,:]\(θ_mean[j, :] - θ_mean[i, :])))
+                    end
+                end
+                
+                Δθ_mean = temp_Â\temp_b̂
+                @info "iter = ", iter, "θ_w[i] = ", θ_w[i], " θ_mean[i, :] = ", θ_mean[i, :], "Δθ_mean = ", Δθ_mean
+                θ_mean_p[i, :] = θ_mean[i, :] + Δθ_mean
+
+
+                
+
+                # ####
+                # temp_Â = αpower*θ_w[i]*w̃_ji[i]* (Ĉ_ji[i,:,:]/θθ_cov[i,:,:])
+                # temp_b̂ = temp_deno*θ_mean[i, :] - αpower*θ_w[i]*w̃_ji[i]*(Ĉ_ji[i,:,:]*(θθ_cov[i,:,:]\θ_mean[i, :]))
+
+                # @info "temp_Â, temp_b̂ = ", temp_Â, temp_b̂
+
+                # for j = 1:N_modes
+                #     temp_Â += (1-αpower)*θ_w[j]*w̃_ji[j]*(Ĉ_ji[j,:,:]/θθ_cov[j,:,:])
+                #     temp_b̂ -= αpower*(1-αpower)*θ_w[j]*w̃_ji[j]* (Ĉ_ji[j,:,:]*(θθ_cov[i,:,:]\θ_mean[j,:,:]))
+                # end
+
+                # @info "θ_w[i] = ", θ_w[i], " temp_Â, temp_b̂ = ", temp_Â, temp_b̂
+                # @info "??? ", θ_mean_p[i, :] , temp_Â\temp_b̂
+                # θ_mean_p[i, :] = temp_Â\temp_b̂
+                                
+        
+                @info w̃_ji
+                @info "Mode ", i, " Iteration: ", iter, θ_w[i], θ_w_p[i], m̂_ji[i,:], θ_mean_p[i, :]
+            end
+            @show i, θθ_cov[i,:,:], θ_mean[i,:], θ_mean_p[i,:], θ_w[i], θ_w_p[i], m̂_ji[i,:]
         end
 
     else
@@ -421,22 +512,21 @@ function update_ensemble!(uki::GMUKIObj{FT, IT}, ens_func::Function) where {FT<:
 
     y = uki.y
     ############# Prediction step:
-    θ_p_mean  = θ_mean
+    
     #TODO push mean
     # θ_mean_all = mean(θ_mean, dims=1)
     # θ_p_mean  = ones(N_modes)*θ_mean_all + sqrt(1 +  0.2)*(θ_mean - ones(N_modes)*θ_mean_all)
     
-
-    θθ_p_cov = (Σ_ω === nothing ? θθ_cov : θθ_cov + Σ_ω)
-    logθ_w_p = (1/(γ_ω + 1))  * logθ_w
-    for im = 1:N_modes
-        logθ_w_p[im] += (γ_ω/(2*(γ_ω + 1)))*log(det(θθ_cov[im,:,:]))
-    end
+    # θ_p_mean  = θ_mean
+    # θθ_p_cov = (Σ_ω === nothing ? θθ_cov : θθ_cov + Σ_ω)
+    # logθ_w_p = (1/(γ_ω + 1))  * logθ_w
+    # for im = 1:N_modes
+    #     logθ_w_p[im] += (γ_ω/(2*(γ_ω + 1)))*log(det(θθ_cov[im,:,:]))
+    # end
 
     ##TODO
     logθ_w_p, θ_p_mean, θθ_p_cov = Gaussian_mixture_power(exp.(logθ_w), θ_mean, θθ_cov, 1/(γ_ω + 1); method="random-sampling")
     logθ_w_p = log.(logθ_w_p)
-
     @info "updata : θ_mean = ", θ_mean, " θ_p_mean = ", θ_p_mean
     # logθ_w_p = logθ_w
     
@@ -477,7 +567,7 @@ function update_ensemble!(uki::GMUKIObj{FT, IT}, ens_func::Function) where {FT<:
         logθ_w_n[im] = 1/2*( temp'*θθ_cov_n[im, :, :]*temp -  z'*(Σ_ν\z))
     end
 
-   
+    @show logθ_w_n
     for im = 1:N_modes
         logθ_w_n[im] += logθ_w_p[im] + log(sqrt(det(θθ_cov_n[im, :, :]) / det(θθ_cov[im, :, :])))
     end
@@ -531,170 +621,3 @@ function GMUKI_Run(s_param, forward::Function,
 end
 
 
-function Posterior_Plot(forward::Function, forward_aug::Function;  θ_ref = 2.0, σ_η = 0.1, μ_0 = 3.0,  σ_0 = 2.0)
-    Run_EKS = false
-    Run_SMC = false
-    Run_MCMC = true
-    N_y, N_θ = 1, 1
-    s_param = Setup_Param(N_θ, N_y)
-    y = forward(s_param, [θ_ref;])
-    Σ_η = reshape([σ_η^2], (N_y, N_y))
-    # prior distribution
-    μ0,  Σ0   = [μ_0;], reshape([σ_0^2],  (N_θ, N_θ))
-    
-
-
-    # compute posterior distribution by UKI
-    update_freq = 1
-    N_iter = 50
-    N_modes = 2
-    θ0_w  = [0.5; 0.5]
-    θ0_mean, θθ0_cov  = zeros(N_modes, N_θ), zeros(N_modes, N_θ, N_θ)
-    
-    θ0_mean[1, :]    .= -3.0
-    θθ0_cov[1, :, :] .=  reshape([0.5^2],  (1, 1))
-    θ0_mean[2, :]    .=  3.0
-    θθ0_cov[2, :, :] .=  reshape([0.5^2],  (1, 1))
-    
-    s_param_aug = Setup_Param(1,2)
-    y_aug = [y ; μ0]
-    Σ_η_aug = [Σ_η zeros(Float64, N_y, N_θ); zeros(Float64, N_θ, N_y) Σ0]
-    γ = 1.0
-    # Δt = γ/(1+γ)
-    ukiobj = GMUKI_Run(s_param_aug, forward_aug, θ0_w, θ0_mean, θθ0_cov, y_aug, Σ_η_aug, γ, update_freq, N_iter; unscented_transform="modified-2n+1")
-    
-
-
-    if Run_MCMC
-        # compute posterior distribution by MCMC
-        logρ(θ) = log_bayesian_posterior(s_param, θ, forward, y, Σ_η, μ0, Σ0) 
-        step_length = 1.0
-        N_iter , n_burn_in= 5000000, 1000000
-        us = RWMCMC_Run(logρ, μ0, step_length, N_iter)
-    end
-    
-    # compute posterior distribution by SMC
-    if Run_SMC
-        N_ens = 1000
-        M_threshold = Float64(N_ens)
-        N_t = 100
-        step_length = 1.0
-        smcobj = SMC_Run(s_param, forward,
-        μ0, Σ0, 
-        y, Σ_η,
-        N_ens, 
-        step_length,
-        M_threshold,
-        N_t) 
-    end
-
-    if Run_EKS
-        N_iter = 100
-        N_ens  = 1000
-        eksobj = EKS_Run(s_param, forward, 
-        μ0, Σ0,
-        N_ens,
-        y, Σ_η,
-        N_iter)
-        @info "EKS large J t = ", sum(eksobj.Δt)
-    end
-    
-    
-    # visualization 
-
-    # Visualize different iterations
-    for iter  = 1:length(ukiobj.θ_mean)
-        nrows, ncols = 1, 1
-        fig, ax = PyPlot.subplots(nrows=nrows, ncols=ncols, sharex=true, sharey=true, figsize=(6,6))
-        # plot UKI results 
-
-        Nx = 1000
-        xxs, zzs = zeros(N_modes, Nx), zeros(N_modes, Nx)
-        θ_min = minimum(ukiobj.θ_mean[iter][:,1] .- 5sqrt.(ukiobj.θθ_cov[iter][:,1,1]))
-        θ_max = maximum(ukiobj.θ_mean[iter][:,1] .+ 5sqrt.(ukiobj.θθ_cov[iter][:,1,1]))
-        
-        for i =1:N_modes
-            xxs[i, :], zzs[i, :] = Gaussian_1d(ukiobj.θ_mean[iter][i,1], ukiobj.θθ_cov[iter][i,1,1], Nx, θ_min, θ_max)
-            zzs[i, :] *= exp(ukiobj.logθ_w[iter][i])
-            ax.plot(xxs[i,:], zzs[i,:], marker= "o", linestyle=":", color="C"*string(i), fillstyle="none", markevery=100, label="UKI Modal "*string(i))
-        end
-        ax.plot(xxs[1,:], sum(zzs, dims=1)', marker= "*", linestyle="-", color="C0", fillstyle="none", markevery=100, label="UKI")
-        
-
-
-        
-        if Run_EKS
-            # plot EKS results 
-            θ = eksobj.θ[end]
-            ax.hist(θ, bins = 40, density = true, histtype = "step", label="EKS", color="C4")
-            ax.legend()
-        end
-        
-
-        if Run_MCMC
-            # plot MCMC results 
-            ax.hist(us[n_burn_in:end, 1], bins = 100, density = true, histtype = "step", label="MCMC", color="C3")
-        end
-
-
-        if Run_SMC
-            # plot SMC results 
-            θ = smcobj.θ[end]
-            weights = smcobj.weights[end]
-            ax.hist(θ, bins = 20, weights = weights, density = true, histtype = "step", label="SMC", color="C0")  
-        end
-
-        ax.legend()
-    end
-    
-    
-    nrows, ncols = 1, 1
-    fig, ax = PyPlot.subplots(nrows=nrows, ncols=ncols, sharex=true, sharey=true, figsize=(6,6))
-    θ_w = exp.(hcat(ukiobj.logθ_w...))
-    for i =1:N_modes
-        ax.plot(θ_w[i, :], "--o", label="mode"*string(i))
-    end
-    ax.legend()
-end
-
-
-
-mutable struct Setup_Param{IT<:Int}
-    θ_names::Array{String,1}
-    N_θ::IT
-    N_y::IT
-end
-
-function Setup_Param(N_θ::IT, N_y::IT) where {IT<:Int}
-    return Setup_Param(["θ"], N_θ, N_y)
-end
-
-function p1(s_param, θ::Array{Float64,1})  
-    return [θ[1] ;]
-end
-
-function p1_aug(s_param, θ::Array{Float64,1})  
-    return [θ[1] ; θ[1]]
-end
-
-function p1_aug_derivative(s_param, θ::Array{Float64,1})  
-    return [θ[1] ; θ[1]], [1.0 ; 1.0]
-end
-
-
-
-function p2(s_param, θ::Array{Float64,1})  
-    return [θ[1]^2 ;]
-end
-
-function p2_aug(s_param, θ::Array{Float64,1})  
-    return [θ[1]^2 ; θ[1]]
-end
-
-function p2_aug_derivative(s_param, θ::Array{Float64,1})  
-    return [θ[1]^2 ; θ[1]], [2θ[1] ; 1.0]
-end
-
-
-
-Posterior_Plot(p2, p2_aug; θ_ref = 1.0, σ_η = 1.0, μ_0 = 3.0,  σ_0 = 2.0) 
