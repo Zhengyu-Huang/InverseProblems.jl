@@ -290,6 +290,13 @@ function construct_cov(uki::GMUKIObj{FT, IT}, xs::Array{FT,3}, x_means::Array{FT
     return xy_covs
 end
 
+function Gaussian_density_helper(θ_mean::Array{FT,1}, θθ_cov::Array{FT,2}, θ::Array{FT,1}) where {FT<:AbstractFloat}
+    N_θ = size(θ_mean,1)
+    
+    return exp( -1/2*((θ - θ_mean)'* (θθ_cov\(θ - θ_mean)) )) / ( sqrt(det(θθ_cov)) )
+
+end
+
 
 function Gaussian_density(θ_mean::Array{FT,1}, θθ_cov::Array{FT,2}, θ::Array{FT,1}) where {FT<:AbstractFloat}
     N_θ = size(θ_mean,1)
@@ -352,7 +359,7 @@ function Gaussian_mixture_power(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_co
             θ_w_p[i] = sum(ws)/N_ens
             
     
-            @show i, θ_mean[i,:], θ_mean_p[i,:], θ_w[i], θ_w_p[i]
+            # @show i, θ_mean[i,:], θ_mean_p[i,:], θ_w[i], θ_w_p[i]
         end
         
         
@@ -379,13 +386,18 @@ function Gaussian_mixture_power(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_co
                 θ_mean_p[i,:] = ws' * xs / sum(ws)
                 θ_w_p[i] = sum(ws)/N_ens
             else
+
                 Random.seed!(123);
-                xs .= rand(MvNormal(θ_mean[i, :], θθ_cov[i,:,:]/αpower), N_ens)'
+                chol_xx_cov = cholesky(Hermitian(θθ_cov[i,:,:]/αpower)).L
+                xs .= (θ_mean[i, :] .+ chol_xx_cov*rand(Normal(0, 1), N_θ, N_ens))'
                 
                 for j = 1:N_ens
+                    # ws[j] = (Gaussian_density(θ_mean[i,:], θθ_cov[i,:,:], xs[j, :])/Gaussian_mixture_density(ones(N_modes), θ_mean, θθ_cov, xs[j, :]))^(1 - αpower)
+                
                     ws[j] = (θ_w[i]*Gaussian_density(θ_mean[i,:], θθ_cov[i,:,:], xs[j, :])/Gaussian_mixture_density(θ_w, θ_mean, θθ_cov, xs[j, :]))^(1 - αpower)
                 end
                 
+                ws[ ws .== NaN ] .= 0
 
                 θ_mean_p[i,:] = ws' * xs / sum(ws)
                 # θ_mean_p[i,:] = θ_mean[i,:] + 0.9*(θ_mean_p[i,:] - θ_mean[i,:])
@@ -393,9 +405,9 @@ function Gaussian_mixture_power(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_co
                 θ_w_p[i] = θ_w[i]^αpower * det(θθ_cov[i,:,:])^((1-αpower)/2) * sum(ws)/N_ens
             end
 
-
-            @show "mode : ", i, θθ_cov[i,:,:], θ_mean[i,:]
-            @show "mode : ", i, θ_w[i], θ_w_p[i], sum(ws)/N_ens
+            # @show "mode : ", θ_w
+            # @show "mode : ", i, θθ_cov[i,:,:], θ_mean[i,:]
+            # @show "mode : ", i, θ_w[i], θ_w_p[i], sum(ws)/N_ens
     
             
         end
@@ -482,7 +494,24 @@ function Gaussian_mixture_power(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_co
     return θ_w_p, θ_mean_p, θθ_cov_p
 end
 
+# reweight Gaussian mixture weights
+function reweight(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_cov::Array{FT,3}, θ_s::Array{FT,2}, p_s::Array{FT,1}) where {FT<:AbstractFloat}
+    N_modes = size(θ_mean, 1)
+    N_s   = length(p_s)
+    A = zeros(N_s, N_modes)
 
+    for i = 1:N_modes
+        for j =1:N_s
+            A[i, j] = Gaussian_density_helper(θ_mean[i,:], θθ_cov[i,:,:], θ_s[j,:])
+        end
+    end
+
+    θ_w_p = A\p_s
+    θ_w_p[θ_w_p .< 0] .= 0
+    θ_w_p /= sum(θ_w_p)
+
+    return θ_w_p
+end
 """
 update uki struct
 ens_func: The function g = G(θ)
@@ -527,7 +556,7 @@ function update_ensemble!(uki::GMUKIObj{FT, IT}, ens_func::Function) where {FT<:
     ##TODO
     logθ_w_p, θ_p_mean, θθ_p_cov = Gaussian_mixture_power(exp.(logθ_w), θ_mean, θθ_cov, 1/(γ_ω + 1); method="random-sampling")
     logθ_w_p = log.(logθ_w_p)
-    @info "updata : θ_mean = ", θ_mean, " θ_p_mean = ", θ_p_mean
+    @info "prediction step  : θ_mean = ", θ_mean, " θ_p_mean = ", θ_p_mean
     # logθ_w_p = logθ_w
     
     ############ Generate sigma points
@@ -554,6 +583,9 @@ function update_ensemble!(uki::GMUKIObj{FT, IT}, ens_func::Function) where {FT<:
     θθ_cov_n = copy(θθ_p_cov)
     logθ_w_n = copy(logθ_w)
 
+
+    # @show "After prediction logθ_w_p = ", logθ_w_p
+
     for im = 1:N_modes
 
         tmp[im, :, :] = θg_cov[im, :, :] / (gg_cov[im, :, :] + Σ_ν)
@@ -563,18 +595,33 @@ function update_ensemble!(uki::GMUKIObj{FT, IT}, ens_func::Function) where {FT<:
         θθ_cov_n[im, :, :] =  θθ_p_cov[im, :, :] - tmp[im, :, :]*θg_cov[im, :, :]' 
 
         z = y - g_mean[im, :]
-        temp = θθ_cov[im, :, :]\(θg_cov[im, :, :]*(Σ_ν\z))
-        logθ_w_n[im] = 1/2*( temp'*θθ_cov_n[im, :, :]*temp -  z'*(Σ_ν\z))
+        # temp = θθ_cov[im, :, :]\(θg_cov[im, :, :]*(Σ_ν\z))
+        # logθ_w_n[im] = 1/2*( temp'*θθ_cov_n[im, :, :]*temp -  z'*(Σ_ν\z))
+
+        logθ_w_n[im] = 1/2*( (θ_mean_n[im, :] - θ_p_mean[im, :])'*(θθ_cov_n[im, :, :]\(θ_mean_n[im, :] - θ_p_mean[im, :])) -  z'*(Σ_ν\z))
     end
 
-    @show logθ_w_n
+    # @show logθ_w_n
     for im = 1:N_modes
         logθ_w_n[im] += logθ_w_p[im] + log(sqrt(det(θθ_cov_n[im, :, :]) / det(θθ_cov[im, :, :])))
     end
 
     logθ_w_n .-= maximum(logθ_w_n)
     logθ_w_n .-= log( sum(exp.(logθ_w_n)) )
-    
+
+    # TODO reweight
+    REWEIGHT = false
+    if REWEIGHT
+        g_mean_n = ens_func(θ_mean_n)
+        p_n = zeros(N_modes)
+        for i = 1:N_modes
+            p_n[i] = exp(-1.0/2.0* ((y - g_mean_n[i,:])'*(uki.Σ_η\(y - g_mean_n[i,:]))) )
+        end
+        θ_w_n = reweight(exp.(logθ_w_n), θ_mean_n, θθ_cov_n, θ_mean_n, p_n)
+        logθ_w_n .= log.(θ_w_n)
+    end
+
+    # @show "Iteration logθ_w_n = ", logθ_w_n
 
     ########### Save resutls
     push!(uki.y_pred, g_mean)     # N_ens x N_data

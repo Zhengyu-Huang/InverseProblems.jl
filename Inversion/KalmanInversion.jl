@@ -20,6 +20,11 @@ include("IKF.jl")
 include("EKS.jl")
 
 
+# Gaussian Mixture Kalman Inversion methods 
+# which sample posterior in an infinite time horizon 
+include("GMKI.jl")
+
+
 
 # Consensus-based sampler
 include("CBS.jl")
