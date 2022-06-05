@@ -304,6 +304,16 @@ function Gaussian_density(θ_mean::Array{FT,1}, θθ_cov::Array{FT,2}, θ::Array
     return exp( -1/2*((θ - θ_mean)'* (θθ_cov\(θ - θ_mean)) )) / ( (2π)^(N_θ/2)*sqrt(det(θθ_cov)) )
 
 end
+function Gaussian_mixture_density_helper(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_cov::Array{FT,3}, θ::Array{FT,1}) where {FT<:AbstractFloat}
+    ρ = 0.0
+    N_modes, N_θ = size(θ_mean)
+    
+    for i = 1:N_modes
+        ρ += θ_w[i]*Gaussian_density_helper(θ_mean[i,:], θθ_cov[i,:,:], θ)
+    end
+    return ρ
+end
+
 
 function Gaussian_mixture_density(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_cov::Array{FT,3}, θ::Array{FT,1}) where {FT<:AbstractFloat}
     ρ = 0.0
@@ -394,12 +404,20 @@ function Gaussian_mixture_power(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_co
                 for j = 1:N_ens
                     # ws[j] = (Gaussian_density(θ_mean[i,:], θθ_cov[i,:,:], xs[j, :])/Gaussian_mixture_density(ones(N_modes), θ_mean, θθ_cov, xs[j, :]))^(1 - αpower)
                 
-                    ws[j] = (θ_w[i]*Gaussian_density(θ_mean[i,:], θθ_cov[i,:,:], xs[j, :])/Gaussian_mixture_density(θ_w, θ_mean, θθ_cov, xs[j, :]))^(1 - αpower)
+                    ws[j] = (θ_w[i]*Gaussian_density_helper(θ_mean[i,:], θθ_cov[i,:,:], xs[j, :])/Gaussian_mixture_density_helper(θ_w, θ_mean, θθ_cov, xs[j, :]))^(1 - αpower)
                 end
                 
-                ws[ ws .== NaN ] .= 0
+                # if any(isnan,ws) || sum(ws) < 1.0
+                #     continue
+                # end
+                
 
                 θ_mean_p[i,:] = ws' * xs / sum(ws)
+
+                # @info "i  ws :", ws
+                # @info "i  θ_mean_p :", θ_mean_p[i,:]
+
+
                 # θ_mean_p[i,:] = θ_mean[i,:] + 0.9*(θ_mean_p[i,:] - θ_mean[i,:])
                 # θθ_cov_p[i,:,:] = (xs - ones(N_ens)*θ_mean_p[i,:]')' * (Diagonal(ws)/sum(ws)) * (xs - ones(N_ens)*θ_mean_p[i,:]')  
                 θ_w_p[i] = θ_w[i]^αpower * det(θθ_cov[i,:,:])^((1-αpower)/2) * sum(ws)/N_ens
@@ -479,10 +497,10 @@ function Gaussian_mixture_power(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_co
                 # θ_mean_p[i, :] = temp_Â\temp_b̂
                                 
         
-                @info w̃_ji
-                @info "Mode ", i, " Iteration: ", iter, θ_w[i], θ_w_p[i], m̂_ji[i,:], θ_mean_p[i, :]
+                # @info w̃_ji
+                # @info "Mode ", i, " Iteration: ", iter, θ_w[i], θ_w_p[i], m̂_ji[i,:], θ_mean_p[i, :]
             end
-            @show i, θθ_cov[i,:,:], θ_mean[i,:], θ_mean_p[i,:], θ_w[i], θ_w_p[i], m̂_ji[i,:]
+            # @show i, θθ_cov[i,:,:], θ_mean[i,:], θ_mean_p[i,:], θ_w[i], θ_w_p[i], m̂_ji[i,:]
         end
 
     else
@@ -556,7 +574,7 @@ function update_ensemble!(uki::GMUKIObj{FT, IT}, ens_func::Function) where {FT<:
     ##TODO
     logθ_w_p, θ_p_mean, θθ_p_cov = Gaussian_mixture_power(exp.(logθ_w), θ_mean, θθ_cov, 1/(γ_ω + 1); method="random-sampling")
     logθ_w_p = log.(logθ_w_p)
-    @info "prediction step  : θ_mean = ", θ_mean, " θ_p_mean = ", θ_p_mean
+    # @info "prediction step  : θ_mean = ", θ_mean, " θ_p_mean = ", θ_p_mean
     # logθ_w_p = logθ_w
     
     ############ Generate sigma points
@@ -608,6 +626,9 @@ function update_ensemble!(uki::GMUKIObj{FT, IT}, ens_func::Function) where {FT<:
 
     logθ_w_n .-= maximum(logθ_w_n)
     logθ_w_n .-= log( sum(exp.(logθ_w_n)) )
+
+    # TODO 
+    logθ_w_n[logθ_w_n .< -10] .= -10
 
     # TODO reweight
     REWEIGHT = false
