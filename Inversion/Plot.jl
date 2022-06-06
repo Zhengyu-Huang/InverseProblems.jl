@@ -33,12 +33,26 @@ function Gaussian_1d(θ_mean::FT, θθ_cov::FT, Nx::IT, θ_min=nothing, θ_max=n
 end
 
 
-function Gaussian_2d(θ_mean::Array{FT,1}, θθ_cov, Nx::IT, Ny::IT) where {FT<:AbstractFloat, IT<:Int}
+function Gaussian_2d(θ_mean::Array{FT,1}, θθ_cov, Nx::IT, Ny::IT, x_min=nothing, x_max=nothing, y_min=nothing, y_max=nothing) where {FT<:AbstractFloat, IT<:Int}
     # 2d Gaussian plot
     
-    θ_range = [5*sqrt(θθ_cov[1,1]); 5*sqrt(θθ_cov[2,2])]
-    xx = Array(LinRange(θ_mean[1] - θ_range[1], θ_mean[1] + θ_range[1], Nx))
-    yy = Array(LinRange(θ_mean[2] - θ_range[2], θ_mean[2] + θ_range[2], Ny))
+    
+    if x_min === nothing 
+        x_min = θ_mean[1] - 5*sqrt(θθ_cov[1,1])
+    end
+    if x_max === nothing 
+        x_max = θ_mean[1] + 5*sqrt(θθ_cov[1,1])
+    end
+    if y_min === nothing 
+        y_min = θ_mean[2] - 5*sqrt(θθ_cov[2,2])
+    end
+    if y_max === nothing 
+        y_max = θ_mean[2] + 5*sqrt(θθ_cov[2,2])
+    end
+    
+        
+    xx = Array(LinRange(x_min, x_max, Nx))
+    yy = Array(LinRange(y_min, y_max, Ny))
     
     X,Y = repeat(xx, 1, Ny), repeat(yy, 1, Nx)'
     Z = zeros(FT, Nx, Ny)

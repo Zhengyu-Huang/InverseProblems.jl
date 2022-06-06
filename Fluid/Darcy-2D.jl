@@ -457,7 +457,7 @@ function plot_field(darcy::Setup_Param{FT, IT}, u_2d::Array{FT, 2}, plot_obs::Bo
     xx = darcy.xx
 
     X,Y = repeat(xx, 1, N), repeat(xx, 1, N)'
-    pcolormesh(X, Y, u_2d, cmap="jet")
+    pcolormesh(X, Y, u_2d, cmap="viridis")
     colorbar()
 
     if plot_obs
@@ -475,7 +475,7 @@ function plot_field(darcy::Setup_Param{FT, IT}, u_2d::Array{FT, 2},  clim, ax) w
     N = darcy.N
     xx = darcy.xx
     X,Y = repeat(xx, 1, N), repeat(xx, 1, N)'
-    return ax.pcolormesh(X, Y, u_2d, cmap="jet", clim=clim)
+    return ax.pcolormesh(X, Y, u_2d, cmap="viridis", clim=clim)
 end
 
 
