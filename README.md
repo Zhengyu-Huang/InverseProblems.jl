@@ -23,7 +23,7 @@ Let's start! (⚠️ under construction)
 * Overview
     * What are inverse problems, why are they important?
     * [Bayesian inversion, Bayesian inference, and Bayesian calibration](Lectures/Bayesian.ipynb) 
-    * [Probability Density Function Space](Lectures/PDFSpace.ipynb) 
+    * [Probability density function space](Lectures/PDFSpace.ipynb) 
 * [Probabilistic approaches](Lectures/Probabilistic.ipynb) 
     * Invariant and ergodic measures
       * [Langevin dynamics](Lectures/Langevin.ipynb) 
