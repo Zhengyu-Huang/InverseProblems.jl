@@ -50,6 +50,7 @@ Let's start! (⚠️ under construction)
        * [Chaos and butterfly effects](Chaotic/Chaos.ipynb)
        * [Lorenz63 model](Chaotic/Lorenz63.ipynb)
        * [Lorenz96 model](Chaotic/Lorenz96.ipynb)
+       * [Kuramoto-Sivashinksy equation model](Chaotic/Kuramoto-Sivashinksy.ipynb)
 
    * Structure mechanics problems
        * Damage detection of a "bridge"
