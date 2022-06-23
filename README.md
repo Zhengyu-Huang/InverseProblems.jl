@@ -30,14 +30,16 @@ Let's start! (⚠️ under construction)
       * [Markov Chain Monte Carlo methods](Lectures/MonteCarlo.ipynb) 
       * Interacting particle methods
     * [Variational inference](Lectures/VariationalInference.ipynb)
+      * [Gaussian Variational inference](Lectures/GaussianVariationalInference.ipynb)
+      * [Stein Variational inference](Lectures/SteinVariationalInference.ipynb)
     * Coupling ideas
-       * [Filtering](Lectures/Filtering.ipynb)
+      * [Filtering](Lectures/Filtering.ipynb)
          * [Kalman Filters](Lectures/KalmanFilters.ipynb)
-       * [Inversion](Lectures/Inversion.ipynb)
-          * [Sequential Monte Carlo method](Lectures/MonteCarlo.ipynb)
-          * [Kalman inversion Part I : Stochastic Dynamical System](Lectures/KalmanInversionPartI.ipynb)
-          * [Kalman inversion Part II : Implementation](Lectures/KalmanInversionPartII.ipynb)
-       * Transport map
+      * [Inversion](Lectures/Inversion.ipynb)
+         * [Sequential Monte Carlo method](Lectures/MonteCarlo.ipynb)
+         * [Kalman inversion Part I : Stochastic Dynamical System](Lectures/KalmanInversionPartI.ipynb)
+         * [Kalman inversion Part II : Implementation](Lectures/KalmanInversionPartII.ipynb)
+      * Transport map
     * [When is posterior distribution close to Gaussian](Lectures/Posterior.ipynb)
     * All models are wrong
 * Examples
