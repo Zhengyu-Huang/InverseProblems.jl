@@ -34,7 +34,7 @@ ites = Array(1:N_iter)
 update_freq = 1
 # no regularization
 α_reg = 1.0
-
+uki_Δt = 0.5
 RESTART = false
 if RESTART
     ukiobj = load("ukiobj.jld")["ukiobj"]
@@ -42,8 +42,11 @@ else
     ukiobj = UKIObj(θ_names ,
     θ0_mean, 
     θθ0_cov,
+    θ0_mean, 
+    θθ0_cov,
     y,
     Σ_η,
+    Δt,
     α_reg,
     update_freq;
     modified_uscented_transform = true)

@@ -356,7 +356,7 @@ function Visual(mesh::Spectral_Mesh, u::Array{Float64,2}, var_name::String,
     X,Y = repeat(xx, 1, N_y), repeat(yy, 1, N_x)'
     
     figure()
-    pcolormesh(X, Y, u, shading= "gouraud", cmap="jet", vmin=vmin, vmax =vmax)
+    pcolormesh(X, Y, u, shading= "gouraud", cmap="viridis", vmin=vmin, vmax =vmax)
     xlabel("X")
     ylabel("Y")
     colorbar()
@@ -380,7 +380,7 @@ function Visual_Obs(mesh::Spectral_Mesh, u::Array{Float64,2}, x_locs::Array{Int6
     x_obs, y_obs = X[x_locs,y_locs][:], Y[x_locs,y_locs][:] 
     
     figure()
-    pcolormesh(X, Y, u, shading= "gouraud", cmap="jet", vmin=vmin, vmax =vmax)
+    pcolormesh(X, Y, u, shading= "gouraud", cmap="viridis", vmin=vmin, vmax =vmax)
     colorbar()
     scatter(x_obs, y_obs, color="black")
     

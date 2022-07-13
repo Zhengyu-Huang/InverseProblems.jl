@@ -29,7 +29,7 @@ mutable struct UKIObj{FT<:AbstractFloat, IT<:Int}
      mean_weights::Array{FT, 1}
      cov_weights::Array{FT, 1}
      "parameter for Σ_ω and Σ_ν"
-     γ::FT
+     Δt::FT
      "covariance of the artificial evolution error"
      Σ_ω::Array{FT, 2}
      "covariance of the artificial observation error"
@@ -64,7 +64,7 @@ function UKIObj(θ_names::Array{String,1},
                 Σ_η,
                 α_reg::FT,
                 update_freq::IT;
-                γ::FT = 1.0,
+                Δt::FT = 1.0/2.0,
                 unscented_transform::String = "modified-2n+1") where {FT<:AbstractFloat, IT<:Int}
 
     
@@ -151,8 +151,8 @@ function UKIObj(θ_names::Array{String,1},
     y_pred = Array{FT, 1}[]  # array of Array{FT, 2}'s
    
 
-    Σ_ω = (γ + 1 - α_reg^2)*θθ0_cov
-    Σ_ν = (γ + 1)/γ * Σ_η
+    Σ_ω = (Δt/(1 - Δt) + 1 - α_reg^2)*θθ0_cov
+    Σ_ν = 1/Δt * Σ_η
 
     r = θ0_mean
     
@@ -162,7 +162,7 @@ function UKIObj(θ_names::Array{String,1},
                   y,   Σ_η, 
                   N_ens, N_θ, N_y, 
                   c_weights, mean_weights, cov_weights, 
-                  γ, Σ_ω, Σ_ν, α_reg, r, 
+                  Δt, Σ_ω, Σ_ν, α_reg, r, 
                   update_freq, iter)
 
 end
@@ -266,13 +266,13 @@ define the function as
     ens_func(θ_ens) = MyG(phys_params, θ_ens, other_params)
 use G(θ_mean) instead of FG(θ)
 """
-function update_ensemble!(uki::UKIObj{FT, IT}, ens_func::Function; γ::FT = uki.γ) where {FT<:AbstractFloat, IT<:Int}
+function update_ensemble!(uki::UKIObj{FT, IT}, ens_func::Function; Δt::FT = uki.Δt) where {FT<:AbstractFloat, IT<:Int}
     
     uki.iter += 1
     # update evolution covariance matrix
     if uki.update_freq > 0 && uki.iter%uki.update_freq == 0
-        uki.Σ_ω = (γ + 1 - uki.α_reg^2)uki.θθ_cov[end]
-        uki.Σ_ν = (γ + 1)/γ * uki.Σ_η
+        uki.Σ_ω = (Δt/(1-Δt) + 1 - uki.α_reg^2)uki.θθ_cov[end]
+        uki.Σ_ν = 1/Δt * uki.Σ_η
     end
 
     θ_mean  = uki.θ_mean[end]
@@ -340,7 +340,7 @@ function UKI_Run(s_param, forward::Function,
     α_reg,
     update_freq,
     N_iter;
-    γ = 1.0,
+    Δt = 1.0/2.0,
     unscented_transform::String = "modified-2n+1",
     θ_basis = nothing)
     
@@ -355,7 +355,7 @@ function UKI_Run(s_param, forward::Function,
     α_reg,
     update_freq;
     unscented_transform = unscented_transform,
-    γ = γ)
+    Δt = Δt)
     
     
     ens_func(θ_ens) = (θ_basis == nothing) ? 
