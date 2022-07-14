@@ -55,19 +55,20 @@ function NGDObj(θ0_mean::Array{FT},
 
 
     if sampling_method == "MonteCarlo"
-
         # ensemble size
-        # xs .= (θ_mean[i, :] .+ chol_xx_cov*rand(Normal(0, 1), N_θ, N_ens))'
         c_weights = zeros(FT, N_θ, N_ens)
         mean_weights = zeros(FT, N_ens)
         cov_weights = zeros(FT, N_ens)
 
-
         c_weights    .=  rand(Normal(0, 1), N_θ, N_ens)
+        # shift mean to and covariance to I
+        c_weights -= dropdims(mean(c_weights, dims=2), dims=2)*ones(N_ens)'
+        U1, S1, _ = svd(c_weights)
+        c_weights = (S1/sqrt(N_ens - 1.0) .\U1') *  c_weights 
+   
         mean_weights .=  1/N_ens 
         cov_weights  .=  1/(N_ens - 1) 
         
-
     elseif sampling_method == "UnscentedTransform"
 
         N_ens = 2N_θ+1
@@ -80,8 +81,10 @@ function NGDObj(θ0_mean::Array{FT},
         α = min(sqrt(4/(N_θ + κ)), 1.0)
         λ = α^2*(N_θ + κ) - N_θ
 
-
-        c_weights[1:N_θ]     .=  sqrt(N_θ + λ)
+        for i = 1:N_θ
+            c_weights[i,i+1]         =   sqrt(N_θ + λ)
+            c_weights[i,i+N_θ+1]     =  -sqrt(N_θ + λ)
+        end
         mean_weights[1] = λ/(N_θ + λ)
         mean_weights[2:N_ens] .= 1/(2(N_θ + λ))
         cov_weights[1] = λ/(N_θ + λ) + 1 - α^2 + β
@@ -162,12 +165,26 @@ function construct_cov(ngd::NGDObj{FT, IT}, x::Array{FT}, x_mean::Array{FT}, y::
     cov_weights = ngd.cov_weights
 
     xy_cov = zeros(FT, N_x..., N_y[2:end]...)
-
     for i = 1: N_ens
         xy_cov .+= cov_weights[i]*(x[i,..] - x_mean)*(y[i,..] - y_mean)'
     end
 
     return xy_cov
+end
+
+"""
+construct_cov xy_cov from ensemble x and mean x_mean, ensemble y and mean y_mean
+"""
+function ngd_cov(ngd::NGDObj{FT, IT}, θ::Array{FT,2}, θ_mean::Array{FT,1}, θθ_cov::Array{FT,2}, y::Array{FT, 2}) where {FT<:AbstractFloat, IT<:Int}
+    N_ens, N_θ = ngd.N_ens, size(θ_mean,1)
+    mean_weights = ngd.mean_weights
+
+    θy_cov = zeros(FT, N_θ, N_θ)
+    for i = 1: N_ens
+        θy_cov .+= mean_weights[i]*((θ[i,:]-θ_mean)*(θ[i,:]-θ_mean)'- θθ_cov)*y[i,1]
+    end
+
+    return θy_cov
 end
 
 
@@ -186,9 +203,6 @@ function update_ensemble!(ngd::NGDObj{FT, IT}, ens_func::Function;) where {FT<:A
 
     θ_mean  = ngd.θ_mean[end]
     θθ_cov = ngd.θθ_cov[end]
-    
-
-
     N_θ,  N_ens = ngd.N_θ, ngd.N_ens
     ############# Prediction step:
     
@@ -196,7 +210,7 @@ function update_ensemble!(ngd::NGDObj{FT, IT}, ens_func::Function;) where {FT<:A
 
 
     ###########  Analysis step
-    Φ = zeros(FT, N_ens)
+    Φ = zeros(FT, N_ens, 1)
     ∇Φ = zeros(FT, N_ens, N_θ)
     ∇²Φ = zeros(FT, N_ens, N_θ, N_θ)
     
@@ -205,24 +219,27 @@ function update_ensemble!(ngd::NGDObj{FT, IT}, ens_func::Function;) where {FT<:A
     # δmean, δcov = zeros(N_θ), zeros(N_θ, N_θ)
 
     if ngd.compute_gradient
-        θ_mean -= θθ_cov * construct_mean(ngd, ∇Φ) * Δt
-        θθ_cov = inv(inv(θθ_cov) + Δt/(1 + Δt)*(construct_mean(ngd, ∇²Φ) - inv(θθ_cov)))
-        @info construct_mean(ngd, ∇²Φ) , inv(θθ_cov)
+        θ_mean_n = θ_mean - θθ_cov * construct_mean(ngd, ∇Φ) * Δt
+        θθ_cov_n = inv(inv(θθ_cov) + Δt/(1 + Δt)*(construct_mean(ngd, ∇²Φ) - inv(θθ_cov)))
+
     else
-        dmean = -construct_cov(Φ, θ)
-        dcov = θθ_cov + construct_mean(ngd, ∇²Φ)*θθ_cov
+        EΦ = construct_mean(ngd, Φ)
+        θ_mean_n = θ_mean - construct_cov(ngd, Φ, EΦ, θ, θ_mean)[:] * Δt
+        
+        # E∇Φ = construct_mean(ngd, ∇Φ)
+        # @info "A1 = ", construct_mean(ngd, ∇²Φ), "A2 = ", θθ_cov\ngd_cov(ngd, θ, θ_mean, θθ_cov,  Φ, EΦ)/θθ_cov, " A3 = ", construct_cov(ngd, ∇Φ, E∇Φ, θ, θ_mean)/θθ_cov
+        
+        θθ_cov_n = inv(inv(θθ_cov) + Δt/(1 + Δt)*(θθ_cov\ngd_cov(ngd, θ, θ_mean, θθ_cov,  Φ)/θθ_cov - inv(θθ_cov)))
+        
     end
     
-    @info "construct_mean(ngd, ∇Φ) = ", construct_mean(ngd, ∇Φ)
-    @info "θ_mean = ", θ_mean
-    @info "θθ_cov = ", θθ_cov
-
-    @info "construct_mean(ngd, ∇²Φ) = ", construct_mean(ngd, ∇²Φ)
+    # @info "θ_mean = ", θ_mean_n
+    # @info "θθ_cov = ", θθ_cov_n
 
 
     ########### Save resutls
-    push!(ngd.θ_mean, θ_mean) # N_ens x N_params
-    push!(ngd.θθ_cov, θθ_cov) # N_ens x N_data
+    push!(ngd.θ_mean, θ_mean_n) # N_ens x N_params
+    push!(ngd.θθ_cov, θθ_cov_n) # N_ens x N_data
 end
 
 
@@ -230,14 +247,14 @@ function ensemble(s_param, θ_ens::Array{FT,2}, Φ_func::Function)  where {FT<:A
     
     N_ens,  N_θ = size(θ_ens)
 
-    Φ = zeros(N_ens)
+    Φ = zeros(N_ens, 1)
     ∇Φ = zeros(N_ens, N_θ)
     ∇²Φ = zeros(N_ens, N_θ, N_θ)
 
     # Threads.@threads for i = 1:N_ens
     for i = 1:N_ens
         θ = θ_ens[i, :]
-        Φ[i], ∇Φ[i,:], ∇²Φ[i,:,:] = Φ_func(s_param, θ)
+        Φ[i, 1], ∇Φ[i,:], ∇²Φ[i,:,:] = Φ_func(s_param, θ)
     end
     return  Φ, ∇Φ, ∇²Φ  
 end
@@ -271,83 +288,7 @@ function NGD_Run(s_param, Φ_func::Function,
     return ngdobj
 end
 
-
-# function plot_param_iter(ngdobj::NGDObj{FT, IT}, θ_ref::Array{FT,1}, θ_ref_names::Array{String}) where {FT<:AbstractFloat, IT<:Int}
-    
-#     θ_mean = ngdobj.θ_mean
-#     θθ_cov = ngdobj.θθ_cov
-    
-#     N_iter = length(θ_mean) - 1
-#     ites = Array(LinRange(1, N_iter+1, N_iter+1))
-    
-#     θ_mean_arr = abs.(hcat(θ_mean...))
-    
-    
-#     N_θ = length(θ_ref)
-#     θθ_std_arr = zeros(Float64, (N_θ, N_iter+1))
-#     for i = 1:N_iter+1
-#         for j = 1:N_θ
-#             θθ_std_arr[j, i] = sqrt(θθ_cov[i][j,j])
-#         end
-#     end
-    
-#     for i = 1:N_θ
-#         errorbar(ites, θ_mean_arr[i,:], yerr=3.0*θθ_std_arr[i,:], fmt="--o",fillstyle="none", label=θ_ref_names[i])   
-#         plot(ites, fill(θ_ref[i], N_iter+1), "--", color="gray")
-#     end
-    
-#     xlabel("Iterations")
-#     legend()
-#     tight_layout()
-# end
-
-
-# function plot_opt_errors(ngdobj::NGDObj{FT, IT}, 
-#     θ_ref::Union{Array{FT,1}, Nothing} = nothing, 
-#     transform_func::Union{Function, Nothing} = nothing) where {FT<:AbstractFloat, IT<:Int}
-    
-#     θ_mean = ngdobj.θ_mean
-#     θθ_cov = ngdobj.θθ_cov
-#     y_pred = ngdobj.y_pred
-#     Σ_η = ngdobj.Σ_η
-#     y = ngdobj.y
-
-#     N_iter = length(θ_mean) - 1
-    
-#     ites = Array(LinRange(1, N_iter, N_iter))
-#     N_subfigs = (θ_ref === nothing ? 2 : 3)
-
-#     errors = zeros(Float64, N_subfigs, N_iter)
-#     fig, ax = PyPlot.subplots(ncols=N_subfigs, figsize=(N_subfigs*6,6))
-#     for i = 1:N_iter
-#         errors[N_subfigs - 1, i] = 0.5*(y - y_pred[i])'*(Σ_η\(y - y_pred[i]))
-#         errors[N_subfigs, i]     = norm(θθ_cov[i])
-        
-#         if N_subfigs == 3
-#             errors[1, i] = norm(θ_ref - (transform_func === nothing ? θ_mean[i] : transform_func(θ_mean[i])))/norm(θ_ref)
-#         end
-        
-#     end
-
-#     markevery = max(div(N_iter, 10), 1)
-#     ax[N_subfigs - 1].plot(ites, errors[N_subfigs - 1, :], linestyle="--", marker="o", fillstyle="none", markevery=markevery)
-#     ax[N_subfigs - 1].set_xlabel("Iterations")
-#     ax[N_subfigs - 1].set_ylabel("Optimization error")
-#     ax[N_subfigs - 1].grid()
-    
-#     ax[N_subfigs].plot(ites, errors[N_subfigs, :], linestyle="--", marker="o", fillstyle="none", markevery=markevery)
-#     ax[N_subfigs].set_xlabel("Iterations")
-#     ax[N_subfigs].set_ylabel("Frobenius norm of the covariance")
-#     ax[N_subfigs].grid()
-#     if N_subfigs == 3
-#         ax[1].set_xlabel("Iterations")
-#         ax[1].plot(ites, errors[1, :], linestyle="--", marker="o", fillstyle="none", markevery=markevery)
-#         ax[1].set_ylabel("L₂ norm error")
-#         ax[1].grid()
-#     end
-    
-# end
-
+######################### TEST #######################################
 
 mutable struct Setup_Param{MAT, IT<:Int}
     θ_names::Array{String,1}
@@ -437,14 +378,12 @@ problem_type = "well-determined"
     
 s_param = Setup_Param(G, N_θ, length(y)+N_θ)
 
-@info "G = ", G, "Σ_η = ", Σ_η, "θ0_mean = ", θ0_mean, "θθ0_cov = ", θθ0_cov
-
 Φ_func(s_param, θ) = compute_Φ(s_param, θ,  y, Σ_η, θ0_mean, θθ0_cov) 
 
-sampling_method = "UnscentedTransform"
+sampling_method = "MonteCarlo"
 N_ens = 100
-Δt = 0.1
-N_iter = 1000
+Δt = 0.001
+N_iter = 2000
 compute_gradient = true
 ngd_obj = NGD_Run(s_param, Φ_func, θ0_mean, θθ0_cov, sampling_method, N_ens,  Δt, N_iter, compute_gradient)
 
@@ -456,8 +395,6 @@ for i = 1:N_iter+1
 end
 
 ites = Array(0:N_iter)
-
-@info "inv(Σ_post) = ", inv(Σ_post)
 
 markevery = 5
 
