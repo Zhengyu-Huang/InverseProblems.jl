@@ -4,17 +4,17 @@ using Distributions
 using EllipsisNotation
 using PyPlot
 """
-NGDObj{FT<:AbstractFloat, IT<:Int}
+GDObj{FT<:AbstractFloat, IT<:Int}
 Struct that is used in Natural gradient descent (NGD)
 For solving the inverse problem 
     y = G(θ) + η
     
 """
 
-mutable struct NGDObj{FT<:AbstractFloat, IT<:Int}
-    "a vector of arrays of size N_ensemble x N_parameters containing the mean of the parameters (in each ngd iteration a new array of mean is added)"
+mutable struct GDObj{FT<:AbstractFloat, IT<:Int}
+    "a vector of arrays of size N_ensemble x N_parameters containing the mean of the parameters (in each gd iteration a new array of mean is added)"
     θ_mean::Vector{Array{FT, 1}}
-    "a vector of arrays of size N_ensemble x (N_parameters x N_parameters) containing the covariance of the parameters (in each ngd iteration a new array of cov is added)"
+    "a vector of arrays of size N_ensemble x (N_parameters x N_parameters) containing the covariance of the parameters (in each gd iteration a new array of cov is added)"
     θθ_cov::Vector{Array{FT, 2}}
     "number ensemble size"
     N_ens::IT
@@ -32,22 +32,25 @@ mutable struct NGDObj{FT<:AbstractFloat, IT<:Int}
     iter::IT
     "compute gradient flag"
     compute_gradient::Bool
+    "gradient flow"
+    gradient_flow::String
 end
 
 
 
 """
-NGDObj Constructor 
+GDObj Constructor 
 θ0_mean::Array{FT} : inital mean
 θθ0_cov::Array{FT, 2} : initial covariance
 sampling_method : "MonteCarlo", "UnscentedTransform"
 """
-function NGDObj(θ0_mean::Array{FT}, 
+function GDObj(θ0_mean::Array{FT}, 
                 θθ0_cov::Array{FT, 2},
                 sampling_method::String, 
                 N_ens::IT,
                 Δt::FT,
-                compute_gradient::Bool;
+                compute_gradient::Bool,
+                gradient_flow::String;
                 ) where {FT<:AbstractFloat, IT<:Int}
 
     
@@ -60,6 +63,7 @@ function NGDObj(θ0_mean::Array{FT},
         mean_weights = zeros(FT, N_ens)
         cov_weights = zeros(FT, N_ens)
 
+        Random.seed!(42)
         c_weights    .=  rand(Normal(0, 1), N_θ, N_ens)
         # shift mean to and covariance to I
         c_weights -= dropdims(mean(c_weights, dims=2), dims=2)*ones(N_ens)'
@@ -79,6 +83,7 @@ function NGDObj(θ0_mean::Array{FT},
         κ = 0.0
         β = 2.0
         α = min(sqrt(4/(N_θ + κ)), 1.0)
+        # α = 1e-2
         λ = α^2*(N_θ + κ) - N_θ
 
         for i = 1:N_θ
@@ -106,10 +111,10 @@ function NGDObj(θ0_mean::Array{FT},
     
     iter = 0
 
-    NGDObj{FT,IT}(θ_mean, θθ_cov,
+    GDObj{FT,IT}(θ_mean, θθ_cov,
                   N_ens, N_θ, 
                   sampling_method, c_weights, mean_weights, cov_weights, 
-                  Δt, iter, compute_gradient)
+                  Δt, iter, compute_gradient, gradient_flow)
 
 end
 
@@ -118,11 +123,11 @@ end
 construct_sigma_ensemble
 Construct the sigma ensemble, based on the mean x_mean, and covariance x_cov
 """
-function construct_sigma_ensemble(ngd::NGDObj{FT, IT}, x_mean::Array{FT,1}, x_cov::Array{FT,2}) where {FT<:AbstractFloat, IT<:Int}
-    N_ens = ngd.N_ens
+function construct_sigma_ensemble(gd::GDObj{FT, IT}, x_mean::Array{FT,1}, x_cov::Array{FT,2}) where {FT<:AbstractFloat, IT<:Int}
+    N_ens = gd.N_ens
     N_x = size(x_mean,1)
 
-    c_weights = ngd.c_weights
+    c_weights = gd.c_weights
     chol_xx_cov = cholesky(Hermitian(x_cov)).L
 
     xs = zeros(FT, N_ens, N_x)
@@ -134,12 +139,12 @@ end
 """
 construct_mean x_mean from ensemble x
 """
-function construct_mean(ngd::NGDObj{FT, IT}, x::Array{FT}) where {FT<:AbstractFloat, IT<:Int}
+function construct_mean(gd::GDObj{FT, IT}, x::Array{FT}) where {FT<:AbstractFloat, IT<:Int}
     N_x = size(x)
     N_ens = N_x[1]
-    @assert(ngd.N_ens == N_ens)
+    @assert(gd.N_ens == N_ens)
 
-    mean_weights = ngd.mean_weights
+    mean_weights = gd.mean_weights
     x_mean = zeros(N_x[2:end]...)
 
     for i = 1:N_ens
@@ -152,17 +157,17 @@ end
 """
 construct_cov xx_cov from ensemble x and mean x_mean
 """
-function construct_cov(ngd::NGDObj{FT, IT}, x::Array{FT,2}, x_mean::Array{FT}) where {FT<:AbstractFloat, IT<:Int}
-    return construct_cov(ngd, x, x_mean, x, x_mean)
+function construct_cov(gd::GDObj{FT, IT}, x::Array{FT,2}, x_mean::Array{FT}) where {FT<:AbstractFloat, IT<:Int}
+    return construct_cov(gd, x, x_mean, x, x_mean)
 end
 
 """
 construct_cov xy_cov from ensemble x and mean x_mean, ensemble y and mean y_mean
 """
-function construct_cov(ngd::NGDObj{FT, IT}, x::Array{FT}, x_mean::Array{FT}, y::Array{FT}, y_mean::Array{FT}) where {FT<:AbstractFloat, IT<:Int}
-    N_ens, N_x, N_y = ngd.N_ens, size(x_mean), size(y_mean')
+function construct_cov(gd::GDObj{FT, IT}, x::Array{FT}, x_mean::Array{FT}, y::Array{FT}, y_mean::Array{FT}) where {FT<:AbstractFloat, IT<:Int}
+    N_ens, N_x, N_y = gd.N_ens, size(x_mean), size(y_mean')
     
-    cov_weights = ngd.cov_weights
+    cov_weights = gd.cov_weights
 
     xy_cov = zeros(FT, N_x..., N_y[2:end]...)
     for i = 1: N_ens
@@ -175,9 +180,9 @@ end
 """
 construct_cov xy_cov from ensemble x and mean x_mean, ensemble y and mean y_mean
 """
-function ngd_cov(ngd::NGDObj{FT, IT}, θ::Array{FT,2}, θ_mean::Array{FT,1}, θθ_cov::Array{FT,2}, y::Array{FT, 2}) where {FT<:AbstractFloat, IT<:Int}
-    N_ens, N_θ = ngd.N_ens, size(θ_mean,1)
-    mean_weights = ngd.mean_weights
+function gd_cov(gd::GDObj{FT, IT}, θ::Array{FT,2}, θ_mean::Array{FT,1}, θθ_cov::Array{FT,2}, y::Array{FT, 2}) where {FT<:AbstractFloat, IT<:Int}
+    N_ens, N_θ = gd.N_ens, size(θ_mean,1)
+    mean_weights = gd.mean_weights
 
     θy_cov = zeros(FT, N_θ, N_θ)
     for i = 1: N_ens
@@ -190,23 +195,25 @@ end
 
 
 """
-update ngd struct
+update gd struct
 ens_func: The function g = G(θ)
 define the function as 
     ens_func(θ_ens) = MyG(phys_params, θ_ens, other_params)
 use G(θ_mean) instead of FG(θ)
 """
-function update_ensemble!(ngd::NGDObj{FT, IT}, ens_func::Function;) where {FT<:AbstractFloat, IT<:Int}
-    Δt = ngd.Δt
-    ngd.iter += 1
+function update_ensemble!(gd::GDObj{FT, IT}, ens_func::Function;) where {FT<:AbstractFloat, IT<:Int}
+    Δt = gd.Δt
+    gd.iter += 1
     # update evolution covariance matrix
 
-    θ_mean  = ngd.θ_mean[end]
-    θθ_cov = ngd.θθ_cov[end]
-    N_θ,  N_ens = ngd.N_θ, ngd.N_ens
+    θ_mean  = gd.θ_mean[end]
+    θθ_cov = gd.θθ_cov[end]
+    N_θ,  N_ens = gd.N_θ, gd.N_ens
     ############# Prediction step:
-    
-    θ = construct_sigma_ensemble(ngd, θ_mean, θθ_cov)
+    # @info "θθ_cov = ", θθ_cov,  inv(θθ_cov)
+    # @info "eigen(θθ_cov) = ", eigen(θθ_cov)
+
+    θ = construct_sigma_ensemble(gd, θ_mean, θθ_cov)
 
 
     ###########  Analysis step
@@ -217,20 +224,57 @@ function update_ensemble!(ngd::NGDObj{FT, IT}, ens_func::Function;) where {FT<:A
     Φ, ∇Φ, ∇²Φ = ens_func(θ)
     
     # δmean, δcov = zeros(N_θ), zeros(N_θ, N_θ)
+    if gd.gradient_flow == "Fisher-Rao"
+        if gd.compute_gradient
+            θ_mean_n = θ_mean - θθ_cov * construct_mean(gd, ∇Φ) * Δt
+            # θθ_cov_n = inv(inv(θθ_cov) + Δt/(1 + Δt)*(construct_mean(gd, ∇²Φ) - inv(θθ_cov)))
 
-    if ngd.compute_gradient
-        θ_mean_n = θ_mean - θθ_cov * construct_mean(ngd, ∇Φ) * Δt
-        θθ_cov_n = inv(inv(θθ_cov) + Δt/(1 + Δt)*(construct_mean(ngd, ∇²Φ) - inv(θθ_cov)))
+            θθ_cov_n = θθ_cov + Δt*(θθ_cov - θθ_cov*construct_mean(gd, ∇²Φ)*θθ_cov)
 
+            # @info construct_mean(gd, ∇²Φ)
+        else
+            EΦ = construct_mean(gd, Φ)
+            θ_mean_n = θ_mean - construct_cov(gd, Φ, EΦ, θ, θ_mean)[:] * Δt
+            
+            # E∇Φ = construct_mean(gd, ∇Φ)
+            # @info "A1 = ", construct_mean(gd, ∇²Φ), "A2 = ", θθ_cov\gd_cov(gd, θ, θ_mean, θθ_cov,  Φ, EΦ)/θθ_cov, " A3 = ", construct_cov(gd, ∇Φ, E∇Φ, θ, θ_mean)/θθ_cov
+            
+            θθ_cov_n = inv(inv(θθ_cov) + Δt/(1 + Δt)*(θθ_cov\gd_cov(gd, θ, θ_mean, θθ_cov,  Φ)/θθ_cov - inv(θθ_cov)))
+            
+        end
+    elseif gd.gradient_flow == "Wasserstein"
+        if gd.compute_gradient
+            θ_mean_n = θ_mean - construct_mean(gd, ∇Φ) * Δt
+            θθ_cov_n = θθ_cov + Δt*Hermitian(2I - construct_mean(gd, ∇²Φ)*θθ_cov - θθ_cov*construct_mean(gd, ∇²Φ))
+
+            
+        else
+            # EΦ = construct_mean(gd, Φ)
+            # θ_mean_n = θ_mean - construct_cov(gd, Φ, EΦ, θ, θ_mean)[:] * Δt
+            # θθ_cov_n = inv(inv(θθ_cov) + Δt/(1 + Δt)*(θθ_cov\gd_cov(gd, θ, θ_mean, θθ_cov,  Φ)/θθ_cov - inv(θθ_cov)))
+            
+        end
+
+
+    elseif gd.gradient_flow == "Gradient_descent"
+        if gd.compute_gradient
+            θ_mean_n = θ_mean - construct_mean(gd, ∇Φ) * Δt
+            θθ_cov_n = θθ_cov + Δt/2*(inv(θθ_cov)  - construct_mean(gd, ∇²Φ))
+
+            S,V = eigen(θθ_cov_n)
+            S[S .< 0] .= 1e-3
+            θθ_cov_n = inv(V) * Diagonal(S) * V
+            # @info "eigen = ", eigen(θθ_cov_n)
+
+        else
+            # EΦ = construct_mean(gd, Φ)
+            # θ_mean_n = θ_mean - construct_cov(gd, Φ, EΦ, θ, θ_mean)[:] * Δt
+            # θθ_cov_n = inv(inv(θθ_cov) + Δt/(1 + Δt)*(θθ_cov\gd_cov(gd, θ, θ_mean, θθ_cov,  Φ)/θθ_cov - inv(θθ_cov)))
+            
+        end
+        
     else
-        EΦ = construct_mean(ngd, Φ)
-        θ_mean_n = θ_mean - construct_cov(ngd, Φ, EΦ, θ, θ_mean)[:] * Δt
-        
-        # E∇Φ = construct_mean(ngd, ∇Φ)
-        # @info "A1 = ", construct_mean(ngd, ∇²Φ), "A2 = ", θθ_cov\ngd_cov(ngd, θ, θ_mean, θθ_cov,  Φ, EΦ)/θθ_cov, " A3 = ", construct_cov(ngd, ∇Φ, E∇Φ, θ, θ_mean)/θθ_cov
-        
-        θθ_cov_n = inv(inv(θθ_cov) + Δt/(1 + Δt)*(θθ_cov\ngd_cov(ngd, θ, θ_mean, θθ_cov,  Φ)/θθ_cov - inv(θθ_cov)))
-        
+
     end
     
     # @info "θ_mean = ", θ_mean_n
@@ -238,8 +282,8 @@ function update_ensemble!(ngd::NGDObj{FT, IT}, ens_func::Function;) where {FT<:A
 
 
     ########### Save resutls
-    push!(ngd.θ_mean, θ_mean_n) # N_ens x N_params
-    push!(ngd.θθ_cov, θθ_cov_n) # N_ens x N_data
+    push!(gd.θ_mean, θ_mean_n) # N_ens x N_params
+    push!(gd.θθ_cov, θθ_cov_n) # N_ens x N_data
 end
 
 
@@ -267,147 +311,154 @@ function NGD_Run(s_param, Φ_func::Function,
     N_ens,
     Δt,
     N_iter,
-    compute_gradient
+    compute_gradient,
+    gradient_flow
     )
     
-    ngdobj = NGDObj(
+    gdobj = GDObj(
     θ0_mean, 
     θθ0_cov,
     sampling_method,
     N_ens,
     Δt,
-    compute_gradient)
+    compute_gradient,
+    gradient_flow)
 
     
     ens_func(θ_ens) = ensemble(s_param, θ_ens, Φ_func)
     
     for i in 1:N_iter
-        update_ensemble!(ngdobj, ens_func) 
+        update_ensemble!(gdobj, ens_func) 
     end
     
-    return ngdobj
+    return gdobj
 end
 
 ######################### TEST #######################################
+#
+# mutable struct Setup_Param{MAT, IT<:Int}
+#     θ_names::Array{String,1}
+#     G::MAT
+#     N_θ::IT
+#     N_y::IT
+# end
 
-mutable struct Setup_Param{MAT, IT<:Int}
-    θ_names::Array{String,1}
-    G::MAT
-    N_θ::IT
-    N_y::IT
-end
-
-function Setup_Param(G, N_θ::IT, N_y::IT) where {IT<:Int}
-    return Setup_Param(["θ"], G, N_θ, N_y)
-end
-
-
-function forward(s_param::Setup_Param, θ::Array{FT, 1}) where {FT<:AbstractFloat}
-    G = s_param.G 
-    return G * θ
-end
-
-function forward_aug(s_param::Setup_Param, θ::Array{FT, 1}) where {FT<:AbstractFloat}
-    G = s_param.G 
-    return [G * θ; θ]
-end
+# function Setup_Param(G, N_θ::IT, N_y::IT) where {IT<:Int}
+#     return Setup_Param(["θ"], G, N_θ, N_y)
+# end
 
 
-function compute_Φ(s_param::Setup_Param, θ::Array{FT, 1},  y::Array{FT, 1}, Σ_η::Array{FT, 2}, μ0::Array{FT, 1}, Σ0::Array{FT, 2}) where {FT<:AbstractFloat}
-    Φ   = 1/2*(y - G * θ)'*(Σ_η\(y - G * θ)) + 1/2*(μ0 - θ)'*(Σ0\(μ0 - θ))
-    ∇Φ  = -G' * (Σ_η\(y - G * θ)) - Σ0\(μ0 - θ)
-    ∇²Φ = G' * (Σ_η\G) + inv(Σ0)
-    return Φ, ∇Φ, ∇²Φ
-end
+# function forward(s_param::Setup_Param, θ::Array{FT, 1}) where {FT<:AbstractFloat}
+#     G = s_param.G 
+#     return G * θ
+# end
+
+# function forward_aug(s_param::Setup_Param, θ::Array{FT, 1}) where {FT<:AbstractFloat}
+#     G = s_param.G 
+#     return [G * θ; θ]
+# end
+
+
+# function compute_Φ(s_param::Setup_Param, θ::Array{FT, 1},  y::Array{FT, 1}, Σ_η::Array{FT, 2}, μ0::Array{FT, 1}, Σ0::Array{FT, 2}) where {FT<:AbstractFloat}
+#     Φ   = 1/2*(y - G * θ)'*(Σ_η\(y - G * θ)) + 1/2*(μ0 - θ)'*(Σ0\(μ0 - θ))
+#     ∇Φ  = -G' * (Σ_η\(y - G * θ)) - Σ0\(μ0 - θ)
+#     ∇²Φ = G' * (Σ_η\G) + inv(Σ0)
+#     return Φ, ∇Φ, ∇²Φ
+# end
 
 
 
-function Two_Param_Linear_Test(problem_type::String, θ0_bar, θθ0_cov)
+# function Two_Param_Linear_Test(problem_type::String, θ0_bar, θθ0_cov)
     
-    N_θ = length(θ0_bar)
+#     N_θ = length(θ0_bar)
 
     
-    if problem_type == "under-determined"
-        # under-determined case
-        θ_ref = [0.6, 1.2]
-        G = [1.0 2.0;]
+#     if problem_type == "under-determined"
+#         # under-determined case
+#         θ_ref = [0.6, 1.2]
+#         G = [1.0 2.0;]
         
-        y = [3.0;]
-        Σ_η = Array(Diagonal(fill(0.1^2, size(y))))
-        
-        
-    elseif problem_type == "well-determined"
-        # over-determined case
-        θ_ref = [1.0, 1.0]
-        G = [1.0 2.0; 3.0 4.0]
-        
-        y = [3.0;7.0]
-        Σ_η = Array(Diagonal(fill(0.1^2, size(y))))
-        
-    elseif problem_type == "over-determined"
-        # over-determined case
-        θ_ref = [1/3, 17/12.0]
-        G = [1.0 2.0; 3.0 4.0; 5.0 6.0]
-        
-        y = [3.0;7.0;10.0]
-        Σ_η = Array(Diagonal(fill(0.1^2, size(y))))
+#         y = [3.0;]
+#         Σ_η = Array(Diagonal(fill(0.1^2, size(y))))
         
         
-    else
-        error("Problem type : ", problem_type, " has not implemented!")
-    end
+#     elseif problem_type == "well-determined"
+#         # over-determined case
+#         θ_ref = [1.0, 1.0]
+#         G = [1.0 2.0; 3.0 4.0]
+        
+#         y = [3.0;7.0]
+#         Σ_η = Array(Diagonal(fill(0.1^2, size(y))))
+        
+#     elseif problem_type == "over-determined"
+#         # over-determined case
+#         θ_ref = [1/3, 17/12.0]
+#         G = [1.0 2.0; 3.0 4.0; 5.0 6.0]
+        
+#         y = [3.0;7.0;10.0]
+#         Σ_η = Array(Diagonal(fill(0.1^2, size(y))))
+        
+        
+#     else
+#         error("Problem type : ", problem_type, " has not implemented!")
+#     end
     
-    Σ_post = inv(G'*(Σ_η\G) + inv(θθ0_cov))
-    θ_post = θ0_bar + Σ_post*(G'*(Σ_η\(y - G*θ0_bar)))
+#     Σ_post = inv(G'*(Σ_η\G) + inv(θθ0_cov))
+#     θ_post = θ0_bar + Σ_post*(G'*(Σ_η\(y - G*θ0_bar)))
     
 
-    return θ_post, Σ_post, G, y, Σ_η, θ_ref
-end
+#     return θ_post, Σ_post, G, y, Σ_η, θ_ref
+# end
 
-N_θ = 2
-θ0_mean = zeros(Float64, N_θ)
-θθ0_cov = Array(Diagonal(fill(1.0^2, N_θ)))
-θθ0_cov_sqrt = θθ0_cov
+# N_θ = 2
+# θ0_mean = zeros(Float64, N_θ)
+# θθ0_cov = Array(Diagonal(fill(1.0^2, N_θ)))
+# θθ0_cov_sqrt = θθ0_cov
 
-prior_mean     = θ0_mean
-prior_cov      = θθ0_cov
-prior_cov_sqrt = θθ0_cov_sqrt
+# prior_mean     = θ0_mean
+# prior_cov      = θθ0_cov
+# prior_cov_sqrt = θθ0_cov_sqrt
 
-problem_type = "well-determined"
-θ_post, Σ_post, G, y, Σ_η, θ_ref = Two_Param_Linear_Test(problem_type, θ0_mean, θθ0_cov)
+# problem_type = "well-determined"
+# θ_post, Σ_post, G, y, Σ_η, θ_ref = Two_Param_Linear_Test(problem_type, θ0_mean, θθ0_cov)
     
-s_param = Setup_Param(G, N_θ, length(y)+N_θ)
+# s_param = Setup_Param(G, N_θ, length(y)+N_θ)
 
-Φ_func(s_param, θ) = compute_Φ(s_param, θ,  y, Σ_η, θ0_mean, θθ0_cov) 
+# Φ_func(s_param, θ) = compute_Φ(s_param, θ,  y, Σ_η, θ0_mean, θθ0_cov) 
 
-sampling_method = "MonteCarlo"
-N_ens = 100
-Δt = 0.001
-N_iter = 2000
-compute_gradient = true
-ngd_obj = NGD_Run(s_param, Φ_func, θ0_mean, θθ0_cov, sampling_method, N_ens,  Δt, N_iter, compute_gradient)
+# sampling_method = "MonteCarlo"
 
+# gradient_flow = "Gradient_descent"
+# N_ens = 100
+# Δt = 0.0001
+# N_iter = 20000
 
-ngd_errors    = zeros(N_iter+1, 2)
-for i = 1:N_iter+1
-    ngd_errors[i, 1] = norm(ngd_obj.θ_mean[i] .- θ_post)/norm(θ_post)
-    ngd_errors[i, 2] = norm(ngd_obj.θθ_cov[i] .- Σ_post)/norm(Σ_post)
-end
-
-ites = Array(0:N_iter)
-
-markevery = 5
-
-fig, ax = PyPlot.subplots(nrows = 1, ncols=2, sharex=false, sharey="row", figsize=(14,9))
-ax[1].semilogy(ites, ngd_errors[:, 1],   "-.x", color = "C0", fillstyle="none", label="NGD", markevery = markevery)
-ax[1].set_xlabel("Iterations")
-ax[1].set_ylabel("Rel. mean error")
-ax[1].grid("on")
-ax[1].legend(bbox_to_anchor=(1.0, 1.0))
+# # Δt = 0.5
+# # N_iter = 200
+# compute_gradient = true
+# gd_obj = NGD_Run(s_param, Φ_func, θ0_mean, θθ0_cov, sampling_method, N_ens,  Δt, N_iter, compute_gradient, gradient_flow)
 
 
-ax[2].semilogy(ites, ngd_errors[:, 2],   "-.x", color = "C0", fillstyle="none", label="NGD", markevery = markevery)
-ax[2].set_xlabel("Iterations")
-ax[2].set_ylabel("Rel. covariance error")
-ax[2].grid("on")
-ax[2].legend(bbox_to_anchor=(1.0, 1.0))
+# gd_errors    = zeros(N_iter+1, 2)
+# for i = 1:N_iter+1
+#     gd_errors[i, 1] = norm(gd_obj.θ_mean[i] .- θ_post)/norm(θ_post)
+#     gd_errors[i, 2] = norm(gd_obj.θθ_cov[i] .- Σ_post)/norm(Σ_post)
+# end
+
+# ites = Array(0:N_iter)
+
+# markevery = 5
+
+# fig, ax = PyPlot.subplots(nrows = 1, ncols=2, sharex=false, sharey="row", figsize=(14,9))
+# ax[1].semilogy(ites, gd_errors[:, 1],   "-.x", color = "C0", fillstyle="none", label="NGD", markevery = markevery)
+# ax[1].set_xlabel("Iterations")
+# ax[1].set_ylabel("Rel. mean error")
+# ax[1].grid("on")
+# ax[1].legend(bbox_to_anchor=(1.0, 1.0))
+
+
+# ax[2].semilogy(ites, gd_errors[:, 2],   "-.x", color = "C0", fillstyle="none", label="NGD", markevery = markevery)
+# ax[2].set_xlabel("Iterations")
+# ax[2].set_ylabel("Rel. covariance error")
+# ax[2].grid("on")
+# ax[2].legend(bbox_to_anchor=(1.0, 1.0))
