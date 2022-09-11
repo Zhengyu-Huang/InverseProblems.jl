@@ -20,8 +20,6 @@ mutable struct IPSObj{FT<:AbstractFloat, IT<:Int}
     iter::IT
     "method, Wasserstein, Stein"
     method::String
-    "noise vector"
-    noise::Array{FT, 2}
     "Preconditioner, true or false"
     preconditioner::Bool
 end
@@ -30,20 +28,13 @@ end
 # outer constructors
 function IPSObj(
     N_ens::IT,
-    θ0_mean::Array{FT,1},
-    θθ0_cov::Array{FT,2},
+    θ0::Array{FT,2},
     Δt::FT,
     method::String,
     preconditioner::Bool) where {FT<:AbstractFloat, IT<:Int}
     
-    
-    N_θ = size(θ0_mean, 1)
-    
-    Random.seed!(42)
     # generate initial assemble
     θ = Array{FT, 2}[] # array of Array{FT, 2}'s
-    θ0 = Array(rand(MvNormal(θ0_mean, θθ0_cov), N_ens)')
-    noise = sqrt(2)*rand(Normal(0, 1), (N_θ, N_ens))
 
     push!(θ, θ0) # insert parameters at end of array (in this case just 1st entry)
     
@@ -51,11 +42,11 @@ function IPSObj(
 
     IPSObj{FT,IT}(
     θ, N_ens, N_θ, 
-    Δt, iter, method, noise, preconditioner)
+    Δt, iter, method, preconditioner)
 end
 
 
-function ensemble(s_param, θ_ens::Array{FT,2}, forward::Function)  where {FT<:AbstractFloat}
+function ensemble_∇logρ(s_param, θ_ens::Array{FT,2}, forward::Function)  where {FT<:AbstractFloat}
     
     N_ens,  N_θ = size(θ_ens)
     g_ens = zeros(FT, N_ens,  N_θ)
@@ -69,21 +60,20 @@ function ensemble(s_param, θ_ens::Array{FT,2}, forward::Function)  where {FT<:A
 end
 
 function IPS_Run(s_param, ∇logρ_func::Function, 
-    θ0_mean, θθ0_cov,
+    θ0,
     N_ens,
     Δt,
     N_iter, method, preconditioner)
     
     ipsobj = IPSObj(
     N_ens,
-    θ0_mean,
-    θθ0_cov,
+    θ0,
     Δt, 
     method, 
     preconditioner)
     
     
-    ens_func(θ_ens) = ensemble(s_param, θ_ens, ∇logρ_func) 
+    ens_func(θ_ens) = ensemble_∇logρ(s_param, θ_ens, ∇logρ_func) 
     
     for i in 1:N_iter
         update_ensemble!(ipsobj, ens_func) 
@@ -150,8 +140,8 @@ function compute_h(θ)
 
     
     h = median(pairwise_dists)  
-#     h = sqrt(0.5 * h / log(J+1))
-    h = sqrt(h)
+    h = sqrt(0.5 * h / log(J+1))
+#     h = sqrt(h)
     
     return h
 end
@@ -189,7 +179,6 @@ end
 function update_ensemble!(ips::IPSObj{FT}, ens_func::Function) where {FT<:AbstractFloat}
     
     N_ens, N_θ = ips.N_ens, ips.N_θ
-    noise = ips.noise
     method = ips.method
 
     θ = ips.θ[end]
@@ -200,12 +189,16 @@ function update_ensemble!(ips::IPSObj{FT}, ens_func::Function) where {FT<:Abstra
     # u_mean: N_par × 1
     θ_mean = construct_mean(ips, θ)
     θθ_cov = construct_cov(ips, θ, θ_mean, θ, θ_mean)
-    
     Prec = (ips.preconditioner ? θθ_cov : I)
-    # IPS
+
     if method == "Wasserstein"
+        noise = rand(Normal(0, 1), (N_θ, N_ens))
+        if !isposdef(θθ_cov)
+            @info θθ_cov
+            @info eigen(θθ_cov)
+        end
         σ = (ips.preconditioner ? cholesky(Hermitian(θθ_cov)).L : I)
-        dθ = ∇logρ * Prec' + (σ*noise)'
+        dθ = ∇logρ * Prec' + sqrt(2/Δt)*(σ*noise)'
     # Stein 
     elseif method == "Stein"
         κ, dκ = kernel(θ; C = (ips.preconditioner ? θθ_cov : nothing) )
