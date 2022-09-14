@@ -287,7 +287,7 @@ function update_ensemble!(gd::GDObj{FT, IT}, ens_func::Function;) where {FT<:Abs
 end
 
 
-function ensemble(s_param, θ_ens::Array{FT,2}, Φ_func::Function)  where {FT<:AbstractFloat}
+function ensemble_Φ(s_param, θ_ens::Array{FT,2}, Φ_func::Function)  where {FT<:AbstractFloat}
     
     N_ens,  N_θ = size(θ_ens)
 
@@ -325,7 +325,7 @@ function NGD_Run(s_param, Φ_func::Function,
     gradient_flow)
 
     
-    ens_func(θ_ens) = ensemble(s_param, θ_ens, Φ_func)
+    ens_func(θ_ens) = ensemble_Φ(s_param, θ_ens, Φ_func)
     
     for i in 1:N_iter
         update_ensemble!(gdobj, ens_func) 

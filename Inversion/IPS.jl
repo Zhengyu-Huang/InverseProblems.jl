@@ -141,7 +141,6 @@ function compute_h(θ)
     
     h = median(pairwise_dists)  
     h = sqrt(0.5 * h / log(J+1))
-#     h = sqrt(h)
     
     return h
 end
@@ -155,22 +154,24 @@ function kernel(xs; C = nothing)
     if C === nothing
         h = compute_h(xs)
         C = h^2
+        scale = sqrt( (1 + 4*log(N_ens + 1)/d)^d )
+    else
+        C = C
+        scale = sqrt( (1 + 2)^d )
     end
-        
-    # put the scale in time
-    # invZ = 1.0/( (2π)^(d/2)*sqrt(det(C)) )
-    invZ = 1.0
+
+     
     
     for i = 1:N_ens
         for j = 1:N_ens
             dpower = C\(xs[i,:] - xs[j,:])
             power =  -0.5* ( (xs[i,:] - xs[j,:])' * dpower )  
-            κ[i, j] = invZ * exp(power)
-            dκ[i, j, :] = invZ * exp(power) * dpower
+            κ[i, j] = exp(power)
+            dκ[i, j, :] = exp(power) * dpower
         end
     end
     
-    return κ, dκ
+    return scale*κ, scale*dκ
 end
 
 
