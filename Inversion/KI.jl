@@ -728,6 +728,124 @@ function update_ensemble!(uki::UKIObj{FT, IT}, ens_func::Function) where {FT<:Ab
 end
 
 
+"""
+update uki struct
+ens_func: The function g = G(θ)
+define the function as 
+    ens_func(θ_ens) = MyG(phys_params, θ_ens, other_params)
+use G(θ_mean) instead of FG(θ)
+"""
+function prediction_ensemble(uki::UKIObj{FT, IT}) where {FT<:AbstractFloat, IT<:Int}
+    
+    uki.iter += 1
+
+    N_θ, N_y, N_ens = uki.N_θ, uki.N_y, uki.N_ens
+    r, α_reg, update_freq, Δt = uki.r, uki.α_reg, uki.update_freq, uki.Δt
+    
+
+    Σ_ν = (1/Δt) * uki.Σ_η
+    # update evolution covariance matrix
+    if update_freq > 0 && uki.iter % update_freq == 0
+        Σ_ω = (Δt/(1 - Δt) + 1 - α_reg^2) * uki.θθ_cov[end]
+    else
+        Σ_ω = uki.Σ_ω 
+    end
+
+    θ_mean  = uki.θ_mean[end]
+    θθ_cov = uki.θθ_cov[end]
+    y = uki.y
+
+    
+    
+    ############# Prediction step:
+    θ_p_mean  = α_reg*θ_mean + (1-α_reg)*r
+    θθ_p_cov = (Σ_ω === nothing ? α_reg^2*θθ_cov : α_reg^2*θθ_cov + Σ_ω)
+    
+
+    # @show θθ_cov, θθ_p_cov
+    ############ Generate sigma points
+    θ_p = construct_sigma_ensemble(uki, θ_p_mean, θθ_p_cov)
+
+
+    # @show θ_p
+    # play the role of symmetrizing the covariance matrix
+    θθ_p_cov = construct_cov(uki, θ_p, θ_p_mean)
+    
+    
+    return θ_p, θθ_p_cov
+    
+end
+
+
+
+
+
+"""
+update uki struct
+ens_func: The function g = G(θ)
+define the function as 
+    ens_func(θ_ens) = MyG(phys_params, θ_ens, other_params)
+use G(θ_mean) instead of FG(θ)
+"""
+function update_ensemble!(uki::UKIObj{FT, IT}, g::Array{FT,2}) where {FT<:AbstractFloat, IT<:Int}
+    
+    uki.iter += 1
+
+    N_θ, N_y, N_ens = uki.N_θ, uki.N_y, uki.N_ens
+    r, α_reg, update_freq, Δt = uki.r, uki.α_reg, uki.update_freq, uki.Δt
+    
+
+    Σ_ν = (1/Δt) * uki.Σ_η
+    # update evolution covariance matrix
+    if update_freq > 0 && uki.iter % update_freq == 0
+        Σ_ω = (Δt/(1 - Δt) + 1 - α_reg^2) * uki.θθ_cov[end]
+    else
+        Σ_ω = uki.Σ_ω 
+    end
+
+    θ_mean  = uki.θ_mean[end]
+    θθ_cov = uki.θθ_cov[end]
+    y = uki.y
+
+    
+    
+    ############# Prediction step:
+    θ_p_mean  = α_reg*θ_mean + (1-α_reg)*r
+    θθ_p_cov = (Σ_ω === nothing ? α_reg^2*θθ_cov : α_reg^2*θθ_cov + Σ_ω)
+    
+
+    # @show θθ_cov, θθ_p_cov
+    ############ Generate sigma points
+    θ_p = construct_sigma_ensemble(uki, θ_p_mean, θθ_p_cov)
+
+
+    # @show θ_p
+    # play the role of symmetrizing the covariance matrix
+    θθ_p_cov = construct_cov(uki, θ_p, θ_p_mean)
+    
+
+    
+    g_mean = construct_mean(uki, g)
+    gg_cov = construct_cov(uki, g, g_mean) + Σ_ν
+    θg_cov = construct_cov(uki, θ_p, θ_p_mean, g, g_mean)
+
+    tmp = θg_cov / gg_cov
+
+    θ_mean =  θ_p_mean + tmp*(y - g_mean)
+
+    θθ_cov =  θθ_p_cov - tmp*θg_cov' 
+    
+
+    ########### Save resutls
+    push!(uki.y_pred, g_mean) # N_ens x N_data
+    push!(uki.θ_mean, θ_mean) # N_ens x N_params
+    push!(uki.θθ_cov, θθ_cov) # N_ens x N_data
+end
+
+
+
+
+
 
 function UKI_Run(s_param, forward::Function, 
     θ0_mean, θθ0_cov,
