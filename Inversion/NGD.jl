@@ -31,7 +31,7 @@ mutable struct GDObj{FT<:AbstractFloat, IT<:Int}
     "current iteration number"
     iter::IT
     "compute gradient flag"
-    compute_gradient::Bool
+    compute_gradient::String
     "gradient flow"
     gradient_flow::String
 end
@@ -49,7 +49,7 @@ function GDObj(θ0_mean::Array{FT},
                 sampling_method::String, 
                 N_ens::IT,
                 Δt::FT,
-                compute_gradient::Bool,
+                compute_gradient::String,
                 gradient_flow::String;
                 ) where {FT<:AbstractFloat, IT<:Int}
 
@@ -161,6 +161,33 @@ function construct_cov(gd::GDObj{FT, IT}, x::Array{FT,2}, x_mean::Array{FT}) whe
     return construct_cov(gd, x, x_mean, x, x_mean)
 end
 
+
+
+"""
+construct_cov xy_cov from ensemble x and mean x_mean, ensemble y and mean y_mean
+"""
+function construct_cov(gd::GDObj{FT, IT}, x::Array{FT},  y::Array{FT}) where {FT<:AbstractFloat, IT<:Int}
+    N_x, N_y = size(x), size(y)
+    mean_weights = gd.mean_weights
+    x_mean, y_mean = zeros(N_x[2:end]...), zeros(N_y[2:end]...)
+    for i = 1:N_ens
+        x_mean .+= mean_weights[i] * x[i,..]
+        y_mean .+= mean_weights[i] * y[i,..]
+    end
+    
+    
+    
+    N_ens, N_x, N_y = gd.N_ens, size(x_mean), size(y_mean')
+    cov_weights = gd.cov_weights
+    xy_cov = zeros(FT, N_x..., N_y[2:end]...)
+    for i = 1: N_ens
+        xy_cov .+= cov_weights[i]*(x[i,..] - x_mean)*(y[i,..] - y_mean)'
+    end
+
+    return xy_cov
+end
+
+
 """
 construct_cov xy_cov from ensemble x and mean x_mean, ensemble y and mean y_mean
 """
@@ -225,14 +252,16 @@ function update_ensemble!(gd::GDObj{FT, IT}, ens_func::Function;) where {FT<:Abs
     
     # δmean, δcov = zeros(N_θ), zeros(N_θ, N_θ)
     if gd.gradient_flow == "Fisher-Rao"
-        if gd.compute_gradient
+        if gd.compute_gradient == "second-order"
             θ_mean_n = θ_mean - θθ_cov * construct_mean(gd, ∇Φ) * Δt
-            # θθ_cov_n = inv(inv(θθ_cov) + Δt/(1 + Δt)*(construct_mean(gd, ∇²Φ) - inv(θθ_cov)))
-
             θθ_cov_n = θθ_cov + Δt*(θθ_cov - θθ_cov*construct_mean(gd, ∇²Φ)*θθ_cov)
-
-            # @info construct_mean(gd, ∇²Φ)
-        else
+            
+        elseif gd.compute_gradient == "first-order"
+            E∇Φ = construct_mean(gd, ∇Φ)
+            θ_mean_n = θ_mean - θθ_cov * construct_mean(gd, ∇Φ) * Δt
+            θθ_cov_n = θθ_cov + Δt*(θθ_cov - θθ_cov*construct_cov(gd, ∇Φ, E∇Φ, θ, θ_mean))
+            
+        else #gd.compute_gradient == "zeroth-order"
             EΦ = construct_mean(gd, Φ)
             θ_mean_n = θ_mean - construct_cov(gd, Φ, EΦ, θ, θ_mean)[:] * Δt
             
@@ -243,29 +272,37 @@ function update_ensemble!(gd::GDObj{FT, IT}, ens_func::Function;) where {FT<:Abs
             
         end
     elseif gd.gradient_flow == "Wasserstein"
-        if gd.compute_gradient
+        if gd.compute_gradient == "second-order"
             θ_mean_n = θ_mean - construct_mean(gd, ∇Φ) * Δt
             θθ_cov_n = θθ_cov + Δt*Hermitian(2I - construct_mean(gd, ∇²Φ)*θθ_cov - θθ_cov*construct_mean(gd, ∇²Φ))
 
             
-        else
-            # EΦ = construct_mean(gd, Φ)
-            # θ_mean_n = θ_mean - construct_cov(gd, Φ, EΦ, θ, θ_mean)[:] * Δt
-            # θθ_cov_n = inv(inv(θθ_cov) + Δt/(1 + Δt)*(θθ_cov\gd_cov(gd, θ, θ_mean, θθ_cov,  Φ)/θθ_cov - inv(θθ_cov)))
+        elseif gd.compute_gradient == "first-order"
+            E∇Φ = construct_mean(gd, ∇Φ)
+            θ_mean_n = θ_mean - construct_mean(gd, ∇Φ) * Δt
+            
+            temp = I - construct_cov(gd, ∇Φ, E∇Φ, θ, θ_mean)
+            θθ_cov_n = θθ_cov + Δt*Hermitian(temp + temp')
+
             
         end
 
 
     elseif gd.gradient_flow == "Gradient_descent"
-        if gd.compute_gradient
+        if gd.compute_gradient  == "second-order"
             θ_mean_n = θ_mean - construct_mean(gd, ∇Φ) * Δt
             θθ_cov_n = θθ_cov + Δt/2*(inv(θθ_cov)  - construct_mean(gd, ∇²Φ))
 
-            S,V = eigen(θθ_cov_n)
-            S[S .< 0] .= 1e-3
-            θθ_cov_n = inv(V) * Diagonal(S) * V
+#             S,V = eigen(θθ_cov_n)
+#             S[S .< 0] .= 1e-3
+#             θθ_cov_n = inv(V) * Diagonal(S) * V
             # @info "eigen = ", eigen(θθ_cov_n)
+        elseif gd.compute_gradient == "first-order"
+            E∇Φ = construct_mean(gd, ∇Φ)
+            θ_mean_n = θ_mean - construct_mean(gd, ∇Φ) * Δt
+            θθ_cov_n = θθ_cov + Δt/2*(I  - construct_cov(gd, ∇Φ, E∇Φ, θ, θ_mean))/θθ_cov
 
+            
         else
             # EΦ = construct_mean(gd, Φ)
             # θ_mean_n = θ_mean - construct_cov(gd, Φ, EΦ, θ, θ_mean)[:] * Δt
