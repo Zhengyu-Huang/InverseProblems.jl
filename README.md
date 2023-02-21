@@ -32,6 +32,7 @@ Let's start! (⚠️ under construction)
     * [Variational inference](Lectures/VariationalInference.ipynb)
       * [Gaussian Variational inference](Lectures/GaussianVariationalInference.ipynb)
       * [Stein Variational inference](Lectures/SteinVariationalInference.ipynb)
+      * [Affine Invariant Gradient Flow](Lectures/AffineInvariance.ipynb)
     * Coupling ideas
       * [Filtering](Lectures/Filtering.ipynb)
          * [Kalman Filters](Lectures/KalmanFilters.ipynb)
@@ -87,3 +88,6 @@ You are welcome to submit an issue for any questions related to InverseProblems.
 2. Daniel Zhengyu Huang, Jiaoyang Huang, Sebastian Reich, and Andrew M. Stuart. "[Efficient Derivative-free Bayesian Inference for Large-Scale Inverse Problems](https://arxiv.org/pdf/2204.04386.pdf)."
 
 3. Shunxiang Cao, Daniel Zhengyu Huang. "[Bayesian Calibration for Large-Scale Fluid Structure Interaction Problems Under Embedded/Immersed Boundary Framework](https://arxiv.org/pdf/2105.09497.pdf)."
+
+4. Yifan Chen, Daniel Zhengyu Huang, Jiaoyang Huang, Sebastian Reich, and Andrew M. Stuart. "[Gradient Flows for Sampling: Mean-Field Models, Gaussian Approximations
+and Affine Invariance](https://arxiv.org/pdf/2105.09497.pdf)."

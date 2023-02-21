@@ -181,7 +181,7 @@ function update_ensemble!(ips::IPSObj{FT}, ens_func::Function) where {FT<:Abstra
     
     N_ens, N_θ = ips.N_ens, ips.N_θ
     method = ips.method
-
+    Δt = ips.Δt
     θ = ips.θ[end]
     ∇logρ = zeros(FT, N_ens, N_θ)
     ∇logρ .= ens_func(θ)
