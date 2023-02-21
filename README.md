@@ -30,16 +30,16 @@ Let's start! (⚠️ under construction)
       * [Markov Chain Monte Carlo methods](Lectures/MonteCarlo.ipynb) 
       * Interacting particle methods
     * [Variational inference](Lectures/VariationalInference.ipynb)
-      * [Gaussian Variational inference](Lectures/GaussianVariationalInference.ipynb)
-      * [Stein Variational inference](Lectures/SteinVariationalInference.ipynb)
-      * [Affine Invariant Gradient Flow](Lectures/AffineInvariance.ipynb)
+      * [Gaussian variational inference](Lectures/GaussianVariationalInference.ipynb)
+      * [Stein variational inference](Lectures/SteinVariationalInference.ipynb)
+      * [Affine invariant gradient flows](Lectures/AffineInvariance.ipynb)
     * Coupling ideas
       * [Filtering](Lectures/Filtering.ipynb)
-         * [Kalman Filters](Lectures/KalmanFilters.ipynb)
+         * [Kalman filters](Lectures/KalmanFilters.ipynb)
       * [Inversion](Lectures/Inversion.ipynb)
          * [Sequential Monte Carlo method](Lectures/MonteCarlo.ipynb)
-         * [Kalman inversion Part I : Stochastic Dynamical System](Lectures/KalmanInversionPartI.ipynb)
-         * [Kalman inversion Part II : Implementation](Lectures/KalmanInversionPartII.ipynb)
+         * [Kalman inversion part I : stochastic dynamical system](Lectures/KalmanInversionPartI.ipynb)
+         * [Kalman inversion part II : implementation](Lectures/KalmanInversionPartII.ipynb)
       * Transport map
     * [When is posterior distribution close to Gaussian](Lectures/Posterior.ipynb)
     * All models are wrong
@@ -76,7 +76,7 @@ Let's start! (⚠️ under construction)
     
    * Other posterior distribution estimations
        * [Some nonlinear maps](Posterior/Nonlinear-Maps.ipynb)
-       * [2-Parameter elliptic equation](Posterior/Elliptic.ipynb)
+       * [2-parameter elliptic equation](Posterior/Elliptic.ipynb)
        * [1D Darcy flow](Posterior/Darcy-1D.ipynb)
 
 ## Submit an issue
