@@ -90,4 +90,4 @@ You are welcome to submit an issue for any questions related to InverseProblems.
 3. Shunxiang Cao, Daniel Zhengyu Huang. "[Bayesian Calibration for Large-Scale Fluid Structure Interaction Problems Under Embedded/Immersed Boundary Framework](https://arxiv.org/pdf/2105.09497.pdf)."
 
 4. Yifan Chen, Daniel Zhengyu Huang, Jiaoyang Huang, Sebastian Reich, and Andrew M. Stuart. "[Gradient Flows for Sampling: Mean-Field Models, Gaussian Approximations
-and Affine Invariance](https://arxiv.org/pdf/2105.09497.pdf)."
+and Affine Invariance](https://arxiv.org/pdf/2302.11024.pdf)."
