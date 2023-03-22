@@ -612,17 +612,23 @@ function update_ensemble!(uki::GMUKIObj{FT, IT}, ens_func::Function) where {FT<:
 
         θθ_cov_n[im, :, :] =  θθ_p_cov[im, :, :] - tmp[im, :, :]*θg_cov[im, :, :]' 
 
-        z = y - g_mean[im, :]
-        # temp = θθ_cov[im, :, :]\(θg_cov[im, :, :]*(Σ_ν\z))
-        # logθ_w_n[im] = 1/2*( temp'*θθ_cov_n[im, :, :]*temp -  z'*(Σ_ν\z))
-
-        logθ_w_n[im] = 1/2*( (θ_mean_n[im, :] - θ_p_mean[im, :])'*(θθ_cov_n[im, :, :]\(θ_mean_n[im, :] - θ_p_mean[im, :])) -  z'*(Σ_ν\z))
+        
+        
     end
 
-    # @show logθ_w_n
+    # match mean 
+#     for im = 1:N_modes
+#         z = y - g_mean[im, :]
+#         logθ_w_n[im] = 1/2*( (θ_mean_n[im, :] - θ_p_mean[im, :])'*(θθ_cov_n[im, :, :]\(θ_mean_n[im, :] - θ_p_mean[im, :])) -  z'*(Σ_ν\z))
+#         logθ_w_n[im] += logθ_w_p[im] + log(sqrt(det(θθ_cov_n[im, :, :]) / det(θθ_cov[im, :, :])))
+#     end
+    
+    # match expectation with UKI
     for im = 1:N_modes
-        logθ_w_n[im] += logθ_w_p[im] + log(sqrt(det(θθ_cov_n[im, :, :]) / det(θθ_cov[im, :, :])))
+        z = y - g_mean[im, :]
+        logθ_w_n[im] = logθ_w_p[im] - 1/2*z'*(Σ_ν\z)
     end
+    
 
     logθ_w_n .-= maximum(logθ_w_n)
     logθ_w_n .-= log( sum(exp.(logθ_w_n)) )
