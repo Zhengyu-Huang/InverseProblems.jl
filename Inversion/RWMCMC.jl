@@ -2,7 +2,7 @@ using Random
 using Distributions
 
 
-function log_bayesian_posterior(s_param, θ::Array{Float64,1}, forward::Function, 
+function log_bayesian_posterior(s_param, θ, forward::Function, 
     y::Array{Float64,1},  Σ_η::Array{Float64,2}, 
     μ0::Array{Float64,1}, Σ0::Array{Float64,2})
 
@@ -12,7 +12,7 @@ function log_bayesian_posterior(s_param, θ::Array{Float64,1}, forward::Function
 
 end
 
-function log_likelihood(s_param, θ::Array{Float64,1}, forward::Function, 
+function log_likelihood(s_param, θ, forward::Function, 
     y::Array{Float64,1},  Σ_η::Array{Float64,2})
 
     Gu = forward(s_param, θ)
@@ -25,7 +25,7 @@ end
 When the density function is Φ/Z, 
 The f_density function return log(Φ) instead of Φ
 """
-function RWMCMC_Run(log_bayesian_posterior::Function, θ0::Array{FT,1}, step_length::FT, n_ite::IT; seed::IT=11) where {FT<:AbstractFloat, IT<:Int}
+function RWMCMC_Run(log_bayesian_posterior::Function, θ0, step_length::FT, n_ite::IT; seed::IT=11) where {FT<:AbstractFloat, IT<:Int}
     
     N_θ = length(θ0)
     θs = zeros(Float64, n_ite, N_θ)

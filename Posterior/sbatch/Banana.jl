@@ -128,7 +128,7 @@ for test_id = 1:length(ϵs)
     logρ(θ) = log_Rosenbrock(θ,  ϵs[test_id])
     
     function ∇logρ(s_param::Setup_Param, θ)
-        return ForwardDiff.gradient(logρ, θ)
+        return logρ(θ), ForwardDiff.gradient(logρ, θ)
     end
     
     m_oo, C_oo, cos_ref = compute_Eref(ϵs[test_id], ω, b)
@@ -164,7 +164,7 @@ for test_id = 1:length(ϵs)
             ips_errors    = zeros(N_t+1, 3)
             for i = 1:N_t+1
                 ips_errors[i, 1] = norm(dropdims(mean(ips_obj.θ[i], dims=1), dims=1) .- m_oo)
-                ips_errors[i, 2] = norm(construct_cov(ips_obj, ips_obj.θ[i]) .- C_oo)/norm(C_oo)
+                ips_errors[i, 2] = norm(construct_cov(ips_obj.θ[i]) .- C_oo)/norm(C_oo)
                 ips_errors[i, 3] = norm(cos_ref - cos_error_estimation_particle(ips_obj.θ[i], ω, b ))/sqrt(length(b))
             end
             @info method, " preconditioner ", preconditioner, " ϵ = ", ϵ

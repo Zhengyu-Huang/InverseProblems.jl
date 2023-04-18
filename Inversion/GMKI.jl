@@ -49,6 +49,7 @@ mutable struct GMUKIObj{FT<:AbstractFloat, IT<:Int}
     update_freq::IT
     "current iteration number"
     iter::IT
+    mixture_power_sampling_method::String
 end
 
 
@@ -73,7 +74,7 @@ function GMUKIObj(θ_names::Array{String,1},
                 Σ_η,
                 γ::FT,
                 update_freq::IT;
-                unscented_transform::String = "modified-2n+1") where {FT<:AbstractFloat, IT<:Int}
+                unscented_transform::String = "modified-2n+1", mixture_power_sampling_method = "random-sampling") where {FT<:AbstractFloat, IT<:Int}
 
     ## check UKI hyperparameters
     @assert(update_freq > 0)
@@ -178,7 +179,7 @@ function GMUKIObj(θ_names::Array{String,1},
                   N_modes, N_ens, N_θ, N_y, 
                   c_weights, mean_weights, cov_weights, 
                   Σ_ω, γ_ω, γ_ν,
-                  update_freq, iter)
+                  update_freq, iter, mixture_power_sampling_method)
 
 end
 
@@ -572,7 +573,7 @@ function update_ensemble!(uki::GMUKIObj{FT, IT}, ens_func::Function) where {FT<:
     # end
 
     ##TODO
-    logθ_w_p, θ_p_mean, θθ_p_cov = Gaussian_mixture_power(exp.(logθ_w), θ_mean, θθ_cov, 1/(γ_ω + 1); method="random-sampling")
+    logθ_w_p, θ_p_mean, θθ_p_cov = Gaussian_mixture_power(exp.(logθ_w), θ_mean, θθ_cov, 1/(γ_ω + 1); method=uki.mixture_power_sampling_method)
     logθ_w_p = log.(logθ_w_p)
     # @info "prediction step  : θ_mean = ", θ_mean, " θ_p_mean = ", θ_p_mean
     # logθ_w_p = logθ_w
@@ -666,6 +667,7 @@ function GMUKI_Run(s_param, forward::Function,
     update_freq,
     N_iter;
     unscented_transform::String = "modified-2n+1",
+    mixture_power_sampling_method = "random-sampling",
     θ_basis = nothing)
     
     θ_names = s_param.θ_names
@@ -676,7 +678,7 @@ function GMUKI_Run(s_param, forward::Function,
     y, Σ_η,
     γ,
     update_freq;
-    unscented_transform = unscented_transform)
+    unscented_transform = unscented_transform, mixture_power_sampling_method = mixture_power_sampling_method)
     
     
     ens_func(θ_ens) = (θ_basis == nothing) ? 
