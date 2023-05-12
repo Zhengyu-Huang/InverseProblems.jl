@@ -21,7 +21,7 @@ function forward_aug(s_param::Setup_Param, θ::Array{FT, 1}) where {FT<:Abstract
 end
 
 
-function compute_Φ(s_param::Setup_Param, θ::Array{FT, 1},  y::Array{FT, 1}, Σ_η::Array{FT, 2}, μ0::Array{FT, 1}, Σ0::Array{FT, 2}) 
+function compute_Φ(s_param::Setup_Param, θ::Array{FT, 1},  y::Array{FT, 1}, Σ_η::Array{FT, 2}, μ0::Array{FT, 1}, Σ0::Array{FT, 2}) where {FT<:AbstractFloat} 
     Φ   = 1/2*(y - G * θ)*(Σ_η\(y - G * θ)) + 1/2*(μ0 - θ)*(Σ0\(μ0 - θ))
     ∇Φ  = -G * (Σ_η\(y - G * θ)) - Σ0\(μ0 - θ)
     ∇²Φ = G * (Σ_η\G) + inv(Σ0)
