@@ -376,7 +376,7 @@ function Gaussian_mixture_power(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_co
         
     elseif method == "random-sampling"
         
-        N_ens = 1000
+        N_ens = 10000
         α = sqrt((N_ens-1)/2.0)
         xs = zeros(N_ens, N_θ)
         ws = zeros(N_ens)
@@ -420,7 +420,7 @@ function Gaussian_mixture_power(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_co
 
 
                 # θ_mean_p[i,:] = θ_mean[i,:] + 0.9*(θ_mean_p[i,:] - θ_mean[i,:])
-                # θθ_cov_p[i,:,:] = (xs - ones(N_ens)*θ_mean_p[i,:]')' * (Diagonal(ws)/sum(ws)) * (xs - ones(N_ens)*θ_mean_p[i,:]')  
+                θθ_cov_p[i,:,:] = (xs - ones(N_ens)*θ_mean_p[i,:]')' * (ws .* (xs - ones(N_ens)*θ_mean_p[i,:]'))  / sum(ws)
                 θ_w_p[i] = θ_w[i]^αpower * det(θθ_cov[i,:,:])^((1-αpower)/2) * sum(ws)/N_ens
             end
 
@@ -508,7 +508,7 @@ function Gaussian_mixture_power(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_co
         @error("method :", method, " has not implemented")
         
     end
-    θ_w_p ./ sum(θ_w_p)
+    # θ_w_p ./ sum(θ_w_p)
     
     return θ_w_p, θ_mean_p, θθ_cov_p
 end

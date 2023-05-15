@@ -22,6 +22,8 @@ mutable struct IPSObj{FT<:AbstractFloat, IT<:Int}
     method::String
     "Preconditioner, true or false"
     preconditioner::Bool
+    "Kernel param"
+    kernel_param
 end
 
 
@@ -31,7 +33,8 @@ function IPSObj(
     θ0::Array{FT,2},
     Δt::FT,
     method::String,
-    preconditioner::Bool) where {FT<:AbstractFloat, IT<:Int}
+    preconditioner::Bool,
+    kernel_param=nothing) where {FT<:AbstractFloat, IT<:Int}
     
     # generate initial assemble
     θ = Array{FT, 2}[] # array of Array{FT, 2}'s
@@ -44,7 +47,7 @@ function IPSObj(
     
     IPSObj{FT,IT}(
     θ, N_ens, N_θ, 
-    Δt, iter, method, preconditioner)
+    Δt, iter, method, preconditioner, kernel_param)
 end
 
 
@@ -66,14 +69,14 @@ function IPS_Run(s_param, ∇logρ_func::Function,
     θ0,
     N_ens,
     Δt,
-    N_iter, method, preconditioner)
+    N_iter, method, preconditioner, kernel_param=nothing)
     
     ipsobj = IPSObj(
     N_ens,
     θ0,
     Δt, 
     method, 
-    preconditioner)
+    preconditioner, kernel_param)
     
     
     ens_func(θ_ens) = ensemble_∇logρ(s_param, θ_ens, ∇logρ_func) 
@@ -248,7 +251,7 @@ function update_ensemble!(ips::IPSObj{FT}, ens_func::Function) where {FT<:Abstra
     if method == "Wasserstein-Fisher-Rao" || method == "Stein-Fisher-Rao"
         # Always use the kernel without prconditioner
         # κ, _ = kernel(θ; C = (ips.preconditioner ? θθ_cov : nothing) )
-        κ, _ = kernel(θ; C = nothing)
+        κ, _ = kernel(θ; C = ips.kernel_param)
         # equation 57
         Λ = log.(sum(κ, dims=2)/N_ens)[:] + sum(κ./sum(κ, dims=2) , dims=2)[:] - logρ .- sum(log.(sum(κ, dims=2)/N_ens))/N_ens .- 1 .+ sum(logρ)/N_ens
 
