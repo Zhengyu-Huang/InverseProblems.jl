@@ -291,7 +291,7 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func_logρ::Function, dt::FT) w
     logθ_w_n .-= maximum(logθ_w_n)
     logθ_w_n .-= log( sum(exp.(logθ_w_n)) )
 
-    @info "θθ_cov_n = ", θθ_cov_n
+    # @info "θθ_cov_n = ", θθ_cov_n
 
     ########### Save resutls
     push!(gmgd.θ_mean, θ_mean_n)   # N_ens x N_params
@@ -353,89 +353,91 @@ end
 ######################### TEST #######################################
 
 
-function gaussain_V(θ::Array{FT, 1}) where {FT<:AbstractFloat}
-    # sample ρ ∝ exp(-θ'Aθ/2)
-    N_θ = length(θ)
-    A = Diagonal(ones(N_θ))
-    V   = θ'*(A*θ)/2
-    ∇V  = A*θ
-    ∇²V = A
-    return V, ∇V, ∇²V
-end
+# function gaussain_V(θ::Array{FT, 1}) where {FT<:AbstractFloat}
+#     # sample ρ ∝ exp(-θ'Aθ/2)
+#     N_θ = length(θ)
+#     A = Diagonal(ones(N_θ))
+#     V   = θ'*(A*θ)/2
+#     ∇V  = A*θ
+#     ∇²V = A
+#     return V, ∇V, ∇²V
+# end
 
 
-T = 100.0
-N_iter = 2000 
-N_modes = 4
-N_θ = 1
-θ0_w  = fill(1.0, N_modes)/N_modes
-θ0_mean, θθ0_cov  = zeros(N_modes, N_θ), zeros(N_modes, N_θ, N_θ)
-σ_0 = 0.1
-Random.seed!(111);
-for m = 1:N_modes
-    θ0_mean[m, :]    .= rand(Normal(0, σ_0), N_θ)
-    θθ0_cov[m, :, :] .= Array(Diagonal(fill(σ_0^2, N_θ)))
-end
-@info "Run GMKI with ", N_modes, " θ0_mean = ", θ0_mean
-metric = "Fisher-Rao"
-update_covariance = true
+# T = 40000.0
+# N_iter = 40000 
+# N_modes = 2
+# N_θ = 1
+# θ0_w  = fill(1.0, N_modes)/N_modes
+# θ0_mean, θθ0_cov  = zeros(N_modes, N_θ), zeros(N_modes, N_θ, N_θ)
+# σ_0 = 0.1
+# Random.seed!(111);
+# for m = 1:N_modes
+#     θ0_mean[m, :]    .= rand(Normal(0, σ_0), N_θ)
+#     θθ0_cov[m, :, :] .= Array(Diagonal(fill(σ_0^2, N_θ)))
+# end
+# @info "Run GMKI with ", N_modes, " θ0_mean = ", θ0_mean
+# metric = "Fisher-Rao"
+# update_covariance = true
 # expectation_method = "unscented_transform_modified_2n+1"
-expectation_method = "random_sampling"
-N_ens = 2
-gmgdobj = GMGD_Run(
-    gaussain_V, 
-    N_iter,
-    T,
-    metric,
-    update_covariance, 
-    θ0_w, θ0_mean, θθ0_cov,
-    expectation_method,
-    N_ens)
+# N_ens = 2N_θ+1
+# # expectation_method = "random_sampling"
+# # N_ens = 2
+# gmgdobj = GMGD_Run(
+#     gaussain_V, 
+#     N_iter,
+#     T,
+#     metric,
+#     update_covariance, 
+#     θ0_w, θ0_mean, θθ0_cov,
+#     expectation_method,
+#     N_ens)
 
 
    
 
-Nx = 1000
-θ_min, θ_max = -5.0, 5.0
+# Nx = 1000
+# θ_min, θ_max = -5.0, 5.0
 
-# Plot reference
-xx_ref = Array(LinRange(θ_min, θ_max, 1000))
-yy_ref = copy(xx_ref)
-for i = 1:length(xx_ref)
-        V, _, _ = gaussain_V(xx_ref[i:i])
-        yy_ref[i] = exp(-V[1])
-end
-yy_ref .= yy_ref / ( sum(yy_ref)*(xx_ref[2] - xx_ref[1]) )
+# # Plot reference
+# xx_ref = Array(LinRange(θ_min, θ_max, 1000))
+# yy_ref = copy(xx_ref)
+# for i = 1:length(xx_ref)
+#         V, _, _ = gaussain_V(xx_ref[i:i])
+#         yy_ref[i] = exp(-V[1])
+# end
+# yy_ref .= yy_ref / ( sum(yy_ref)*(xx_ref[2] - xx_ref[1]) )
 
-using PyPlot
-include("Plot.jl")
+# using PyPlot
+# include("Plot.jl")
 
-fig, ax = PyPlot.subplots(sharex=false, sharey="row", figsize=(6,6))
-ax.plot(xx_ref, yy_ref, "-s", label="Reference", color="grey", linewidth=2, fillstyle="none", markevery=25)
-iter = N_iter
-Nx = 1000
-xxs, zzs = zeros(N_modes, Nx), zeros(N_modes, Nx)
-θ_min = minimum(gmgdobj.θ_mean[iter][:,1] .- 5sqrt.(gmgdobj.θθ_cov[iter][:,1,1]))
-θ_max = maximum(gmgdobj.θ_mean[iter][:,1] .+ 5sqrt.(gmgdobj.θθ_cov[iter][:,1,1]))            
-for i =1:N_modes
-    xxs[i, :], zzs[i, :] = Gaussian_1d(gmgdobj.θ_mean[iter][i,1], gmgdobj.θθ_cov[iter][i,1,1], Nx, θ_min, θ_max)
-    zzs[i, :] *= exp(gmgdobj.logθ_w[iter][i])
-    ax.plot(fill(gmgdobj.θ_mean[iter][i,1], 11), LinRange(0,1,11), color = "C"*string(i), marker="o", fillstyle="none", markevery=5)
-    ax.plot(xxs[1,:], zzs[i, :], linestyle=":", color = "C"*string(i), fillstyle="none", markevery=100, label="Mode"*string(i), linewidth=2)
-end
-ax.plot(xxs[1,:], sum(zzs, dims=1)', linestyle="-", fillstyle="none", markevery=100, label="GMGD", linewidth=2)
-ax.legend()
+# fig, ax = PyPlot.subplots(sharex=false, sharey="row", figsize=(6,6))
+# ax.plot(xx_ref, yy_ref, "-s", label="Reference", color="grey", linewidth=2, fillstyle="none", markevery=25)
+# iter = N_iter
+# Nx = 1000
+# xxs, zzs = zeros(N_modes, Nx), zeros(N_modes, Nx)
+# θ_min = minimum(gmgdobj.θ_mean[iter][:,1] .- 5sqrt.(gmgdobj.θθ_cov[iter][:,1,1]))
+# θ_max = maximum(gmgdobj.θ_mean[iter][:,1] .+ 5sqrt.(gmgdobj.θθ_cov[iter][:,1,1]))            
+
+# for i =1:N_modes
+#     xxs[i, :], zzs[i, :] = Gaussian_1d(gmgdobj.θ_mean[iter][i,1], gmgdobj.θθ_cov[iter][i,1,1], Nx, θ_min, θ_max)
+#     zzs[i, :] *= exp(gmgdobj.logθ_w[iter][i])
+#     ax.plot(fill(gmgdobj.θ_mean[iter][i,1], 11), LinRange(0,1,11), color = "C"*string(i), marker="o", fillstyle="none", markevery=5)
+#     ax.plot(xxs[1,:], zzs[i, :], linestyle=":", color = "C"*string(i), fillstyle="none", markevery=100, linewidth=2)
+# end
+# ax.plot(xxs[1,:], sum(zzs, dims=1)', linestyle="-", fillstyle="none", markevery=100, label="GMGD", linewidth=2)
+# ax.legend()
 
 
 
-fig, ax = PyPlot.subplots(sharex=false, sharey="row", figsize=(6,6))
-θ_w = exp.(hcat(gmgdobj.logθ_w...))
-θ_mean = hcat(gmgdobj.θ_mean...)
-for i =1:N_modes
-    ax.plot(Array(1:N_iter), θ_w[i, 1:N_iter], "--", color = "C"*string(i), fillstyle="none", markevery=5, label= "mode "*string(i)*" weight")
-    ax.plot(Array(1:N_iter), θ_mean[i, 1:N_iter], ":", color = "C"*string(i), fillstyle="none", markevery=5, label= "mode "*string(i)*" mean")
-end
-ax.legend()
+# fig, ax = PyPlot.subplots(sharex=false, sharey="row", figsize=(6,6))
+# θ_w = exp.(hcat(gmgdobj.logθ_w...))
+# θ_mean = hcat(gmgdobj.θ_mean...)
+# for i =1:N_modes
+#     ax.plot(Array(1:N_iter), θ_w[i, 1:N_iter], "--", color = "C"*string(i), fillstyle="none", markevery=5, label = (i == 1 ? "weight" : nothing) )
+#     ax.plot(Array(1:N_iter), θ_mean[i, 1:N_iter], ":", color = "C"*string(i), fillstyle="none", markevery=5, label= (i == 1 ? "mean" : nothing))
+# end
+# ax.legend()
 
 # θ_w = exp.(hcat(gmgdobj.logθ_w...))
 # for i =1:N_modes

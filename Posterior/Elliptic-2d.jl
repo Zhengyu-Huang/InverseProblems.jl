@@ -49,11 +49,12 @@ function Ellitic_Posterior_Plot(update_freq::Int64 = 1)
     θ0_mean = μ0
     θθ0_cov = [1.0  0.0; 0.0 100.0]
     α_reg,  N_iter = 1.0, 20
-    ukiobj = UKI_Run(s_param, forward, θ0_mean, θθ0_cov, y, Σ_η, α_reg, update_freq, N_iter)
-    
+    uki_Δt = 0.5
+    ukiobj = UKI_Run(s_param, forward, θ0_mean, θθ0_cov, θ0_mean, θθ0_cov, y, Σ_η, uki_Δt, α_reg, update_freq, N_iter)
     
     # plot UKI results at 5th, 10th, and 15th iterations
-    fig, ax = PyPlot.subplots(ncols=3, sharex=false, sharey=true, figsize=(15,5))
+    ncols = 3
+    fig, ax = PyPlot.subplots(ncols=ncols, sharex=false, sharey=true, figsize=(15,5))
     for icol = 1:ncols
         # plot UKI results 
         ites = 5*icol
