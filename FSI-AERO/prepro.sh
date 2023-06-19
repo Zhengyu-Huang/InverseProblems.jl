@@ -1,9 +1,9 @@
 #!/bin/bash
 
 
-SOWER_EXECUTABLE=/home/pavery/bin/sower
-MATCHER_EXECUTABLE=/home/pavery/bin/matcher
-PARTDMESH_EXECUTABLE=/home/pavery/bin/partdmesh
+SOWER_EXECUTABLE=/home/dzhuang/frg/sower/build/bin/sower 
+MATCHER_EXECUTABLE=/home/dzhuang/frg/matcher/build/bin/matcher  
+PARTDMESH_EXECUTABLE=/home/dzhuang/frg/metis/build/bin/partdmesh
 
 NS=35
 NP=$NS

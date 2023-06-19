@@ -13,8 +13,6 @@ For solving the inverse problem
     
 """
 mutable struct GMUKIObj{FT<:AbstractFloat, IT<:Int}
-"vector of parameter names (never used)"
-    θ_names::Array{String,1}
     "a vector of arrays of size (N_modes) containing the modal weights of the parameters"
     logθ_w::Vector{Array{FT, 1}}
     "a vector of arrays of size (N_modes x N_parameters) containing the modal means of the parameters"
@@ -56,18 +54,15 @@ end
 
 """
 UKIObj Constructor 
-parameter_names::Array{String,1} : parameter name vector
-θ0_mean::Array{FT} : prior mean
-θθ0_cov::Array{FT, 2} : prior covariance
+θ0_mean::Array{FT} : initial mean
+θθ0_cov::Array{FT, 2} : initial covariance
 g_t::Array{FT,1} : observation 
 obs_cov::Array{FT, 2} : observation covariance
 α_reg::FT : regularization parameter toward θ0 (0 < α_reg <= 1), default should be 1, without regulariazion
 
 unscented_transform : "original-2n+1", "modified-2n+1", "original-n+2", "modified-n+2" 
 """
-function GMUKIObj(θ_names::Array{String,1},
-                # initial condition
-                θ0_w::Array{FT, 1},
+function GMUKIObj(θ0_w::Array{FT, 1},
                 θ0_mean::Array{FT, 2}, 
                 θθ0_cov::Array{FT, 3},
                 y::Array{FT,1},
@@ -174,7 +169,7 @@ function GMUKIObj(θ_names::Array{String,1},
    
     iter = 0
 
-    GMUKIObj{FT,IT}(θ_names, logθ_w, θ_mean, θθ_cov, y_pred, 
+    GMUKIObj{FT,IT}(logθ_w, θ_mean, θθ_cov, y_pred, 
                   y,   Σ_η, 
                   N_modes, N_ens, N_θ, N_y, 
                   c_weights, mean_weights, cov_weights, 
@@ -670,10 +665,8 @@ function GMUKI_Run(s_param, forward::Function,
     mixture_power_sampling_method = "random-sampling",
     θ_basis = nothing)
     
-    θ_names = s_param.θ_names
     
-    
-    ukiobj = GMUKIObj(θ_names ,
+    ukiobj = GMUKIObj(
     θ0_w, θ0_mean, θθ0_cov,
     y, Σ_η,
     γ,

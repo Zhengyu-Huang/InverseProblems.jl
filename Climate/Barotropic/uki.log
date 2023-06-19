@@ -1,8 +1,0 @@
-ERROR: could not open file /home/zhengyuh/Code/InverseProblems.jl/Barotropic/UKI_HS.jl
-Stacktrace:
- [1] include at ./boot.jl:328 [inlined]
- [2] include_relative(::Module, ::String) at ./loading.jl:1105
- [3] include(::Module, ::String) at ./Base.jl:31
- [4] exec_options(::Base.JLOptions) at ./client.jl:287
- [5] _start() at ./client.jl:460
-srun: error: ind2-4-2: task 0: Exited with exit code 1
