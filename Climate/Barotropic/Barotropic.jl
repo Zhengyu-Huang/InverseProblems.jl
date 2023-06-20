@@ -3,7 +3,7 @@ using LinearAlgebra
 using Random
 
 mutable struct Setup_Param{FT<:AbstractFloat, IT<:Int, CT<:Complex}
-    # physics
+    # physics 170, 256, 1 #85, 128, 1  # 42, 64, 1
     θ_names::String
     num_fourier::IT  
     nθ::IT
@@ -20,6 +20,7 @@ mutable struct Setup_Param{FT<:AbstractFloat, IT<:Int, CT<:Complex}
     # background velocity/vorticity profiles
     grid_u_b::Array{FT,3}
     grid_v_b::Array{FT,3}
+    grid_vor_b::Array{FT,3}
     spe_vor_b::Array{CT,3}
     
     # initial vorticity field
@@ -34,17 +35,19 @@ mutable struct Setup_Param{FT<:AbstractFloat, IT<:Int, CT<:Complex}
     obs_coord::Array{IT, 2}
     antisymmetric::Bool
     N_y::IT
+    trunc_N::IT
     N_θ::IT
 end
 
 
 function Setup_Param(num_fourier::IT,  nθ::IT, 
-                     Δt::IT, end_time::IT, n_obs_frames::IT, nobs::IT, antisymmetric::Bool, N_y::IT, N_θ::IT; radius::FT = 6371.2e3, omega::FT = 7.292e-5) where {FT<:AbstractFloat, IT<:Int}
+                     Δt::IT, end_time::IT, n_obs_frames::IT, nobs::IT, antisymmetric::Bool, N_y::IT, trunc_N::IT; radius::FT = 6371.2e3, omega::FT = 7.292e-5) where {FT<:AbstractFloat, IT<:Int}
     
     num_spherical = num_fourier + 1
     nλ = 2nθ
+    N_θ = trunc_N^2 + 2*trunc_N
     obs_time = div(end_time, n_obs_frames)
-    mesh, grid_u_b, grid_v_b, grid_vor_b, spe_vor_b, grid_vor_pert, grid_u, grid_v, grid_vor, spe_vor, init_data = Barotropic_Init(num_fourier, nθ; radius=radius)
+    mesh, grid_u_b, grid_v_b, grid_vor_b, spe_vor_b, grid_vor_pert, grid_u, grid_v, grid_vor, spe_vor, init_data = Barotropic_Init(num_fourier, nθ; trunc_N=trunc_N, radius=radius)
     
     
     
@@ -63,9 +66,9 @@ function Setup_Param(num_fourier::IT,  nθ::IT,
     
     Setup_Param("barotropic_flow", num_fourier, nθ, mesh, radius, omega,
         Δt, end_time, n_obs_frames, obs_time, 
-        grid_u_b, grid_v_b, spe_vor_b, grid_u, 
+        grid_u_b, grid_v_b, grid_vor_b, spe_vor_b, grid_u, 
         grid_v, grid_vor, spe_vor, init_data, 
-        nobs, obs_coord, antisymmetric, N_y, N_θ)
+        nobs, obs_coord, antisymmetric, N_y, trunc_N, N_θ)
 end
 
 
@@ -120,23 +123,26 @@ function Barotropic_Init(num_fourier::IT, nθ::IT; trunc_N::IT = num_fourier, ra
     
       # n_init_data = length(init_data)
       # N = Int64(sqrt(1 + n_init_data) - 1)
-    n_init_data = (trunc_N+1)*(trunc_N+1) - 1
-    init_data = zeros(n_init_data)
-    m = 0
-    for n = 1:trunc_N
-      init_data[n] = spe_vor_pert[m+1,n+1,1] * radius
-    end
-    i_init_data = num_fourier
-    for m = 1:trunc_N
-      for n = m:trunc_N
-        # m = 1, 2, 3 .. m 
-        #     0  N  N-1...
-        #     N + N-1 ... N-m+2 
-        init_data[i_init_data + 1] =  real(spe_vor_pert[m+1,n+1,1])*radius
-        init_data[i_init_data + 2] = -imag(spe_vor_pert[m+1,n+1,1])*radius
-        i_init_data += 2
-      end 
-    end
+#### DEBUG
+#     n_init_data = (trunc_N+1)*(trunc_N+1) - 1
+#     init_data = zeros(n_init_data)
+#     m = 0
+#     for n = 1:trunc_N
+#       init_data[n] = spe_vor_pert[m+1,n+1,1] * radius
+#     end
+#     i_init_data = trunc_N
+#     for m = 1:trunc_N
+#       for n = m:trunc_N
+#         # m = 1, 2, 3 .. m 
+#         #     0  N  N-1...
+#         #     N + N-1 ... N-m+2 
+#         init_data[i_init_data + 1] =  real(spe_vor_pert[m+1,n+1,1])*radius
+#         init_data[i_init_data + 2] = -imag(spe_vor_pert[m+1,n+1,1])*radius
+#         i_init_data += 2
+#       end 
+#     end
+#     @assert(norm(spe_to_param(spe_vor_pert, trunc_N; radius=radius) - init_data) ≈ 0.0 )
+    init_data = spe_to_param(spe_vor_pert, trunc_N; radius=radius)
     
     ##### 
     DEBUG = false
@@ -153,7 +159,51 @@ function Barotropic_Init(num_fourier::IT, nθ::IT; trunc_N::IT = num_fourier, ra
     
 end
 
-
+function spe_to_param(spe_vor, trunc_N; radius=6371.2e3)
+    n_init_data = (trunc_N+1)*(trunc_N+1) - 1
+    init_data = zeros(n_init_data)
+    m = 0
+    for n = 1:trunc_N
+      init_data[n] = spe_vor[m+1,n+1,1] * radius
+    end
+    i_init_data = trunc_N
+    for m = 1:trunc_N
+      for n = m:trunc_N
+        # m = 1, 2, 3 .. m 
+        #     0  N  N-1...
+        #     N + N-1 ... N-m+2 
+        init_data[i_init_data + 1] =  real(spe_vor[m+1,n+1,1])*radius
+        init_data[i_init_data + 2] = -imag(spe_vor[m+1,n+1,1])*radius
+        i_init_data += 2
+      end 
+    end
+    return init_data
+end
+function param_to_spe(init_data, num_fourier; radius=6371.2e3)
+    num_spherical = num_fourier + 1
+    spe_vor = Array{ComplexF64, 3}(undef, num_fourier+1, num_spherical+1, 1)
+    spe_vor .= 0.0
+    
+    n_init_data = length(init_data)
+    N = Int64(sqrt(1 + n_init_data) - 1)
+    
+    m = 0
+    for n = 1:N
+      spe_vor[m+1,n+1,1] += init_data[n]/radius
+    end
+    i_init_data = N
+    for m = 1:N
+      for n = m:N
+        # m = 1, 2, 3 .. m 
+        #     0  N  N-1...
+        #     N + N-1 ... N-m+2 
+        spe_vor[m+1,n+1,1] += (init_data[i_init_data+1] - init_data[i_init_data + 2]*im)/radius
+        i_init_data += 2
+      end 
+    end
+    return spe_vor
+end
+    
 
 
 function Barotropic_Main(sparam::Setup_Param, init_data = nothing; init_type = "spec_vor")
@@ -280,25 +330,31 @@ function Barotropic_ω0!(mesh, init_type::String, init_data, spe_vor0, grid_vor0
     #   ...
     # F_0,N F_1,N F_2,N, ..., F_N,N
     # N + 2(N+1)N/2 = N^2 + 2N
+    #### DEBUG
+#     n_init_data = length(init_data)
+#     N = Int64(sqrt(1 + n_init_data) - 1)
     
-    n_init_data = length(init_data)
-    N = Int64(sqrt(1 + n_init_data) - 1)
+#     m = 0
+#     for n = 1:N
+#       spe_vor0[m+1,n+1,1] += init_data[n]/radius
+#     end
+#     i_init_data = N
+#     for m = 1:N
+#       for n = m:N
+#         # m = 1, 2, 3 .. m 
+#         #     0  N  N-1...
+#         #     N + N-1 ... N-m+2 
+#         spe_vor0[m+1,n+1,1] += (init_data[i_init_data+1] - init_data[i_init_data + 2]*im)/radius
+#         i_init_data += 2
+#       end 
+#     end
+#     @assert(i_init_data == n_init_data)
+     
+#     @assert( norm(param_to_spe_to(init_data, mesh.num_fourier; radius=radius) + spe_vor_b - spe_vor0) ≈ 0.0 )
     
-    m = 0
-    for n = 1:N
-      spe_vor0[m+1,n+1,1] += init_data[n]/radius
-    end
-    i_init_data = N
-    for m = 1:N
-      for n = m:N
-        # m = 1, 2, 3 .. m 
-        #     0  N  N-1...
-        #     N + N-1 ... N-m+2 
-        spe_vor0[m+1,n+1,1] += (init_data[i_init_data+1] - init_data[i_init_data + 2]*im)/radius
-        i_init_data += 2
-      end 
-    end
-    @assert(i_init_data == n_init_data)
+        
+    spe_vor0 .= spe_vor_b .+ param_to_spe(init_data, mesh.num_fourier; radius=radius)
+        
     
     Trans_Spherical_To_Grid!(mesh, spe_vor0, grid_vor0)
   else 

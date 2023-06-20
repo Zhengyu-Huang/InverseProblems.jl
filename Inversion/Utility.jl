@@ -20,10 +20,13 @@ function ensemble(s_param, θ_ens::Array{FT,3}, forward::Function)  where {FT<:A
     N_y = s_param.N_y
     g_ens = zeros(FT, N_modes, N_ens,  N_y)
     
-    for im = 1:N_modes
-        Threads.@threads for i = 1:N_ens
+    
+    Threads.@threads for i = 1:N_ens
+        for im = 1:N_modes
+            # println("i = $i, im = $im (thread $(Threads.threadid()) of out $(Threads.nthreads()))")
             θ = θ_ens[im, i, :]
             g_ens[im, i, :] .= forward(s_param, θ)
+            # @info "im, i, norm(g_ens[im, i, :]) = ", im, i, norm(g_ens[im, i, :])
         end
     end
     

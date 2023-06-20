@@ -47,8 +47,8 @@ end
 
 
 
-num_fourier, nθ = 85, 128
-Δt, end_time =  900, 86400
+num_fourier, nθ = 42, 64 # 85, 128
+Δt, end_time =  1800, 86400
 n_obs_frames = 2
 obs_time, nobs = Int64(end_time/n_obs_frames), 50
 antisymmetric = true
@@ -76,7 +76,7 @@ end
 
 
 
-N_iter = 50
+N_iter = 30
 update_freq = 1
 N_modes = 3
 θ0_w  = fill(1.0, N_modes)/N_modes
