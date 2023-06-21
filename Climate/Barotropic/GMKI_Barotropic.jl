@@ -2,52 +2,11 @@ using NNGCM
 using LinearAlgebra
 using Random
 using Distributions
-import PyPlot
 using JLD2
-include("../../Inversion/Plot.jl")
-include("../../Inversion/KalmanInversion.jl")
 include("Barotropic.jl")
 
 
-
-
-function NNGCM.Lat_Lon_Pcolormesh(mesh::Spectral_Spherical_Mesh, grid_dat::Array{Float64,3}, level::Int64, obs_coord::Array{Int64, 2}; 
-        vmin = nothing, vmax = nothing, save_file_name::String = "None", cmap="viridis", antisymmetric::Bool=false)
-    
-    λc, θc = mesh.λc, mesh.θc
-    nλ, nθ = length(λc), length(θc)
-    λc_deg, θc_deg = λc*180/pi, θc*180/pi
-    
-    X,Y = repeat(λc_deg, 1, nθ), repeat(θc_deg, 1, nλ)'
-    
-    
-    PyPlot.pcolormesh(X, Y, grid_dat[:,:,level], shading= "gouraud", vmin=vmin, vmax=vmax, cmap=cmap)
-    PyPlot.colorbar()
-    x_obs, y_obs = λc_deg[obs_coord[:,1]], θc_deg[obs_coord[:,2]]
-    PyPlot.scatter(x_obs, y_obs, color="black")
-    
-    if antisymmetric
-        x_obs_anti, y_obs_anti = λc_deg[obs_coord[:,1]], θc_deg[end + 1 .- obs_coord[:,2]]
-        PyPlot.scatter(x_obs_anti, y_obs_anti, facecolors="none", edgecolors="black")
-    end
-    
-    PyPlot.axis("equal")
-    PyPlot.xlabel("Longitude")
-    PyPlot.ylabel("Latitude")
-    PyPlot.tight_layout()
-    
-    if save_file_name != "None"
-        PyPlot.savefig(save_file_name)
-        PyPlot.close("all")
-    end
-    
-end
-
-
-
-
-
-num_fourier, nθ = 42, 64 # 85, 128
+num_fourier, nθ = 42, 64 #85, 128
 Δt, end_time =  1800, 86400
 n_obs_frames = 2
 obs_time, nobs = Int64(end_time/n_obs_frames), 50
@@ -55,31 +14,36 @@ antisymmetric = true
 trunc_N = 7
 N_θ = (trunc_N+2)*trunc_N
 N_y = nobs*n_obs_frames + N_θ 
-barotropic = Setup_Param(num_fourier, nθ, Δt, end_time, n_obs_frames, nobs, antisymmetric, N_y, N_θ);
+barotropic = Setup_Param(num_fourier, nθ, Δt, end_time, n_obs_frames, nobs, antisymmetric, N_y, trunc_N);
+
+
+
+# Generate reference observation
+# mesh, obs_raw_data = Barotropic_Main(barotropic, nothing; init_type = "truth");
 mesh, obs_raw_data = Barotropic_Main(barotropic, barotropic.init_data; init_type = "spec_vor");
 
 
+# Plot observation data
 obs_coord = barotropic.obs_coord
 n_obs_frames = barotropic.n_obs_frames
 antisymmetric = barotropic.antisymmetric
 for i_obs = 1:n_obs_frames
     Lat_Lon_Pcolormesh(mesh, obs_raw_data["vel_u"][i_obs], 1, obs_coord; save_file_name =   "Figs/Barotropic_u-"*string(i_obs)*".pdf", cmap = "viridis", antisymmetric=antisymmetric)
-end 
-
-
-function aug_forward(barotropic::Setup_Param{FT, IT, CT}, θ::Array{FT, 1}) where {FT<:AbstractFloat, IT<:Int, CT<:Complex}
-      
-    mesh, obs_raw_data = Barotropic_Main(barotropic, θ; init_type = "spec_vor")
-    y = convert_obs(barotropic.obs_coord, obs_raw_data; antisymmetric=barotropic.antisymmetric)
-    return [y ; θ]
-end
+end     
 
 
 
+include("Barotropic.jl")
+include("../../Inversion/Plot.jl")
+include("../../Inversion/KalmanInversion.jl")
+# compute posterior distribution by UKI
 N_iter = 30
 update_freq = 1
 N_modes = 3
 θ0_w  = fill(1.0, N_modes)/N_modes
+
+
+
 θ0_mean, θθ0_cov  = zeros(N_modes, N_θ), zeros(N_modes, N_θ, N_θ)
 Random.seed!(63);
 σ_0 = 1.0
@@ -87,32 +51,34 @@ for i = 1:N_modes
     θ0_mean[i, :]    .= rand(Normal(0, σ_0), N_θ) 
     θθ0_cov[i, :, :] .= Array(Diagonal(fill(1.0^2, N_θ)))
 end
-μ_0 = zeros(Float64, N_θ)                # prior/initial mean 
+μ_0 = zeros(Float64, N_θ)  # prior/initial mean 
 Σ_0 = Array(Diagonal(fill(σ_0^2, N_θ)))  # prior/initial covariance
 
 
 
-y = convert_obs(barotropic.obs_coord, obs_raw_data; antisymmetric=barotropic.antisymmetric)
-N_y = barotropic.nobs * barotropic.n_obs_frames
-Σ_η = Array(Diagonal(fill(1.0, N_y)))
+y_noiseless = convert_obs(barotropic.obs_coord, obs_raw_data; antisymmetric=barotropic.antisymmetric)
 
+σ_η = 1.0
+N_y = barotropic.nobs * barotropic.n_obs_frames
+Random.seed!(123);
+y = y_noiseless + 0.0*rand(Normal(0, σ_η), N_y)
+Σ_η = Array(Diagonal(fill(σ_η^2, N_y)))
 aug_y = [y; μ_0]
 aug_Σ_η = [Σ_η zeros(Float64, N_y, N_θ); zeros(Float64, N_θ, N_y) Σ_0]  
 
 
 
 
-γ = 1.0
-# Δt = γ/(1+γ)
-ukiobj = GMUKI_Run(barotropic, aug_forward, θ0_w, θ0_mean, θθ0_cov, aug_y, aug_Σ_η, γ, update_freq, N_iter; unscented_transform="modified-2n+1")
-    
 
+γ = 1.0
+Δt = γ/(1+γ)
+@time ukiobj = GMUKI_Run(barotropic, aug_forward, θ0_w, θ0_mean, θθ0_cov, aug_y, aug_Σ_η, γ, update_freq, N_iter; unscented_transform="modified-2n+1")
 @save "ukiobj.jld2" ukiobj
 
+# @load "ukiobj.jld2" ukiobj
 
-#######################################################################
-#
-#######################################################################
+
+
 function plot_field(mesh::Spectral_Spherical_Mesh, grid_dat::Array{Float64,3}, level::Int64, clim, ax; cmap="viridis")
     
     λc, θc = mesh.λc, mesh.θc
@@ -214,9 +180,6 @@ ax4.set_ylabel("Weights")
 ax4.legend()
 fig.tight_layout()
 fig.savefig("Barotropic-2D-convergence.pdf")
-
-
-
 
 
 fig, ax = PyPlot.subplots(ncols=1, figsize=(16,5))

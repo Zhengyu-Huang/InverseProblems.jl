@@ -1,6 +1,8 @@
 using NNGCM
 using LinearAlgebra
 using Random
+import PyPlot
+
 
 mutable struct Setup_Param{FT<:AbstractFloat, IT<:Int, CT<:Complex}
     # physics 170, 256, 1 #85, 128, 1  # 42, 64, 1
@@ -144,16 +146,16 @@ function Barotropic_Init(num_fourier::IT, nθ::IT; trunc_N::IT = num_fourier, ra
 #     @assert(norm(spe_to_param(spe_vor_pert, trunc_N; radius=radius) - init_data) ≈ 0.0 )
     init_data = spe_to_param(spe_vor_pert, trunc_N; radius=radius)
     
-    ##### 
-    DEBUG = false
-    if DEBUG
-        spe_vor0, grid_vor0 = similar(spe_vor_b), similar(grid_vor_b)
-        Barotropic_ω0!(mesh, "spec_vor", init_data, spe_vor0, grid_vor0; spe_vor_b = spe_vor_b, radius = radius)
-        @info "grid_vor rel. error = ", norm(grid_vor0 - grid_vor)/norm(grid_vor)
-        @info "spe_vor rel. error = ", norm(spe_vor0 - spe_vor)/norm(spe_vor)
-        Lat_Lon_Pcolormesh(mesh, grid_vor0, 1; save_file_name = "Figs/Debug_Barotropic_vor0.pdf", cmap = "viridis")
-        Lat_Lon_Pcolormesh(mesh, grid_vor - grid_vor0, 1; save_file_name = "Figs/Debug_Barotropic_vor0_diff.pdf", cmap = "viridis") 
-    end
+#     ##### 
+#     DEBUG = false
+#     if DEBUG
+#         spe_vor0, grid_vor0 = similar(spe_vor_b), similar(grid_vor_b)
+#         Barotropic_ω0!(mesh, "spec_vor", init_data, spe_vor0, grid_vor0; spe_vor_b = spe_vor_b, radius = radius)
+#         @info "grid_vor rel. error = ", norm(grid_vor0 - grid_vor)/norm(grid_vor)
+#         @info "spe_vor rel. error = ", norm(spe_vor0 - spe_vor)/norm(spe_vor)
+#         Lat_Lon_Pcolormesh(mesh, grid_vor0, 1; save_file_name = "Figs/Debug_Barotropic_vor0.pdf", cmap = "viridis")
+#         Lat_Lon_Pcolormesh(mesh, grid_vor - grid_vor0, 1; save_file_name = "Figs/Debug_Barotropic_vor0_diff.pdf", cmap = "viridis") 
+#     end
      
     return mesh, grid_u_b, grid_v_b, grid_vor_b, spe_vor_b, grid_vor_pert, grid_u, grid_v, grid_vor, spe_vor, init_data
     
@@ -391,13 +393,42 @@ end
 
 
 
-function Barotropic_run(nframes::Int64, init_type::String; init_data=nothing, obs_coord=nothing, spe_vor_b=nothing, symmetric=false)
-  
-  _, _, _, _, _, _, obs_raw = Barotropic_Main(nframes, init_type, init_data, spe_vor_b, obs_coord)
-  
-  # update obs
-  obs = convert_obs(obs_coord, obs_raw, symmetric)
-  
-  return obs
+
+function NNGCM.Lat_Lon_Pcolormesh(mesh::Spectral_Spherical_Mesh, grid_dat::Array{Float64,3}, level::Int64, obs_coord::Array{Int64, 2}; 
+        vmin = nothing, vmax = nothing, save_file_name::String = "None", cmap="viridis", antisymmetric::Bool=false)
+    
+    λc, θc = mesh.λc, mesh.θc
+    nλ, nθ = length(λc), length(θc)
+    λc_deg, θc_deg = λc*180/pi, θc*180/pi
+    
+    X,Y = repeat(λc_deg, 1, nθ), repeat(θc_deg, 1, nλ)'
+    
+    
+    PyPlot.pcolormesh(X, Y, grid_dat[:,:,level], shading= "gouraud", vmin=vmin, vmax=vmax, cmap=cmap)
+    PyPlot.colorbar()
+    x_obs, y_obs = λc_deg[obs_coord[:,1]], θc_deg[obs_coord[:,2]]
+    PyPlot.scatter(x_obs, y_obs, color="black")
+    
+    if antisymmetric
+        x_obs_anti, y_obs_anti = λc_deg[obs_coord[:,1]], θc_deg[end + 1 .- obs_coord[:,2]]
+        PyPlot.scatter(x_obs_anti, y_obs_anti, facecolors="none", edgecolors="black")
+    end
+    
+    PyPlot.axis("equal")
+    PyPlot.xlabel("Longitude")
+    PyPlot.ylabel("Latitude")
+    PyPlot.tight_layout()
+    
+    if save_file_name != "None"
+        PyPlot.savefig(save_file_name)
+        PyPlot.close("all")
+    end
+    
 end
 ###########################################################################################
+function aug_forward(barotropic::Setup_Param{FT, IT, CT}, θ::Array{FT, 1}) where {FT<:AbstractFloat, IT<:Int, CT<:Complex}
+      
+    mesh, obs_raw_data = Barotropic_Main(barotropic, θ; init_type = "spec_vor")
+    y = convert_obs(barotropic.obs_coord, obs_raw_data; antisymmetric=barotropic.antisymmetric)
+    return [y ; θ]
+end
