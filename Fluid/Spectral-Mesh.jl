@@ -370,8 +370,7 @@ function Visual(mesh::Spectral_Mesh, u::Array{Float64,2}, var_name::String,
 end
 
 
-function Visual_Obs(mesh::Spectral_Mesh, u::Array{Float64,2}, x_locs::Array{Int64,1},  y_locs::Array{Int64,1}, var_name::String, 
-    save_file_name::String="None", vmin=nothing, vmax=nothing)
+function Visual_Obs(mesh::Spectral_Mesh, u::Array{Float64,2}, x_locs::Array{Int64,1},  y_locs::Array{Int64,1}, var_name::String; symmetric::Bool=false, save_file_name::String="None", vmin=nothing, vmax=nothing)
     
     N_x, N_y = mesh.N_x, mesh.N_y
     xx, yy = mesh.xx, mesh.yy
@@ -382,7 +381,14 @@ function Visual_Obs(mesh::Spectral_Mesh, u::Array{Float64,2}, x_locs::Array{Int6
     figure()
     pcolormesh(X, Y, u, shading= "gouraud", cmap="viridis", vmin=vmin, vmax =vmax)
     colorbar()
+    
     scatter(x_obs, y_obs, color="black")
+    if symmetric
+        mirror_loc_ind = [1;N_x:-1:2]
+        x_obs_sym, y_obs_sym = X[mirror_loc_ind[x_locs],y_locs][:], Y[mirror_loc_ind[x_locs],y_locs][:]   
+        scatter(x_obs_sym, y_obs_sym, facecolors="none", edgecolors="black")
+    end
+
     
     xlabel("X")
     ylabel("Y")

@@ -629,8 +629,12 @@ function update_ensemble!(uki::GMUKIObj{FT, IT}, ens_func::Function) where {FT<:
     logθ_w_n .-= maximum(logθ_w_n)
     logθ_w_n .-= log( sum(exp.(logθ_w_n)) )
 
-    # TODO 
-    logθ_w_n[logθ_w_n .< -10] .= -10
+    # Clipping
+    logθ_w_min = log(0.01)
+    logθ_w_n[logθ_w_n .< logθ_w_min] .= logθ_w_min
+    logθ_w_n .-= maximum(logθ_w_n)
+    logθ_w_n .-= log( sum(exp.(logθ_w_n)) )
+    
 
     # TODO reweight
     REWEIGHT = false

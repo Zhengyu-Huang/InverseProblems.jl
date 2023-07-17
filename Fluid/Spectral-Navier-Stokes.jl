@@ -263,7 +263,7 @@ end
 
 
 #########################
-struct Setup_Param
+mutable struct Setup_Param
     # physics
     ν::Float64        # dynamic viscosity
     ub::Float64       # background velocity 
@@ -285,6 +285,7 @@ struct Setup_Param
     x_locs::Array{Int64, 1}
     y_locs::Array{Int64, 1}
     t_locs::Array{Int64, 1}
+    symmetric::Bool
 
     # for parameterization
     seq_pairs::Array{Int64, 2} # indexing eigen pairs of KL expansion, length(seq_pairs) >= N_θ 
@@ -303,19 +304,25 @@ end
 function Setup_Param(ν::Float64, ub::Float64, vb::Float64,  
     N::Int64, L::Float64,  
     method::String, N_t::Int64,
-    obs_ΔNx::Int64, obs_ΔNy::Int64, obs_ΔNt::Int64, 
+    obs_ΔNx::Int64, obs_ΔNy::Int64, obs_ΔNt::Int64, symmetric::Bool,
     N_KL::Int64,
     N_θ::Int64; 
     f::Union{Function, Nothing} = nothing,
     σ::Float64 = sqrt(2)*pi, seed::Int64=123)
     
     #observation
-    x_locs = Array(1:obs_ΔNx:N)
-    y_locs = Array(1:obs_ΔNy:N)
+    if symmetric
+        x_locs = Array(obs_ΔNx+1:obs_ΔNx:div(N,2))
+        y_locs = Array(1:obs_ΔNy:N)
+    else
+        x_locs = Array(1:obs_ΔNx:N)
+        y_locs = Array(1:obs_ΔNy:N)
+    end
     t_locs = Array(obs_ΔNt:obs_ΔNt:N_t)
 
     
     N_y = length(x_locs)*length(y_locs)*length(t_locs)
+    @info "N_y = ", N_y
     seq_pairs = Compute_Seq_Pairs(max(N_KL, N_θ))
 
     mesh = Spectral_Mesh(N, N, L, L)
@@ -332,6 +339,11 @@ function Setup_Param(ν::Float64, ub::Float64, vb::Float64,
         # project to obtain the first N_θ modes
         θ_ref = Construct_θ0(ω0_ref, N_θ, seq_pairs, mesh)
     end
+    
+    ω0_hat_ref = zeros(ComplexF64, N, N)
+    Trans_Grid_To_Spectral!(mesh, ω0_ref, ω0_hat_ref)
+    Trans_Spectral_To_Grid!(mesh, ω0_hat_ref, ω0_ref)
+
 
     θ_names = ["ω0"]
 
@@ -346,7 +358,8 @@ function Setup_Param(ν::Float64, ub::Float64, vb::Float64,
             end
         end
     end
-    Setup_Param(ν, ub, vb, fx, fy, N, L, L/N, xx,  method, N_t, T, x_locs, y_locs, t_locs, seq_pairs, N_KL, θ_ref, ω0_ref, θ_names, N_θ, N_y)
+    Setup_Param(ν, ub, vb, fx, fy, N, L, L/N, xx,  method, N_t, T, x_locs, y_locs, t_locs, symmetric, 
+        seq_pairs, N_KL, θ_ref, ω0_ref, θ_names, N_θ, N_y)
 end
 
 
@@ -393,28 +406,28 @@ function Initial_ω0_KL(mesh::Spectral_Mesh, σ::Float64; seed::Int64 = 123)
     ω0_hat .*= mesh.alias_filter
     Trans_Spectral_To_Grid!(mesh, N_x*N_y * ω0_hat, ω0)
     
+    #####
+#     ω0_test = zeros(Float64, N_x, N_y)
+#     X, Y = zeros(Float64, N_x, N_y), zeros(Float64, N_x, N_y)
+#     Δx, Δy = mesh.Δx, mesh.Δy
+#     for ix = 1:N_x
+#         for iy = 1:N_y
+#             X[ix, iy] = (ix-1)*Δx
+#             Y[ix, iy] = (iy-1)*Δy
+#         end
+#     end
     
-    # ω0_test = zeros(Float64, N_x, N_y)
-    # X, Y = zeros(Float64, N_x, N_y), zeros(Float64, N_x, N_y)
-    # Δx, Δy = mesh.Δx, mesh.Δy
-    # for ix = 1:N_x
-    #     for iy = 1:N_y
-    #         X[ix, iy] = (ix-1)*Δx
-    #         Y[ix, iy] = (iy-1)*Δy
-    #     end
-    # end
-    
-    # for ix = 1:N_x
-    #     for iy = 1:N_y
-    #         kx, ky = kxx[ix], kyy[iy]
-    #         if (abs(kx) < N_x/3 && abs(ky) < N_y/3) && (kx + ky > 0 || (kx + ky == 0 && kx > 0)) 
-    #             ak, bk = abk[ix, iy, 1], abk[ix, iy, 2]
-    #             ω0_test .+= (ak * cos.(kx*X + ky*Y) + bk * sin.(kx*X + ky*Y))/(sqrt(2)*pi*(kx^2 + ky^2))
-    #         end
-    #     end
-    # end
-    # @info  "Error", norm(ω0 - ω0_test)
-    # error("Stop")
+#     for ix = 1:N_x
+#         for iy = 1:N_y
+#             kx, ky = kxx[ix], kyy[iy]
+#             if (abs(kx) < N_x/3 && abs(ky) < N_y/3) && (kx + ky > 0 || (kx + ky == 0 && kx > 0)) 
+#                 ak, bk = abk[ix, iy, 1], abk[ix, iy, 2]
+#                 ω0_test .+= (ak * cos.(kx*X + ky*Y) + bk * sin.(kx*X + ky*Y))/(sqrt(2)*pi*(kx^2 + ky^2))
+#             end
+#         end
+#     end
+#     @info  "Error", norm(ω0 - ω0_test)
+#     error("Stop")
     
     
     
@@ -491,27 +504,25 @@ function Initial_ω0_KL(mesh::Spectral_Mesh, θ::Array{Float64,1}, seq_pairs::Ar
     ω0_hat .*= mesh.alias_filter
     Trans_Spectral_To_Grid!(mesh, N_x*N_y * ω0_hat, ω0)
     
+#     ######
+#     ω0_test = zeros(Float64, N_x, N_y)
+#     X, Y = zeros(Float64, N_x, N_y), zeros(Float64, N_x, N_y)
+#     Δx, Δy = mesh.Δx, mesh.Δy
+#     for ix = 1:N_x
+#         for iy = 1:N_y
+#             X[ix, iy] = (ix-1)*Δx
+#             Y[ix, iy] = (iy-1)*Δy
+#         end
+#     end
     
-    # ω0_test = zeros(Float64, N_x, N_y)
-    # X, Y = zeros(Float64, N_x, N_y), zeros(Float64, N_x, N_y)
-    # Δx, Δy = mesh.Δx, mesh.Δy
-    # for ix = 1:N_x
-    #     for iy = 1:N_y
-    #         X[ix, iy] = (ix-1)*Δx
-    #         Y[ix, iy] = (iy-1)*Δy
-    #     end
-    # end
-    
-    # for i = 1:N_KL
-    #     kx, ky = seq_pairs[i,:]
-    #     ak, bk = abk[i,:]
-    #     @info kx, ky, N_x, N_y
-    
-    #     @assert((abs(kx) < N_x/3 && abs(ky) < N_y/3) && (kx + ky > 0 || (kx + ky == 0 && kx > 0))) 
-    #     ω0_test .+= (ak * cos.(kx*X + ky*Y) + bk * sin.(kx*X + ky*Y))/(2*pi^2*(kx^2 + ky^2))
-    # end
-    # @info  "Error", norm(ω0 - ω0_test), norm(ω0) , norm(ω0_test)
-    # error("Stop")
+#     for i = 1:N_KL
+#         kx, ky = seq_pairs[i,:]
+#         ak, bk = abk[i,:]
+#         @assert((abs(kx) < N_x/3 && abs(ky) < N_y/3) && (kx + ky > 0 || (kx + ky == 0 && kx > 0))) 
+#         ω0_test .+= (ak * cos.(kx*X + ky*Y) + bk * sin.(kx*X + ky*Y))/(sqrt(2)*pi*(kx^2 + ky^2))
+#     end
+#     @info  "Error", norm(ω0 - ω0_test), norm(ω0) , norm(ω0_test)
+#     error("Stop")
     
     
     ω0
@@ -539,12 +550,10 @@ function Construct_θ0(ω0::Array{Float64, 2}, N_θ::Int64, seq_pairs::Array{Int
     
     for i = 1:Int64(N_θ/2)
         kx, ky = seq_pairs[i,:]
-        
-        
-        A[:,i]              = (cos.(kx*X + ky*Y)/(2*pi^2*(kx^2 + ky^2)))[:]
-        A[:,i+Int64(N_θ/2)] = (sin.(kx*X + ky*Y)/(2*pi^2*(kx^2 + ky^2)))[:]
-        
+        A[:,i]              = (cos.(kx*X + ky*Y)/(sqrt(2)*pi*(kx^2 + ky^2)))[:]
+        A[:,i+Int64(N_θ/2)] = (sin.(kx*X + ky*Y)/(sqrt(2)*pi*(kx^2 + ky^2)))[:]
     end
+    
     x = A\ω0[:]
     
     abk0[1:Int64(N_θ/2), :] = reshape(x, Int64(N_θ/2), 2)
@@ -559,7 +568,7 @@ end
 # generate truth (all Fourier modes) and observations
 # observation are at frame 0, Δd_t, 2Δd_t, ... N_t
 # with sparse points at Array(1:Δd_x:N_x) × Array(1:Δd_y:N_y)
-function forward_helper(s_param::Setup_Param, ω0::Array{Float64,2}, save_file_name::String="None", vmin=nothing, vmax=nothing)
+function forward_helper(s_param::Setup_Param, ω0::Array{Float64,2}; symmetric::Bool = false, save_file_name::String="None", vmin=nothing, vmax=nothing)
 
     N_x = N_y = s_param.N
     Lx = Ly = s_param.L
@@ -584,9 +593,14 @@ function forward_helper(s_param::Setup_Param, ω0::Array{Float64,2}, save_file_n
         if obs_t_id <= size(t_locs,1) && i == t_locs[obs_t_id]
             Update_Grid_Vars!(solver)
             if save_file_name != "None"
-                Visual_Obs(mesh, solver.ω, x_locs, y_locs, "ω", save_file_name*string(i)*".pdf", vmin, vmax)
+                Visual_Obs(mesh, solver.ω, x_locs, y_locs, "ω"; symmetric=symmetric, save_file_name=save_file_name*string(i)*".pdf", vmin=vmin, vmax=vmax)
             end
-            data[:, :, obs_t_id] = solver.ω[x_locs, y_locs]
+            if symmetric
+                ω_mirror = solver.ω[[1;end:-1:2], :]
+                data[:, :, obs_t_id] = (solver.ω[x_locs, y_locs] - ω_mirror[x_locs, y_locs])/2.0
+            else
+                data[:, :, obs_t_id] = solver.ω[x_locs, y_locs]
+            end
             obs_t_id += 1
         end
     end
@@ -601,17 +615,27 @@ end
 
 function forward(s_param::Setup_Param, θ::Array{Float64,1})
     # θ = [ak; bk] and abk = [ak, bk], we have θ = abk[:] and abk = reshape(θ, N_θ/2, 2)
-    
-
     N_x = N_y = s_param.N
     Lx = Ly = s_param.L
     seq_pairs = s_param.seq_pairs
     mesh = Spectral_Mesh(N_x, N_y, Lx, Ly)
 
     ω0 = Initial_ω0_KL(mesh, θ, seq_pairs)   
-    data = forward_helper(s_param, ω0)
+    data = forward_helper(s_param, ω0; symmetric = s_param.symmetric)
     
     return data[:]
+end
+
+
+
+
+function aug_forward(s_param::Setup_Param, θ::Array{Float64,1})
+    # θ = [ak; bk] and abk = [ak, bk], we have θ = abk[:] and abk = reshape(θ, N_θ/2, 2)
+    
+
+    data = forward(s_param, θ)
+    
+    return [data; θ]
 end
 
 

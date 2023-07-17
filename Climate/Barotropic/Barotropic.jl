@@ -4,7 +4,7 @@ using Random
 import PyPlot
 
 
-mutable struct Setup_Param{FT<:AbstractFloat, IT<:Int, CT<:Complex}
+struct Setup_Param{FT<:AbstractFloat, IT<:Int, CT<:Complex}
     # physics 170, 256, 1 #85, 128, 1  # 42, 64, 1
     θ_names::String
     num_fourier::IT  
@@ -111,6 +111,13 @@ function Barotropic_Init(num_fourier::IT, nθ::IT; trunc_N::IT = num_fourier, ra
     end
     spe_vor_pert = similar(spe_vor_b); spe_vor_pert .= 0.0;
     Trans_Grid_To_Spherical!(mesh, grid_vor_pert,  spe_vor_pert) 
+    init_data = spe_to_param(spe_vor_pert, trunc_N; radius=radius)
+    ### TODO clean extra modes
+    CLEAN_EXTRA_MODES = true
+    if CLEAN_EXTRA_MODES
+        spe_vor_pert .= param_to_spe(init_data, num_fourier; radius=radius)
+        Trans_Spherical_To_Grid!(mesh, spe_vor_pert, grid_vor_pert) 
+    end
     
     grid_vor = grid_vor_b + grid_vor_pert
     spe_vor = similar(spe_vor_b); spe_vor .= 0.0;
@@ -144,7 +151,6 @@ function Barotropic_Init(num_fourier::IT, nθ::IT; trunc_N::IT = num_fourier, ra
 #       end 
 #     end
 #     @assert(norm(spe_to_param(spe_vor_pert, trunc_N; radius=radius) - init_data) ≈ 0.0 )
-    init_data = spe_to_param(spe_vor_pert, trunc_N; radius=radius)
     
 #     ##### 
 #     DEBUG = false
@@ -206,7 +212,59 @@ function param_to_spe(init_data, num_fourier; radius=6371.2e3)
     return spe_vor
 end
     
+# function spe_to_param(spe_vor, trunc_N; radius=6371.2e3)
+#     n_init_data = (trunc_N+1)*(trunc_N+1) - 1
+#     init_data = zeros(n_init_data)
+    
+#     i_init_data = 1
+#     for n = 1:trunc_N
+#         m = 0
+#         init_data[i_init_data] = spe_vor[m+1,n+1,1]*radius
+        
+#         if (abs(init_data[i_init_data]) > 1e-8)
+#             @info m,n, spe_vor[m+1,n+1,1]*radius
+#         end
+#         i_init_data += 1
+#         for m = 1:n
+#             init_data[i_init_data] = real(spe_vor[m+1,n+1,1])*radius
+#             init_data[i_init_data + 1] = -imag(spe_vor[m+1,n+1,1])*radius
+            
+#             if (abs(init_data[i_init_data]) > 1e-8 || init_data[i_init_data + 1] > 1e-8)
+#             @info m,n, spe_vor[m+1,n+1,1]*radius
+#             end
+            
+            
+#             i_init_data += 2
+            
+            
+            
+#         end
+#     end
 
+#     return init_data
+# end
+
+# function param_to_spe(init_data, num_fourier; radius=6371.2e3)
+#     num_spherical = num_fourier + 1
+#     spe_vor = Array{ComplexF64, 3}(undef, num_fourier+1, num_spherical+1, 1)
+#     spe_vor .= 0.0
+    
+#     n_init_data = length(init_data)
+#     N = Int64(sqrt(1 + n_init_data) - 1)
+    
+#     i_init_data = 1
+#     for n = 1:N
+#         m = 0
+#         spe_vor[m+1,n+1,1] += init_data[i_init_data]/radius
+#         i_init_data += 1
+#         for m = 1:n
+#             spe_vor[m+1,n+1,1] += (init_data[i_init_data] - init_data[i_init_data + 1]*im)/radius
+#             i_init_data += 2
+#         end
+#     end
+    
+#     return spe_vor
+# end
 
 function Barotropic_Main(sparam::Setup_Param, init_data = nothing; init_type = "spec_vor")
   # the decay of a sinusoidal disturbance to a zonally symmetric flow 
@@ -221,7 +279,7 @@ function Barotropic_Main(sparam::Setup_Param, init_data = nothing; init_type = "
   omega = 7.292e-5
   
   # Initialize mesh
-  mesh = sparam.mesh
+  mesh = Spectral_Spherical_Mesh(num_fourier, num_spherical, nθ, nλ, nd, radius)
   θc, λc = mesh.θc,  mesh.λc
   cosθ, sinθ = mesh.cosθ, mesh.sinθ
   
@@ -270,7 +328,7 @@ function Barotropic_Main(sparam::Setup_Param, init_data = nothing; init_type = "
     spe_div_c .= 0.0
     grid_div  .= 0.0
   if init_type == "truth"
-    _, _, _, _, _, _, grid_u[:], grid_v[:], grid_vor[:], spe_vor_c[:], _ = Barotropic_Init(num_fourier, nθ; radius = radius) 
+    _, _, _, _, _, _, grid_u[:], grid_v[:], grid_vor[:], spe_vor_c[:], _ = Barotropic_Init(num_fourier, nθ; trunc_N=sparam.trunc_N, radius = radius) 
     
   else
     Barotropic_ω0!(mesh, init_type, init_data, spe_vor_c, grid_vor; spe_vor_b = sparam.spe_vor_b)
@@ -369,9 +427,9 @@ end
 
 
 
-function convert_obs(obs_coord, obs_raw_data; antisymmetric=false)
+function convert_obs(obs_coord, obs_raw_data; antisymmetric=false, obs_name="vor")
   # update obs
-    obs_raw = obs_raw_data["vel_u"]
+    obs_raw = obs_raw_data[obs_name]
     nobs = size(obs_coord, 1)
     nframes = length(obs_raw)
     obs = zeros(Float64, nobs, nframes)
@@ -380,7 +438,11 @@ function convert_obs(obs_coord, obs_raw_data; antisymmetric=false)
   for i = 1:nframes
     for j = 1:nobs
       if antisymmetric
-        obs[j,i] = (obs_raw[i][obs_coord[j,1], obs_coord[j,2]] + obs_raw[i][obs_coord[j,1], end-obs_coord[j,2] + 1])/2.0
+            if obs_name == "vel_u"
+                obs[j,i] = (obs_raw[i][obs_coord[j,1], obs_coord[j,2]] + obs_raw[i][obs_coord[j,1], end-obs_coord[j,2] + 1])/2.0
+                elseif obs_name == "vor"
+                    obs[j,i] = (obs_raw[i][obs_coord[j,1], obs_coord[j,2]] - obs_raw[i][obs_coord[j,1], end-obs_coord[j,2] + 1])
+                end
       else
         obs[j,i] = obs_raw[i][obs_coord[j,1], obs_coord[j,2]]
       end

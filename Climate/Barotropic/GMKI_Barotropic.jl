@@ -9,9 +9,9 @@ include("Barotropic.jl")
 num_fourier, nθ = 42, 64 #85, 128
 Δt, end_time =  1800, 86400
 n_obs_frames = 2
-obs_time, nobs = Int64(end_time/n_obs_frames), 50
+obs_time, nobs = Int64(end_time/n_obs_frames), 100
 antisymmetric = true
-trunc_N = 7
+trunc_N = 12
 N_θ = (trunc_N+2)*trunc_N
 N_y = nobs*n_obs_frames + N_θ 
 barotropic = Setup_Param(num_fourier, nθ, Δt, end_time, n_obs_frames, nobs, antisymmetric, N_y, trunc_N);
@@ -29,6 +29,7 @@ n_obs_frames = barotropic.n_obs_frames
 antisymmetric = barotropic.antisymmetric
 for i_obs = 1:n_obs_frames
     Lat_Lon_Pcolormesh(mesh, obs_raw_data["vel_u"][i_obs], 1, obs_coord; save_file_name =   "Figs/Barotropic_u-"*string(i_obs)*".pdf", cmap = "viridis", antisymmetric=antisymmetric)
+    Lat_Lon_Pcolormesh(mesh, obs_raw_data["vor"][i_obs], 1, obs_coord; save_file_name =   "Figs/Barotropic_vor-"*string(i_obs)*".pdf", cmap = "viridis", antisymmetric=antisymmetric)
 end     
 
 
@@ -37,7 +38,7 @@ include("Barotropic.jl")
 include("../../Inversion/Plot.jl")
 include("../../Inversion/KalmanInversion.jl")
 # compute posterior distribution by UKI
-N_iter = 30
+N_iter = 20
 update_freq = 1
 N_modes = 3
 θ0_w  = fill(1.0, N_modes)/N_modes
@@ -46,11 +47,27 @@ N_modes = 3
 
 θ0_mean, θθ0_cov  = zeros(N_modes, N_θ), zeros(N_modes, N_θ, N_θ)
 Random.seed!(63);
-σ_0 = 1.0
+σ_0 = 10.0
 for i = 1:N_modes
     θ0_mean[i, :]    .= rand(Normal(0, σ_0), N_θ) 
     θθ0_cov[i, :, :] .= Array(Diagonal(fill(1.0^2, N_θ)))
 end
+
+########################### CHEATING ############
+DEBUG = true
+if DEBUG
+    grid_vor_mirror = -barotropic.grid_vor[:, end:-1:1,  :]
+    spe_vor_mirror = similar(barotropic.spe_vor_b)
+    Trans_Grid_To_Spherical!(mesh, grid_vor_mirror, spe_vor_mirror)
+    mesh, obs_raw_data_mirror = Barotropic_Main(barotropic, grid_vor_mirror; init_type = "grid_vor");
+    init_data_mirror = spe_to_param(spe_vor_mirror-barotropic.spe_vor_b, barotropic.trunc_N; radius=barotropic.radius)
+
+    θ0_mean[1, :]    .= barotropic.init_data
+    θ0_mean[2, :]    .= init_data_mirror
+end
+###################################################
+
+
 μ_0 = zeros(Float64, N_θ)  # prior/initial mean 
 Σ_0 = Array(Diagonal(fill(σ_0^2, N_θ)))  # prior/initial covariance
 
@@ -58,7 +75,7 @@ end
 
 y_noiseless = convert_obs(barotropic.obs_coord, obs_raw_data; antisymmetric=barotropic.antisymmetric)
 
-σ_η = 1.0
+σ_η = 1.0e-6
 N_y = barotropic.nobs * barotropic.n_obs_frames
 Random.seed!(123);
 y = y_noiseless + 0.0*rand(Normal(0, σ_η), N_y)
