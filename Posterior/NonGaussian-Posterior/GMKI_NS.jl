@@ -20,8 +20,8 @@ obs_ΔNx, obs_ΔNy, obs_ΔNt = 8, 16, 1250         # observation
 symmetric = true
 σ_0 = sqrt(2)*pi
 
-N_KL = 64
-N_θ = 64
+N_KL = 128
+N_θ = 128
 for seed in [1; 22]
 Random.seed!(seed);
 
@@ -46,7 +46,7 @@ y_noiseless_mirror = forward_helper(s_param, ω0_ref_mirror; symmetric=true, sav
 
 
 # compute posterior distribution by UKI
-N_iter =40
+N_iter =50
 update_freq = 1
 N_modes = 3
 θ0_w  = fill(1.0, N_modes)/N_modes
@@ -128,7 +128,7 @@ errors = zeros(Float64, (3, N_iter, N_modes))
 
 for m = 1:N_modes
     for i = 1:N_iter
-        if m == 1
+        if m in [2,3]
             grid_vor_truth = s_param.ω0_ref
         else
             grid_vor_truth = -s_param.ω0_ref[[1;end:-1:2], :]
