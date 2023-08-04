@@ -63,6 +63,7 @@ function update_weights!(c_weights, mean_weights, cov_weights;
     cov_weights[1] = λ/(N_θ + λ) + 1 - α^2 + β
     cov_weights[2:N_ens] .= 1/(2(N_θ + λ))
 
+    @assert(unscented_transform == "modified-2n+1" || unscented_transform == "original-2n+1")
     if unscented_transform == "modified-2n+1"
         mean_weights[1] = 1.0
         mean_weights[2:N_ens] .= 0.0
@@ -87,7 +88,7 @@ function GMGDObj(metric::String,
 
     N_θ = size(θ0_mean, 2)
     
-    if expectation_method == "unscented_transform_original_2n+1" ||  expectation_method == "unscented_transform_modified_2n+1"
+    if expectation_method == "unscented_transform_original-2n+1" ||  expectation_method == "unscented_transform_modified-2n+1"
 
         # ensemble size
         N_ens = 2*N_θ+1
@@ -154,7 +155,7 @@ function construct_ensemble(gmgd::GMGDObj{FT, IT}, x_means::Array{FT,2}, x_covs:
             xs[im, :, :] = ones(N_ens)*x_means[im, :]' + rand(Normal(0, 1), N_ens, N_x) * chol_xx_cov'
         end
 
-    elseif expectation_method == "unscented_transform_modified_2n+1"
+    elseif expectation_method == "unscented_transform_modified-2n+1"
         @assert(N_ens == 2*N_x+1)
         c_weights = gmgd.c_weights
         xs = zeros(FT, N_modes, N_ens, N_x)
@@ -278,8 +279,8 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func_logρ::Function, dt::FT) w
     logθ_w  = gmgd.logθ_w[end]
     θθ_cov  = gmgd.θθ_cov[end]
 
-    if gmgd.expectation_method == "unscented_transform_original_2n+1" ||  gmgd.expectation_method == "unscented_transform_modified_2n+1"
-        update_weights!(gmgd.c_weights, gmgd.mean_weights, cov_weights; 
+    if gmgd.expectation_method == "unscented_transform_original-2n+1" ||  gmgd.expectation_method == "unscented_transform_modified-2n+1"
+        update_weights!(gmgd.c_weights, gmgd.mean_weights, gmgd.cov_weights; 
             unscented_transform = chop(gmgd.expectation_method, head=20, tail=0), trunc_α = gmgd.trunc_α, covs=θθ_cov)
     end
 
@@ -306,7 +307,6 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func_logρ::Function, dt::FT) w
                 θθ_cov_n[im, :, :] = θθ_cov[im, :, :]
             end
             
-            @info "θθ_cov_n = ", θθ_cov_n
             
             ρlogρ_V = 0 
             for im = 1:N_modes
@@ -353,7 +353,7 @@ function GMGD_Run(
     metric::String,
     update_covariance::Bool, 
     θ0_w::Array{FT, 1}, θ0_mean::Array{FT, 2}, θθ0_cov::Array{FT, 3},
-    expectation_method::String = "unscented_transform_modified_2n+1",
+    expectation_method::String = "unscented_transform_modified-2n+1",
     N_ens::IT = 1,
     trunc_α = -1.0) where {FT<:AbstractFloat, IT<:Int}
     
@@ -411,7 +411,7 @@ end
 # @info "Run GMKI with ", N_modes, " θ0_mean = ", θ0_mean
 # metric = "Fisher-Rao"
 # update_covariance = true
-# expectation_method = "unscented_transform_modified_2n+1"
+# expectation_method = "unscented_transform_modified-2n+1"
 # N_ens = 2N_θ+1
 # # expectation_method = "random_sampling"
 # # N_ens = 2

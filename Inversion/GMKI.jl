@@ -80,6 +80,7 @@ function update_weights!(c_weights, mean_weights, cov_weights;
     cov_weights[1] = λ/(N_θ + λ) + 1 - α^2 + β
     cov_weights[2:N_ens] .= 1/(2(N_θ + λ))
 
+    @assert(unscented_transform == "modified-2n+1" || unscented_transform == "original-2n+1")
     if unscented_transform == "modified-2n+1"
         mean_weights[1] = 1.0
         mean_weights[2:N_ens] .= 0.0
