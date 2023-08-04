@@ -37,6 +37,8 @@ mutable struct GMUKIObj{FT<:AbstractFloat, IT<:Int}
     c_weights::Union{Array{FT, 1}, Array{FT, 2}}
     mean_weights::Array{FT, 1}
     cov_weights::Array{FT, 1}
+    "update weights based on cov"
+    trunc_α::FT
     "Covariance matrix of the evolution error"
     Σ_ω::Union{Array{FT, 2}, Nothing}
     "inflation factor for evolution"
@@ -48,6 +50,41 @@ mutable struct GMUKIObj{FT<:AbstractFloat, IT<:Int}
     "current iteration number"
     iter::IT
     mixture_power_sampling_method::String
+    unscented_transform::String
+end
+
+
+function update_weights!(c_weights, mean_weights, cov_weights; 
+                         unscented_transform = "modified-2n+1", trunc_α = -1.0, covs = nothing)
+    
+    N_θ = length(c_weights)
+    N_ens = length(mean_weights)
+    
+    κ = 0.0
+    β = 2.0
+    α = min(sqrt(4/(N_θ + κ)), 1.0)
+    
+    if covs != nothing && trunc_α > 0
+        for im = 1:size(covs,1)
+            _, D, _ = svd(covs[im,:,:])
+            α = min(α, trunc_α/sqrt(D[1]))
+        end
+    end
+
+
+    λ = α^2*(N_θ + κ) - N_θ
+
+    c_weights[1:N_θ]     .=  sqrt(N_θ + λ)
+    mean_weights[1] = λ/(N_θ + λ)
+    mean_weights[2:N_ens] .= 1/(2(N_θ + λ))
+    cov_weights[1] = λ/(N_θ + λ) + 1 - α^2 + β
+    cov_weights[2:N_ens] .= 1/(2(N_θ + λ))
+
+    if unscented_transform == "modified-2n+1"
+        mean_weights[1] = 1.0
+        mean_weights[2:N_ens] .= 0.0
+    end
+    
 end
 
 
@@ -69,7 +106,9 @@ function GMUKIObj(θ0_w::Array{FT, 1},
                 Σ_η,
                 γ::FT,
                 update_freq::IT;
-                unscented_transform::String = "modified-2n+1", mixture_power_sampling_method = "random-sampling") where {FT<:AbstractFloat, IT<:Int}
+                unscented_transform::String = "modified-2n+1",
+                trunc_α = -1.0,
+                mixture_power_sampling_method = "random-sampling") where {FT<:AbstractFloat, IT<:Int}
 
     ## check UKI hyperparameters
     @assert(update_freq > 0)
@@ -82,79 +121,20 @@ function GMUKIObj(θ0_w::Array{FT, 1},
     end
 
 
-
     N_θ = size(θ0_mean,2)
     N_y = size(y, 1)
+
+    @assert(unscented_transform == "original-2n+1" ||  unscented_transform == "modified-2n+1")
+
+    # ensemble size
+    N_ens = 2*N_θ+1
+
+    c_weights = zeros(FT, N_θ)
+    mean_weights = zeros(FT, N_ens)
+    cov_weights = zeros(FT, N_ens)
     
-
- 
-
-    if unscented_transform == "original-2n+1" ||  unscented_transform == "modified-2n+1"
-
-        # ensemble size
-        N_ens = 2*N_θ+1
-
-        c_weights = zeros(FT, N_θ)
-        mean_weights = zeros(FT, N_ens)
-        cov_weights = zeros(FT, N_ens)
-
-        κ = 0.0
-        β = 2.0
-        α = min(sqrt(4/(N_θ + κ)), 1.0)
-        λ = α^2*(N_θ + κ) - N_θ
-
-
-        c_weights[1:N_θ]     .=  sqrt(N_θ + λ)
-        mean_weights[1] = λ/(N_θ + λ)
-        mean_weights[2:N_ens] .= 1/(2(N_θ + λ))
-        cov_weights[1] = λ/(N_θ + λ) + 1 - α^2 + β
-        cov_weights[2:N_ens] .= 1/(2(N_θ + λ))
-
-        if unscented_transform == "modified-2n+1"
-            mean_weights[1] = 1.0
-            mean_weights[2:N_ens] .= 0.0
-        end
-
-    elseif unscented_transform == "original-n+2" ||  unscented_transform == "modified-n+2"
-
-        N_ens = N_θ+2
-        c_weights = zeros(FT, N_θ, N_ens)
-        mean_weights = zeros(FT, N_ens)
-        cov_weights = zeros(FT, N_ens)
-
-        # todo cov parameter
-        α = N_θ/(4*(N_θ+1))
-	
-        IM = zeros(FT, N_θ, N_θ+1)
-        IM[1,1], IM[1,2] = -1/sqrt(2α), 1/sqrt(2α)
-        for i = 2:N_θ
-            for j = 1:i
-                IM[i,j] = 1/sqrt(α*i*(i+1))
-            end
-            IM[i,i+1] = -i/sqrt(α*i*(i+1))
-        end
-        c_weights[:, 2:end] .= IM
-
-        if unscented_transform == "original-n+2"
-            mean_weights .= 1/(N_θ+1)
-            mean_weights[1] = 0.0
-
-            cov_weights .= α
-            cov_weights[1] = 0.0
-
-        else unscented_transform == "modified-n+2"
-            mean_weights .= 0.0
-            mean_weights[1] = 1.0
-            
-            cov_weights .= α
-            cov_weights[1] = 0.0
-        end
-
-    else
-
-        error("unscented_transform: ", unscented_transform, " is not recognized")
+    update_weights!(c_weights, mean_weights, cov_weights; unscented_transform = unscented_transform, trunc_α = trunc_α, covs=θθ0_cov)
     
-    end
 
     N_modes = length(θ0_w)
 
@@ -172,9 +152,9 @@ function GMUKIObj(θ0_w::Array{FT, 1},
     GMUKIObj{FT,IT}(logθ_w, θ_mean, θθ_cov, y_pred, 
                   y,   Σ_η, 
                   N_modes, N_ens, N_θ, N_y, 
-                  c_weights, mean_weights, cov_weights, 
+                  c_weights, mean_weights, cov_weights, trunc_α,
                   Σ_ω, γ_ω, γ_ν,
-                  update_freq, iter, mixture_power_sampling_method)
+                  update_freq, iter, mixture_power_sampling_method, unscented_transform)
 
 end
 
@@ -398,8 +378,6 @@ function Gaussian_mixture_power(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_co
                 xs .= (θ_mean[i, :] .+ chol_xx_cov*rand(Normal(0, 1), N_θ, N_ens))'
                 
                 for j = 1:N_ens
-                    # ws[j] = (Gaussian_density(θ_mean[i,:], θθ_cov[i,:,:], xs[j, :])/Gaussian_mixture_density(ones(N_modes), θ_mean, θθ_cov, xs[j, :]))^(1 - αpower)
-                
                     ws[j] = (θ_w[i]*Gaussian_density_helper(θ_mean[i,:], θθ_cov[i,:,:], xs[j, :])/Gaussian_mixture_density_helper(θ_w, θ_mean, θθ_cov, xs[j, :]))^(1 - αpower)
                 end
                 
@@ -410,9 +388,7 @@ function Gaussian_mixture_power(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_co
 
                 θ_mean_p[i,:] = ws' * xs / sum(ws)
 
-                # @info "i  ws :", ws
-                # @info "i  θ_mean_p :", θ_mean_p[i,:]
-
+                
 
                 # θ_mean_p[i,:] = θ_mean[i,:] + 0.9*(θ_mean_p[i,:] - θ_mean[i,:])
                 θθ_cov_p[i,:,:] = (xs - ones(N_ens)*θ_mean_p[i,:]')' * (ws .* (xs - ones(N_ens)*θ_mean_p[i,:]'))  / sum(ws)
@@ -427,9 +403,9 @@ function Gaussian_mixture_power(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_co
         end
 
     elseif method == "Taylor-expansion"
-        Ĉ_ji = zeros(N_modes, N_θ, N_θ)
+        Ĉ_ji = zeros(N_modes, N_θ, N_θ)
         m̂_ji = zeros(N_modes, N_θ)
-        ŵ_ji = zeros(N_modes)
+        ŵ_ji = zeros(N_modes)
         w̃_ji = zeros(N_modes)
         for i = 1:N_modes
 
@@ -438,39 +414,39 @@ function Gaussian_mixture_power(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_co
             end
 
             for j = 1:N_modes
-                Ĉ_ji[j,:,:] = inv( inv(θθ_cov[j,:,:]) + αpower*inv(θθ_cov[i,:,:]) )
+                Ĉ_ji[j,:,:] = inv( inv(θθ_cov[j,:,:]) + αpower*inv(θθ_cov[i,:,:]) )
             end
             for iter = 1:1
                 for j = 1:N_modes
-                    m̂_ji[j,:] = Ĉ_ji[j,:,:]*(θθ_cov[j,:,:]\θ_mean_p[i, :] + αpower*(θθ_cov[i,:,:]\θ_mean[j, :]))
-                    # @info Ĉ_ji[j,:,:], θθ_cov[j,:,:]\θ_mean_p[i, :] , αpower*θθ_cov[i,:,:]\θ_mean[j, :], αpower
+                    m̂_ji[j,:] = Ĉ_ji[j,:,:]*(θθ_cov[j,:,:]\θ_mean_p[i, :] + αpower*(θθ_cov[i,:,:]\θ_mean[j, :]))
+                    # @info Ĉ_ji[j,:,:], θθ_cov[j,:,:]\θ_mean_p[i, :] , αpower*θθ_cov[i,:,:]\θ_mean[j, :], αpower
                     # @info "i, j = ", i, j
                     # @info "mi, mj, mij",θ_mean_p[i, :],  θ_mean[j, :],  m̂_ji[j,:]
-                    # @info "Ci, Cj, Cij",θθ_cov[i,:,:],  θθ_cov[j,:,:],  Ĉ_ji[j,:,:]
+                    # @info "Ci, Cj, Cij",θθ_cov[i,:,:],  θθ_cov[j,:,:],  Ĉ_ji[j,:,:]
                     # @info -αpower/2*(θ_mean_p[i, :]'*(θθ_cov[i,:,:]\θ_mean_p[i, :])), 
                     #       1/2*(θ_mean[j, :]'*(θθ_cov[j,:,:]\θ_mean[j, :])),
-                    #       1/2*(m̂_ji[j,:]'*(Ĉ_ji[j,:,:]\m̂_ji[j,:]))
+                    #       1/2*(m̂_ji[j,:]'*(Ĉ_ji[j,:,:]\m̂_ji[j,:]))
                     w̃_ji[j] = exp(-αpower/2*(θ_mean_p[i, :]'*(θθ_cov[i,:,:]\θ_mean_p[i, :])) - 
                                   1/2*(θ_mean[j, :]'*(θθ_cov[j,:,:]\θ_mean[j, :])) +
-                                  1/2*(m̂_ji[j,:]'*(Ĉ_ji[j,:,:]\m̂_ji[j,:]))) *
-                                  sqrt(det(Ĉ_ji[j,:,:])/det(θθ_cov[j,:,:])/det(θθ_cov[i,:,:]))
+                                  1/2*(m̂_ji[j,:]'*(Ĉ_ji[j,:,:]\m̂_ji[j,:]))) *
+                                  sqrt(det(Ĉ_ji[j,:,:])/det(θθ_cov[j,:,:])/det(θθ_cov[i,:,:]))
                 end
 
                 temp_deno = (αpower*θ_w[i]*w̃_ji[i]  + (1-αpower)*sum(θ_w.*w̃_ji))
                 θ_w_p[i] = θ_w[i]^(αpower + 1)/det(θθ_cov[i,:,:])^(αpower/2)/temp_deno
                 
-                # ÂΔm̂ = b̂
-                temp_Â = θ_w[i]*w̃_ji[i]/(1 + αpower)*I
+                # ÂΔm̂ = b̂
+                temp_Â = θ_w[i]*w̃_ji[i]/(1 + αpower)*I
                 temp_b̂ = zeros(N_θ) 
-                @info "temp_Â, temp_b̂ = ", temp_Â, temp_b̂
+                @info "temp_Â, temp_b̂ = ", temp_Â, temp_b̂
                 for j = 1:N_modes
                     if j != i
-                        temp_Â +=        (1-αpower)*θ_w[j]*w̃_ji[j]* (Ĉ_ji[j,:,:]/θθ_cov[j,:,:])
-                        temp_b̂ -= αpower*(1-αpower)*θ_w[j]*w̃_ji[j]* (Ĉ_ji[j,:,:]*(θθ_cov[i,:,:]\(θ_mean[j, :] - θ_mean[i, :])))
+                        temp_Â +=        (1-αpower)*θ_w[j]*w̃_ji[j]* (Ĉ_ji[j,:,:]/θθ_cov[j,:,:])
+                        temp_b̂ -= αpower*(1-αpower)*θ_w[j]*w̃_ji[j]* (Ĉ_ji[j,:,:]*(θθ_cov[i,:,:]\(θ_mean[j, :] - θ_mean[i, :])))
                     end
                 end
                 
-                Δθ_mean = temp_Â\temp_b̂
+                Δθ_mean = temp_Â\temp_b̂
                 @info "iter = ", iter, "θ_w[i] = ", θ_w[i], " θ_mean[i, :] = ", θ_mean[i, :], "Δθ_mean = ", Δθ_mean
                 θ_mean_p[i, :] = θ_mean[i, :] + Δθ_mean
 
@@ -478,19 +454,19 @@ function Gaussian_mixture_power(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_co
                 
 
                 # ####
-                # temp_Â = αpower*θ_w[i]*w̃_ji[i]* (Ĉ_ji[i,:,:]/θθ_cov[i,:,:])
-                # temp_b̂ = temp_deno*θ_mean[i, :] - αpower*θ_w[i]*w̃_ji[i]*(Ĉ_ji[i,:,:]*(θθ_cov[i,:,:]\θ_mean[i, :]))
+                # temp_Â = αpower*θ_w[i]*w̃_ji[i]* (Ĉ_ji[i,:,:]/θθ_cov[i,:,:])
+                # temp_b̂ = temp_deno*θ_mean[i, :] - αpower*θ_w[i]*w̃_ji[i]*(Ĉ_ji[i,:,:]*(θθ_cov[i,:,:]\θ_mean[i, :]))
 
-                # @info "temp_Â, temp_b̂ = ", temp_Â, temp_b̂
+                # @info "temp_Â, temp_b̂ = ", temp_Â, temp_b̂
 
                 # for j = 1:N_modes
-                #     temp_Â += (1-αpower)*θ_w[j]*w̃_ji[j]*(Ĉ_ji[j,:,:]/θθ_cov[j,:,:])
-                #     temp_b̂ -= αpower*(1-αpower)*θ_w[j]*w̃_ji[j]* (Ĉ_ji[j,:,:]*(θθ_cov[i,:,:]\θ_mean[j,:,:]))
+                #     temp_Â += (1-αpower)*θ_w[j]*w̃_ji[j]*(Ĉ_ji[j,:,:]/θθ_cov[j,:,:])
+                #     temp_b̂ -= αpower*(1-αpower)*θ_w[j]*w̃_ji[j]* (Ĉ_ji[j,:,:]*(θθ_cov[i,:,:]\θ_mean[j,:,:]))
                 # end
 
-                # @info "θ_w[i] = ", θ_w[i], " temp_Â, temp_b̂ = ", temp_Â, temp_b̂
-                # @info "??? ", θ_mean_p[i, :] , temp_Â\temp_b̂
-                # θ_mean_p[i, :] = temp_Â\temp_b̂
+                # @info "θ_w[i] = ", θ_w[i], " temp_Â, temp_b̂ = ", temp_Â, temp_b̂
+                # @info "??? ", θ_mean_p[i, :] , temp_Â\temp_b̂
+                # θ_mean_p[i, :] = temp_Â\temp_b̂
                                 
         
                 # @info w̃_ji
@@ -552,7 +528,9 @@ function update_ensemble!(uki::GMUKIObj{FT, IT}, ens_func::Function) where {FT<:
     θ_mean  = uki.θ_mean[end]
     θθ_cov  = uki.θθ_cov[end]
     logθ_w  = uki.logθ_w[end]
-
+    
+    update_weights!(uki.c_weights, uki.mean_weights, uki.cov_weights; unscented_transform = uki.unscented_transform, trunc_α = uki.trunc_α, covs = θθ_cov)
+    
     y = uki.y
     ############# Prediction step:
     
@@ -655,6 +633,8 @@ function update_ensemble!(uki::GMUKIObj{FT, IT}, ens_func::Function) where {FT<:
     push!(uki.θ_mean, θ_mean_n)   # N_ens x N_params
     push!(uki.θθ_cov, θθ_cov_n)   # N_ens x N_data
     push!(uki.logθ_w, logθ_w_n)   # N_ens x N_data
+    
+
 end
 
 
@@ -667,7 +647,8 @@ function GMUKI_Run(s_param, forward::Function,
     N_iter;
     unscented_transform::String = "modified-2n+1",
     mixture_power_sampling_method = "random-sampling",
-    θ_basis = nothing)
+    θ_basis = nothing,
+    trunc_α = -1.0)
     
     
     ukiobj = GMUKIObj(
@@ -675,7 +656,9 @@ function GMUKI_Run(s_param, forward::Function,
     y, Σ_η,
     γ,
     update_freq;
-    unscented_transform = unscented_transform, mixture_power_sampling_method = mixture_power_sampling_method)
+    unscented_transform = unscented_transform, 
+    mixture_power_sampling_method = mixture_power_sampling_method,
+    trunc_α = trunc_α)
     
     
     ens_func(θ_ens) = (θ_basis == nothing) ? 

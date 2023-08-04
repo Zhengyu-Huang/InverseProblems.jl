@@ -25,7 +25,7 @@ mutable struct GMGDObj{FT<:AbstractFloat, IT<:Int}
     "current iteration number"
     iter::IT
     "update covariance or not"
-    updata_covariance::Bool
+    update_covariance::Bool
     "metric"
     metric::String
     "the method to approximate the expectation in the gradient flow"
@@ -34,8 +34,40 @@ mutable struct GMGDObj{FT<:AbstractFloat, IT<:Int}
     c_weights::Union{Array{FT, 1}, Array{FT, 2}}
     mean_weights::Array{FT, 1}
     cov_weights::Array{FT, 1}
+    trunc_α::FT
 end
 
+function update_weights!(c_weights, mean_weights, cov_weights; 
+    unscented_transform = "modified-2n+1", trunc_α = -1.0, covs = nothing)
+
+    N_θ = length(c_weights)
+    N_ens = length(mean_weights)
+
+    κ = 0.0
+    β = 2.0
+    α = min(sqrt(4/(N_θ + κ)), 1.0)
+
+    if covs != nothing && trunc_α > 0
+        for im = 1:size(covs,1)
+            _, D, _ = svd(covs[im,:,:])
+            α = min(α, trunc_α/sqrt(D[1]))
+        end
+    end
+
+    λ = α^2*(N_θ + κ) - N_θ
+
+    c_weights[1:N_θ]     .=  sqrt(N_θ + λ)
+    mean_weights[1] = λ/(N_θ + λ)
+    mean_weights[2:N_ens] .= 1/(2(N_θ + λ))
+    cov_weights[1] = λ/(N_θ + λ) + 1 - α^2 + β
+    cov_weights[2:N_ens] .= 1/(2(N_θ + λ))
+
+    if unscented_transform == "unscented_transform_modified_2n+1"
+        mean_weights[1] = 1.0
+        mean_weights[2:N_ens] .= 0.0
+    end
+
+end
 
 
 """
@@ -48,7 +80,8 @@ function GMGDObj(metric::String,
                 θ0_mean::Array{FT, 2},
                 θθ0_cov::Union{Array{FT, 3}, Nothing},
                 expectation_method::String = "random-sampling",
-                N_ens::IT = 1) where {FT<:AbstractFloat, IT<:Int}
+                N_ens::IT = 1,
+                trunc_α = -1.0) where {FT<:AbstractFloat, IT<:Int}
 
 
     N_θ = size(θ0_mean, 2)
@@ -62,22 +95,10 @@ function GMGDObj(metric::String,
         mean_weights = zeros(FT, N_ens)
         cov_weights = zeros(FT, N_ens)
 
-        κ = 0.0
-        β = 2.0
-        α = min(sqrt(4/(N_θ + κ)), 1.0)
-        λ = α^2*(N_θ + κ) - N_θ
 
-
-        c_weights[1:N_θ]     .=  sqrt(N_θ + λ)
-        mean_weights[1] = λ/(N_θ + λ)
-        mean_weights[2:N_ens] .= 1/(2(N_θ + λ))
-        cov_weights[1] = λ/(N_θ + λ) + 1 - α^2 + β
-        cov_weights[2:N_ens] .= 1/(2(N_θ + λ))
-
-        if expectation_method == "unscented_transform_modified_2n+1"
-            mean_weights[1] = 1.0
-            mean_weights[2:N_ens] .= 0.0
-        end
+        update_weights!(c_weights, mean_weights, cov_weights; 
+        unscented_transform = expectation_method, trunc_α = trunc_α, covs=θθ0_cov)
+    
 
     elseif expectation_method == "random_sampling" 
         c_weights = zeros(FT, N_θ)
@@ -110,7 +131,7 @@ function GMGDObj(metric::String,
                   update_covariance,
                   metric,
                   expectation_method,
-                  c_weights, mean_weights, cov_weights)
+                  c_weights, mean_weights, cov_weights, trunc_α)
 
 end
 
@@ -200,7 +221,7 @@ function Gaussian_density_helper(θ_mean::Array{FT,1}, θθ_cov::Array{FT,2}, θ
     return exp( -1/2*((θ - θ_mean)'* (θθ_cov\(θ - θ_mean)) )) / ( sqrt(det(θθ_cov)) )
 end
 
-function Gaussian_mixture_density_helper(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_cov::Array{FT,3}, θ::Array{FT,1}) where {FT<:AbstractFloat}
+function Gaussian_mixture_density_all_helper(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_cov::Array{FT,3}, θ::Array{FT,1}) where {FT<:AbstractFloat}
     N_modes, N_θ = size(θ_mean)
 
     ρ = 0.0
@@ -227,7 +248,7 @@ function compute_logρ_gm(θ_p, θ_w, θ_mean, θθ_cov)
     ∇²logρ = zeros(N_modes, N_ens, N_θ, N_θ)
     for im = 1:N_modes
         for i = 1:N_ens
-            ρ, ∇ρ, ∇²ρ = Gaussian_mixture_density_helper(θ_w, θ_mean, θθ_cov, θ_p[im, i, :])
+            ρ, ∇ρ, ∇²ρ = Gaussian_mixture_density_all_helper(θ_w, θ_mean, θθ_cov, θ_p[im, i, :])
             logρ[im, i]         =   log(  ρ  )
             ∇logρ[im, i, :]     =   ∇ρ/ρ
             ∇²logρ[im, i, :, :] =  (∇²ρ*ρ - ∇ρ*∇ρ')/ρ^2
@@ -246,6 +267,9 @@ use G(θ_mean) instead of FG(θ)
 """
 function update_ensemble!(gmgd::GMGDObj{FT, IT}, func_logρ::Function, dt::FT) where {FT<:AbstractFloat, IT<:Int}
     
+    metric = gmgd.metric
+    update_covariance = gmgd.update_covariance
+    
     gmgd.iter += 1
     N_θ,  N_modes = gmgd.N_θ, gmgd.N_modes
 
@@ -253,6 +277,10 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func_logρ::Function, dt::FT) w
     logθ_w  = gmgd.logθ_w[end]
     θθ_cov  = gmgd.θθ_cov[end]
 
+    if gmgd.expectation_method == "unscented_transform_original_2n+1" ||  gmgd.expectation_method == "unscented_transform_modified_2n+1"
+        update_weights!(gmgd.c_weights, gmgd.mean_weights, cov_weights; 
+            unscented_transform = gmgd.expectation_method, trunc_α = gmgd.trunc_α, covs=θθ_cov)
+    end
 
     ############ Generate sigma points
     θ_p = construct_ensemble(gmgd, θ_mean, θθ_cov)
@@ -276,6 +304,8 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func_logρ::Function, dt::FT) w
             else
                 θθ_cov_n[im, :, :] = θθ_cov[im, :, :]
             end
+            
+            @info "θθ_cov_n = ", θθ_cov_n
             
             ρlogρ_V = 0 
             for im = 1:N_modes
@@ -323,7 +353,8 @@ function GMGD_Run(
     update_covariance::Bool, 
     θ0_w::Array{FT, 1}, θ0_mean::Array{FT, 2}, θθ0_cov::Array{FT, 3},
     expectation_method::String = "unscented_transform_modified_2n+1",
-    N_ens::IT = 1) where {FT<:AbstractFloat, IT<:Int}
+    N_ens::IT = 1,
+    trunc_α = -1.0) where {FT<:AbstractFloat, IT<:Int}
     
     
     
@@ -331,7 +362,7 @@ function GMGD_Run(
     metric, 
     update_covariance, 
     θ0_w, θ0_mean, θθ0_cov,
-    expectation_method, N_ens)
+    expectation_method, N_ens, trunc_α)
      
     func_logρ(θ_ens) = ensemble(θ_ens, forward)  
     
