@@ -38,21 +38,22 @@ mutable struct GMGDObj{FT<:AbstractFloat, IT<:Int}
 end
 
 function update_weights!(c_weights, mean_weights, cov_weights; 
-    unscented_transform = "modified-2n+1", trunc_α = -1.0, covs = nothing)
-
+                         unscented_transform = "modified-2n+1", trunc_α = -1.0, covs = nothing)
+    
     N_θ = length(c_weights)
     N_ens = length(mean_weights)
-
+    
     κ = 0.0
     β = 2.0
     α = min(sqrt(4/(N_θ + κ)), 1.0)
-
+    
     if covs != nothing && trunc_α > 0
         for im = 1:size(covs,1)
             _, D, _ = svd(covs[im,:,:])
             α = min(α, trunc_α/sqrt(D[1]))
         end
     end
+
 
     λ = α^2*(N_θ + κ) - N_θ
 
@@ -62,11 +63,11 @@ function update_weights!(c_weights, mean_weights, cov_weights;
     cov_weights[1] = λ/(N_θ + λ) + 1 - α^2 + β
     cov_weights[2:N_ens] .= 1/(2(N_θ + λ))
 
-    if unscented_transform == "unscented_transform_modified_2n+1"
+    if unscented_transform == "modified-2n+1"
         mean_weights[1] = 1.0
         mean_weights[2:N_ens] .= 0.0
     end
-
+    
 end
 
 
@@ -97,7 +98,7 @@ function GMGDObj(metric::String,
 
 
         update_weights!(c_weights, mean_weights, cov_weights; 
-        unscented_transform = expectation_method, trunc_α = trunc_α, covs=θθ0_cov)
+        unscented_transform = chop(expectation_method, head=20, tail=0), trunc_α = trunc_α, covs=θθ0_cov)
     
 
     elseif expectation_method == "random_sampling" 
@@ -279,7 +280,7 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func_logρ::Function, dt::FT) w
 
     if gmgd.expectation_method == "unscented_transform_original_2n+1" ||  gmgd.expectation_method == "unscented_transform_modified_2n+1"
         update_weights!(gmgd.c_weights, gmgd.mean_weights, cov_weights; 
-            unscented_transform = gmgd.expectation_method, trunc_α = gmgd.trunc_α, covs=θθ_cov)
+            unscented_transform = chop(gmgd.expectation_method, head=20, tail=0), trunc_α = gmgd.trunc_α, covs=θθ_cov)
     end
 
     ############ Generate sigma points

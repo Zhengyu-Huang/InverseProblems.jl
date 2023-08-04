@@ -266,9 +266,7 @@ function construct_cov(uki::GMUKIObj{FT, IT}, xs::Array{FT,3}, x_means::Array{FT
     return xy_covs
 end
 
-function Gaussian_density_helper(θ_mean::Array{FT,1}, θθ_cov::Array{FT,2}, θ::Array{FT,1}) where {FT<:AbstractFloat}
-    N_θ = size(θ_mean,1)
-    
+function Gaussian_density_helper(θ_mean::Array{FT,1}, θθ_cov::Array{FT,2}, θ::Array{FT,1}) where {FT<:AbstractFloat}    
     return exp( -1/2*((θ - θ_mean)'* (θθ_cov\(θ - θ_mean)) )) / ( sqrt(det(θθ_cov)) )
 
 end
