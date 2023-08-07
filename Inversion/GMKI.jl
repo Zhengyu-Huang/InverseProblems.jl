@@ -37,7 +37,9 @@ mutable struct GMUKIObj{FT<:AbstractFloat, IT<:Int}
     c_weights::Union{Array{FT, 1}, Array{FT, 2}}
     mean_weights::Array{FT, 1}
     cov_weights::Array{FT, 1}
-    "update weights based on cov"
+    "adaptively adjust these weights based cov, otherwise fix it"
+    adapt_α::Bool
+    "parameters for updating weights"
     trunc_α::FT
     "Covariance matrix of the evolution error"
     Σ_ω::Union{Array{FT, 2}, Nothing}
@@ -55,7 +57,7 @@ end
 
 
 function update_weights!(c_weights, mean_weights, cov_weights; 
-                         unscented_transform = "modified-2n+1", trunc_α = -1.0, covs = nothing)
+                         unscented_transform = "modified-2n+1", adapt_α = false, trunc_α = -1.0, covs = nothing)
     
     N_θ = length(c_weights)
     N_ens = length(mean_weights)
@@ -64,10 +66,14 @@ function update_weights!(c_weights, mean_weights, cov_weights;
     β = 2.0
     α = min(sqrt(4/(N_θ + κ)), 1.0)
     
-    if covs != nothing && trunc_α > 0
-        for im = 1:size(covs,1)
-            _, D, _ = svd(covs[im,:,:])
-            α = min(α, trunc_α/sqrt(D[1]))
+    if trunc_α > 0
+        if adapt_α && covs != nothing 
+            for im = 1:size(covs,1)
+                _, D, _ = svd(covs[im,:,:])
+                α = min(α, trunc_α/sqrt(D[1]))
+            end
+        else
+            α = trunc_α
         end
     end
 
@@ -108,6 +114,7 @@ function GMUKIObj(θ0_w::Array{FT, 1},
                 γ::FT,
                 update_freq::IT;
                 unscented_transform::String = "modified-2n+1",
+                adapt_α = false,
                 trunc_α = -1.0,
                 mixture_power_sampling_method = "random-sampling") where {FT<:AbstractFloat, IT<:Int}
 
@@ -134,7 +141,7 @@ function GMUKIObj(θ0_w::Array{FT, 1},
     mean_weights = zeros(FT, N_ens)
     cov_weights = zeros(FT, N_ens)
     
-    update_weights!(c_weights, mean_weights, cov_weights; unscented_transform = unscented_transform, trunc_α = trunc_α, covs=θθ0_cov)
+    update_weights!(c_weights, mean_weights, cov_weights; unscented_transform = unscented_transform, trunc_α = trunc_α, adapt_α = adapt_α, covs=θθ0_cov)
     
 
     N_modes = length(θ0_w)
@@ -153,7 +160,7 @@ function GMUKIObj(θ0_w::Array{FT, 1},
     GMUKIObj{FT,IT}(logθ_w, θ_mean, θθ_cov, y_pred, 
                   y,   Σ_η, 
                   N_modes, N_ens, N_θ, N_y, 
-                  c_weights, mean_weights, cov_weights, trunc_α,
+                  c_weights, mean_weights, cov_weights, adapt_α, trunc_α,
                   Σ_ω, γ_ω, γ_ν,
                   update_freq, iter, mixture_power_sampling_method, unscented_transform)
 
@@ -647,6 +654,7 @@ function GMUKI_Run(s_param, forward::Function,
     unscented_transform::String = "modified-2n+1",
     mixture_power_sampling_method = "random-sampling",
     θ_basis = nothing,
+    adapt_α = false,
     trunc_α = -1.0)
     
     
@@ -657,6 +665,7 @@ function GMUKI_Run(s_param, forward::Function,
     update_freq;
     unscented_transform = unscented_transform, 
     mixture_power_sampling_method = mixture_power_sampling_method,
+    adapt_α = adapt_α,
     trunc_α = trunc_α)
     
     
