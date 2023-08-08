@@ -12,14 +12,14 @@ For solving the inverse problem
     y = G(θ) + η
     
 """
-mutable struct GMUKIObj{FT<:AbstractFloat, IT<:Int}
+mutable struct GMKIObj{FT<:AbstractFloat, IT<:Int}
     "a vector of arrays of size (N_modes) containing the modal weights of the parameters"
     logθ_w::Vector{Array{FT, 1}}
     "a vector of arrays of size (N_modes x N_parameters) containing the modal means of the parameters"
     θ_mean::Vector{Array{FT, 2}}
     "a vector of arrays of size (N_modes x N_parameters x N_parameters) containing the modal covariances of the parameters"
     θθ_cov::Vector{Array{FT, 3}}
-    "a vector of arrays of size N_ensemble x N_y containing the predicted observation (in each uki iteration a new array of predicted observation is added)"
+    "a vector of arrays of size N_ensemble x N_y containing the predicted observation (in each gmki iteration a new array of predicted observation is added)"
     y_pred::Vector{Array{FT, 2}}
     "vector of observations (length: N_y)"
     y::Array{FT, 1}
@@ -43,10 +43,8 @@ mutable struct GMUKIObj{FT<:AbstractFloat, IT<:Int}
     trunc_α::FT
     "Covariance matrix of the evolution error"
     Σ_ω::Union{Array{FT, 2}, Nothing}
-    "inflation factor for evolution"
-    γ_ω::FT
-    "inflation factor for observation"
-    γ_ν::FT
+    "time step"
+    Δt::FT
     "update frequency"
     update_freq::IT
     "current iteration number"
@@ -106,12 +104,12 @@ obs_cov::Array{FT, 2} : observation covariance
 
 unscented_transform : "original-2n+1", "modified-2n+1", "original-n+2", "modified-n+2" 
 """
-function GMUKIObj(θ0_w::Array{FT, 1},
+function GMKIObj(θ0_w::Array{FT, 1},
                 θ0_mean::Array{FT, 2}, 
                 θθ0_cov::Array{FT, 3},
                 y::Array{FT,1},
                 Σ_η,
-                γ::FT,
+                Δt::FT,
                 update_freq::IT;
                 unscented_transform::String = "modified-2n+1",
                 adapt_α = false,
@@ -121,10 +119,8 @@ function GMUKIObj(θ0_w::Array{FT, 1},
     ## check UKI hyperparameters
     @assert(update_freq > 0)
     if update_freq > 0 
+        @assert(Δt > 0.0 && Δt < 1)
         @info "Start UKI on the mean-field stochastic dynamical system for Bayesian inference "
-        @assert(γ > 0.0)
-        γ_ω = γ
-        γ_ν = (γ  + 1.0)/γ 
         Σ_ω = nothing
     end
 
@@ -147,21 +143,21 @@ function GMUKIObj(θ0_w::Array{FT, 1},
     N_modes = length(θ0_w)
 
     logθ_w = Array{FT,1}[]      # array of Array{FT, 1}'s
-    push!(logθ_w, log.(θ0_w))         # insert parameters at end of array (in this case just 1st entry)
-    θ_mean = Array{FT,2}[]   # array of Array{FT, 2}'s
-    push!(θ_mean, θ0_mean)   # insert parameters at end of array (in this case just 1st entry)
-    θθ_cov = Array{FT,3}[]   # array of Array{FT, 2}'s
-    push!(θθ_cov, θθ0_cov)   # insert parameters at end of array (in this case just 1st entry)
+    push!(logθ_w, log.(θ0_w))   # insert parameters at end of array (in this case just 1st entry)
+    θ_mean = Array{FT,2}[]      # array of Array{FT, 2}'s
+    push!(θ_mean, θ0_mean)      # insert parameters at end of array (in this case just 1st entry)
+    θθ_cov = Array{FT,3}[]      # array of Array{FT, 2}'s
+    push!(θθ_cov, θθ0_cov)      # insert parameters at end of array (in this case just 1st entry)
 
-    y_pred = Array{FT, 2}[]  # array of Array{FT, 2}'s
+    y_pred = Array{FT, 2}[]     # array of Array{FT, 2}'s
    
     iter = 0
 
-    GMUKIObj{FT,IT}(logθ_w, θ_mean, θθ_cov, y_pred, 
+    GMKIObj{FT,IT}(logθ_w, θ_mean, θθ_cov, y_pred, 
                   y,   Σ_η, 
                   N_modes, N_ens, N_θ, N_y, 
                   c_weights, mean_weights, cov_weights, adapt_α, trunc_α,
-                  Σ_ω, γ_ω, γ_ν,
+                  Σ_ω, Δt,
                   update_freq, iter, mixture_power_sampling_method, unscented_transform)
 
 end
@@ -171,14 +167,14 @@ end
 construct_sigma_ensemble
 Construct the sigma ensemble, based on the mean x_mean, and covariance x_cov
 """
-function construct_sigma_ensemble(uki::GMUKIObj{FT, IT}, x_means::Array{FT,2}, x_covs::Array{FT,3}) where {FT<:AbstractFloat, IT<:Int}
-    N_modes, N_ens = uki.N_modes, uki.N_ens
+function construct_sigma_ensemble(gmki::GMKIObj{FT, IT}, x_means::Array{FT,2}, x_covs::Array{FT,3}) where {FT<:AbstractFloat, IT<:Int}
+    N_modes, N_ens = gmki.N_modes, gmki.N_ens
 
     N_x = size(x_means[1, :],1)
 
     @assert(N_ens == 2*N_x+1 || N_ens == N_x+2)
 
-    c_weights = uki.c_weights
+    c_weights = gmki.c_weights
 
     xs = zeros(FT, N_modes, N_ens, N_x)
 
@@ -215,15 +211,15 @@ end
 """
 construct_mean x_mean from ensemble x
 """
-function construct_mean(uki::GMUKIObj{FT, IT}, xs::Array{FT,3}) where {FT<:AbstractFloat, IT<:Int}
-    N_modes, N_ens = uki.N_modes, uki.N_ens
+function construct_mean(gmki::GMKIObj{FT, IT}, xs::Array{FT,3}) where {FT<:AbstractFloat, IT<:Int}
+    N_modes, N_ens = gmki.N_modes, gmki.N_ens
     N_x = size(xs[1, :, :], 2)
 
-    @assert(uki.N_ens == N_ens)
+    @assert(gmki.N_ens == N_ens)
 
     x_means = zeros(FT, N_modes, N_x)
 
-    mean_weights = uki.mean_weights
+    mean_weights = gmki.mean_weights
 
     for im = 1:N_modes
         for i = 1: N_ens
@@ -237,11 +233,11 @@ end
 """
 construct_cov xx_cov from ensemble x and mean x_mean
 """
-function construct_cov(uki::GMUKIObj{FT, IT}, xs::Array{FT,3}, x_means::Array{FT , 2}) where {FT<:AbstractFloat, IT<:Int}
-    N_modes, N_ens = uki.N_modes, uki.N_ens
-    N_ens, N_x = uki.N_ens, size(x_means[1, :],1)
+function construct_cov(gmki::GMKIObj{FT, IT}, xs::Array{FT,3}, x_means::Array{FT , 2}) where {FT<:AbstractFloat, IT<:Int}
+    N_modes, N_ens = gmki.N_modes, gmki.N_ens
+    N_ens, N_x = gmki.N_ens, size(x_means[1, :],1)
     
-    cov_weights = uki.cov_weights
+    cov_weights = gmki.cov_weights
 
     xx_covs = zeros(FT, N_modes, N_x, N_x)
 
@@ -257,11 +253,11 @@ end
 """
 construct_cov xy_cov from ensemble x and mean x_mean, ensemble y and mean y_mean
 """
-function construct_cov(uki::GMUKIObj{FT, IT}, xs::Array{FT,3}, x_means::Array{FT, 2}, ys::Array{FT,3}, y_means::Array{FT, 2}) where {FT<:AbstractFloat, IT<:Int}
-    N_modes, N_ens = uki.N_modes, uki.N_ens
-    N_ens, N_x, N_y = uki.N_ens, size(x_means[1, :],1), size(y_means[1, :],1)
+function construct_cov(gmki::GMKIObj{FT, IT}, xs::Array{FT,3}, x_means::Array{FT, 2}, ys::Array{FT,3}, y_means::Array{FT, 2}) where {FT<:AbstractFloat, IT<:Int}
+    N_modes, N_ens = gmki.N_modes, gmki.N_ens
+    N_ens, N_x, N_y = gmki.N_ens, size(x_means[1, :],1), size(y_means[1, :],1)
     
-    cov_weights = uki.cov_weights
+    cov_weights = gmki.cov_weights
 
     xy_covs = zeros(FT, N_modes, N_x, N_y)
 
@@ -346,12 +342,8 @@ function Gaussian_mixture_power(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_co
              
             
             θ_mean_p[i,:] = ws' * xs / sum(ws)
-            # TODO 
-            # θ_mean_p[i,:] = θ_mean[i, :] + 5(θ_mean_p[i,:] - θ_mean[i, :])
             θ_w_p[i] = sum(ws)/N_ens
             
-    
-            # @show i, θ_mean[i,:], θ_mean_p[i,:], θ_w[i], θ_w_p[i]
         end
         
         
@@ -363,122 +355,20 @@ function Gaussian_mixture_power(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_co
         ws = zeros(N_ens)
         for i = 1:N_modes
             
-            # construct sigma points
-            method1 = false
-
-            if method1
-                Random.seed!(123);
-                xs .= rand(MvNormal(θ_mean[i, :], θθ_cov[i,:,:]), N_ens)'
-                
-                for j = 1:N_ens
-                    ws[j] = θ_w[i]*Gaussian_mixture_density(θ_w, θ_mean, θθ_cov, xs[j, :])^(αpower - 1)
-                end
-                
-
-                θ_mean_p[i,:] = ws' * xs / sum(ws)
-                θ_w_p[i] = sum(ws)/N_ens
-            else
-
-                Random.seed!(123);
-                chol_xx_cov = cholesky(Hermitian(θθ_cov[i,:,:]/αpower)).L
-                xs .= (θ_mean[i, :] .+ chol_xx_cov*rand(Normal(0, 1), N_θ, N_ens))'
-                
-                for j = 1:N_ens
-                    ws[j] = (θ_w[i]*Gaussian_density_helper(θ_mean[i,:], θθ_cov[i,:,:], xs[j, :])/Gaussian_mixture_density_helper(θ_w, θ_mean, θθ_cov, xs[j, :]))^(1 - αpower)
-                end
-                
-                # if any(isnan,ws) || sum(ws) < 1.0
-                #     continue
-                # end
-                
-
-                θ_mean_p[i,:] = ws' * xs / sum(ws)
-
-                
-
-                # θ_mean_p[i,:] = θ_mean[i,:] + 0.9*(θ_mean_p[i,:] - θ_mean[i,:])
-                θθ_cov_p[i,:,:] = (xs - ones(N_ens)*θ_mean_p[i,:]')' * (ws .* (xs - ones(N_ens)*θ_mean_p[i,:]'))  / sum(ws)
-                θ_w_p[i] = θ_w[i]^αpower * det(θθ_cov[i,:,:])^((1-αpower)/2) * sum(ws)/N_ens
-            end
-
-            # @show "mode : ", θ_w
-            # @show "mode : ", i, θθ_cov[i,:,:], θ_mean[i,:]
-            # @show "mode : ", i, θ_w[i], θ_w_p[i], sum(ws)/N_ens
-    
+            Random.seed!(123);
+            chol_xx_cov = cholesky(Hermitian(θθ_cov[i,:,:]/αpower)).L
+            xs .= (θ_mean[i, :] .+ chol_xx_cov*rand(Normal(0, 1), N_θ, N_ens))'
             
-        end
-
-    elseif method == "Taylor-expansion"
-        Ĉ_ji = zeros(N_modes, N_θ, N_θ)
-        m̂_ji = zeros(N_modes, N_θ)
-        ŵ_ji = zeros(N_modes)
-        w̃_ji = zeros(N_modes)
-        for i = 1:N_modes
-
-            if θ_w[i] < 1e-6
-                continue
+            for j = 1:N_ens
+                ws[j] = (θ_w[i]*Gaussian_density_helper(θ_mean[i,:], θθ_cov[i,:,:], xs[j, :])/Gaussian_mixture_density_helper(θ_w, θ_mean, θθ_cov, xs[j, :]))^(1 - αpower)
             end
+            
 
-            for j = 1:N_modes
-                Ĉ_ji[j,:,:] = inv( inv(θθ_cov[j,:,:]) + αpower*inv(θθ_cov[i,:,:]) )
-            end
-            for iter = 1:1
-                for j = 1:N_modes
-                    m̂_ji[j,:] = Ĉ_ji[j,:,:]*(θθ_cov[j,:,:]\θ_mean_p[i, :] + αpower*(θθ_cov[i,:,:]\θ_mean[j, :]))
-                    # @info Ĉ_ji[j,:,:], θθ_cov[j,:,:]\θ_mean_p[i, :] , αpower*θθ_cov[i,:,:]\θ_mean[j, :], αpower
-                    # @info "i, j = ", i, j
-                    # @info "mi, mj, mij",θ_mean_p[i, :],  θ_mean[j, :],  m̂_ji[j,:]
-                    # @info "Ci, Cj, Cij",θθ_cov[i,:,:],  θθ_cov[j,:,:],  Ĉ_ji[j,:,:]
-                    # @info -αpower/2*(θ_mean_p[i, :]'*(θθ_cov[i,:,:]\θ_mean_p[i, :])), 
-                    #       1/2*(θ_mean[j, :]'*(θθ_cov[j,:,:]\θ_mean[j, :])),
-                    #       1/2*(m̂_ji[j,:]'*(Ĉ_ji[j,:,:]\m̂_ji[j,:]))
-                    w̃_ji[j] = exp(-αpower/2*(θ_mean_p[i, :]'*(θθ_cov[i,:,:]\θ_mean_p[i, :])) - 
-                                  1/2*(θ_mean[j, :]'*(θθ_cov[j,:,:]\θ_mean[j, :])) +
-                                  1/2*(m̂_ji[j,:]'*(Ĉ_ji[j,:,:]\m̂_ji[j,:]))) *
-                                  sqrt(det(Ĉ_ji[j,:,:])/det(θθ_cov[j,:,:])/det(θθ_cov[i,:,:]))
-                end
+            θ_mean_p[i,:] = ws' * xs / sum(ws)
 
-                temp_deno = (αpower*θ_w[i]*w̃_ji[i]  + (1-αpower)*sum(θ_w.*w̃_ji))
-                θ_w_p[i] = θ_w[i]^(αpower + 1)/det(θθ_cov[i,:,:])^(αpower/2)/temp_deno
-                
-                # ÂΔm̂ = b̂
-                temp_Â = θ_w[i]*w̃_ji[i]/(1 + αpower)*I
-                temp_b̂ = zeros(N_θ) 
-                @info "temp_Â, temp_b̂ = ", temp_Â, temp_b̂
-                for j = 1:N_modes
-                    if j != i
-                        temp_Â +=        (1-αpower)*θ_w[j]*w̃_ji[j]* (Ĉ_ji[j,:,:]/θθ_cov[j,:,:])
-                        temp_b̂ -= αpower*(1-αpower)*θ_w[j]*w̃_ji[j]* (Ĉ_ji[j,:,:]*(θθ_cov[i,:,:]\(θ_mean[j, :] - θ_mean[i, :])))
-                    end
-                end
-                
-                Δθ_mean = temp_Â\temp_b̂
-                @info "iter = ", iter, "θ_w[i] = ", θ_w[i], " θ_mean[i, :] = ", θ_mean[i, :], "Δθ_mean = ", Δθ_mean
-                θ_mean_p[i, :] = θ_mean[i, :] + Δθ_mean
-
-
-                
-
-                # ####
-                # temp_Â = αpower*θ_w[i]*w̃_ji[i]* (Ĉ_ji[i,:,:]/θθ_cov[i,:,:])
-                # temp_b̂ = temp_deno*θ_mean[i, :] - αpower*θ_w[i]*w̃_ji[i]*(Ĉ_ji[i,:,:]*(θθ_cov[i,:,:]\θ_mean[i, :]))
-
-                # @info "temp_Â, temp_b̂ = ", temp_Â, temp_b̂
-
-                # for j = 1:N_modes
-                #     temp_Â += (1-αpower)*θ_w[j]*w̃_ji[j]*(Ĉ_ji[j,:,:]/θθ_cov[j,:,:])
-                #     temp_b̂ -= αpower*(1-αpower)*θ_w[j]*w̃_ji[j]* (Ĉ_ji[j,:,:]*(θθ_cov[i,:,:]\θ_mean[j,:,:]))
-                # end
-
-                # @info "θ_w[i] = ", θ_w[i], " temp_Â, temp_b̂ = ", temp_Â, temp_b̂
-                # @info "??? ", θ_mean_p[i, :] , temp_Â\temp_b̂
-                # θ_mean_p[i, :] = temp_Â\temp_b̂
-                                
-        
-                # @info w̃_ji
-                # @info "Mode ", i, " Iteration: ", iter, θ_w[i], θ_w_p[i], m̂_ji[i,:], θ_mean_p[i, :]
-            end
-            # @show i, θθ_cov[i,:,:], θ_mean[i,:], θ_mean_p[i,:], θ_w[i], θ_w_p[i], m̂_ji[i,:]
+            θθ_cov_p[i,:,:] = (xs - ones(N_ens)*θ_mean_p[i,:]')' * (ws .* (xs - ones(N_ens)*θ_mean_p[i,:]'))  / sum(ws)
+            θ_w_p[i] = θ_w[i]^αpower * det(θθ_cov[i,:,:])^((1-αpower)/2) * sum(ws)/N_ens
+      
         end
 
     else
@@ -509,100 +399,67 @@ function reweight(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_cov::Array{FT,3}
     return θ_w_p
 end
 """
-update uki struct
+update gmki struct
 ens_func: The function g = G(θ)
 define the function as 
     ens_func(θ_ens) = MyG(phys_params, θ_ens, other_params)
 use G(θ_mean) instead of FG(θ)
 """
-function update_ensemble!(uki::GMUKIObj{FT, IT}, ens_func::Function) where {FT<:AbstractFloat, IT<:Int}
+function update_ensemble!(gmki::GMKIObj{FT, IT}, ens_func::Function) where {FT<:AbstractFloat, IT<:Int}
     
-    uki.iter += 1
+    gmki.iter += 1
 
-    N_θ, N_y, N_modes, N_ens = uki.N_θ, uki.N_y, uki.N_modes, uki.N_ens
-    update_freq, γ_ν, γ_ω = uki.update_freq, uki.γ_ν, uki.γ_ω
+    N_θ, N_y, N_modes, N_ens = gmki.N_θ, gmki.N_y, gmki.N_modes, gmki.N_ens
+    update_freq, Δt = gmki.update_freq, gmki.Δt
     
 
-    Σ_ν = γ_ν * uki.Σ_η
+    Σ_ν = (1/Δt) * gmki.Σ_η
     # update evolution covariance matrix
-    if update_freq > 0 && uki.iter % update_freq == 0
-        Σ_ω = γ_ω * uki.θθ_cov[end]
+    if update_freq > 0 && gmki.iter % update_freq == 0
+        Σ_ω = Δt/(1 - Δt) * gmki.θθ_cov[end]
     else
-        Σ_ω = uki.Σ_ω 
+        Σ_ω = gmki.Σ_ω 
     end
 
-    θ_mean  = uki.θ_mean[end]
-    θθ_cov  = uki.θθ_cov[end]
-    logθ_w  = uki.logθ_w[end]
+    θ_mean  = gmki.θ_mean[end]
+    θθ_cov  = gmki.θθ_cov[end]
+    logθ_w  = gmki.logθ_w[end]
     
-    update_weights!(uki.c_weights, uki.mean_weights, uki.cov_weights; unscented_transform = uki.unscented_transform, trunc_α = uki.trunc_α, covs = θθ_cov)
+    update_weights!(gmki.c_weights, gmki.mean_weights, gmki.cov_weights; unscented_transform = gmki.unscented_transform, trunc_α = gmki.trunc_α, covs = θθ_cov)
     
-    y = uki.y
+    y = gmki.y
     ############# Prediction step:
     
-    #TODO push mean
-    # θ_mean_all = mean(θ_mean, dims=1)
-    # θ_p_mean  = ones(N_modes)*θ_mean_all + sqrt(1 +  0.2)*(θ_mean - ones(N_modes)*θ_mean_all)
-    
-    # θ_p_mean  = θ_mean
-    # θθ_p_cov = (Σ_ω === nothing ? θθ_cov : θθ_cov + Σ_ω)
-    # logθ_w_p = (1/(γ_ω + 1))  * logθ_w
-    # for im = 1:N_modes
-    #     logθ_w_p[im] += (γ_ω/(2*(γ_ω + 1)))*log(det(θθ_cov[im,:,:]))
-    # end
-
-    ##TODO
-    logθ_w_p, θ_p_mean, θθ_p_cov = Gaussian_mixture_power(exp.(logθ_w), θ_mean, θθ_cov, 1/(γ_ω + 1); method=uki.mixture_power_sampling_method)
+    logθ_w_p, θ_p_mean, θθ_p_cov = Gaussian_mixture_power(exp.(logθ_w), θ_mean, θθ_cov, 1-Δt; method=gmki.mixture_power_sampling_method)
     logθ_w_p = log.(logθ_w_p)
-    # @info "prediction step  : θ_mean = ", θ_mean, " θ_p_mean = ", θ_p_mean
-    # logθ_w_p = logθ_w
-    
+   
     ############ Generate sigma points
-    θ_p = construct_sigma_ensemble(uki, θ_p_mean, θθ_p_cov)
+    θ_p = construct_sigma_ensemble(gmki, θ_p_mean, θθ_p_cov)
 
     # play the role of symmetrizing the covariance matrix
-    θθ_p_cov = construct_cov(uki, θ_p, θ_p_mean)
+    θθ_p_cov = construct_cov(gmki, θ_p, θ_p_mean)
     
 
     ###########  Analysis step
     g = zeros(FT, N_modes, N_ens, N_y)
     
-
     g .= ens_func(θ_p)
-    
-    
-    g_mean = construct_mean(uki, g)
-    # gg_cov = construct_cov(uki, g, g_mean) + Σ_ν
-    gg_cov = construct_cov(uki, g, g_mean)
-    θg_cov = construct_cov(uki, θ_p, θ_p_mean, g, g_mean)
+    g_mean = construct_mean(gmki, g)
+    gg_cov = construct_cov(gmki, g, g_mean)
+    θg_cov = construct_cov(gmki, θ_p, θ_p_mean, g, g_mean)
     
     tmp = copy(θg_cov)
     θ_mean_n =  copy(θ_p_mean)
     θθ_cov_n = copy(θθ_p_cov)
     logθ_w_n = copy(logθ_w)
 
-
-    # @show "After prediction logθ_w_p = ", logθ_w_p
-
     for im = 1:N_modes
-
         tmp[im, :, :] = θg_cov[im, :, :] / (gg_cov[im, :, :] + Σ_ν)
-
         θ_mean_n[im, :] =  θ_p_mean[im, :] + tmp[im, :, :]*(y - g_mean[im, :])
-
-        θθ_cov_n[im, :, :] =  θθ_p_cov[im, :, :] - tmp[im, :, :]*θg_cov[im, :, :]' 
-
-        
-        
+        θθ_cov_n[im, :, :] =  θθ_p_cov[im, :, :] - tmp[im, :, :]*θg_cov[im, :, :]'         
     end
 
-    # match mean 
-#     for im = 1:N_modes
-#         z = y - g_mean[im, :]
-#         logθ_w_n[im] = 1/2*( (θ_mean_n[im, :] - θ_p_mean[im, :])'*(θθ_cov_n[im, :, :]\(θ_mean_n[im, :] - θ_p_mean[im, :])) -  z'*(Σ_ν\z))
-#         logθ_w_n[im] += logθ_w_p[im] + log(sqrt(det(θθ_cov_n[im, :, :]) / det(θθ_cov[im, :, :])))
-#     end
-    
+
     # match expectation with UKI
     for im = 1:N_modes
         z = y - g_mean[im, :]
@@ -626,29 +483,27 @@ function update_ensemble!(uki::GMUKIObj{FT, IT}, ens_func::Function) where {FT<:
         g_mean_n = ens_func(θ_mean_n)
         p_n = zeros(N_modes)
         for i = 1:N_modes
-            p_n[i] = exp(-1.0/2.0* ((y - g_mean_n[i,:])'*(uki.Σ_η\(y - g_mean_n[i,:]))) )
+            p_n[i] = exp(-1.0/2.0* ((y - g_mean_n[i,:])'*(gmki.Σ_η\(y - g_mean_n[i,:]))) )
         end
         θ_w_n = reweight(exp.(logθ_w_n), θ_mean_n, θθ_cov_n, θ_mean_n, p_n)
         logθ_w_n .= log.(θ_w_n)
     end
 
-    # @show "Iteration logθ_w_n = ", logθ_w_n
-
     ########### Save resutls
-    push!(uki.y_pred, g_mean)     # N_ens x N_data
-    push!(uki.θ_mean, θ_mean_n)   # N_ens x N_params
-    push!(uki.θθ_cov, θθ_cov_n)   # N_ens x N_data
-    push!(uki.logθ_w, logθ_w_n)   # N_ens x N_data
+    push!(gmki.y_pred, g_mean)     # N_ens x N_data
+    push!(gmki.θ_mean, θ_mean_n)   # N_ens x N_params
+    push!(gmki.θθ_cov, θθ_cov_n)   # N_ens x N_data
+    push!(gmki.logθ_w, logθ_w_n)   # N_ens x N_data
     
 
 end
 
 
 
-function GMUKI_Run(s_param, forward::Function, 
+function GMKI_Run(s_param, forward::Function, 
     θ0_w, θ0_mean, θθ0_cov,
     y, Σ_η,
-    γ,
+    Δt,
     update_freq,
     N_iter;
     unscented_transform::String = "modified-2n+1",
@@ -658,10 +513,10 @@ function GMUKI_Run(s_param, forward::Function,
     trunc_α = -1.0)
     
     
-    ukiobj = GMUKIObj(
+    gmkiobj = GMKIObj(
     θ0_w, θ0_mean, θθ0_cov,
     y, Σ_η,
-    γ,
+    Δt,
     update_freq;
     unscented_transform = unscented_transform, 
     mixture_power_sampling_method = mixture_power_sampling_method,
@@ -677,10 +532,10 @@ function GMUKI_Run(s_param, forward::Function,
     
     
     for i in 1:N_iter
-        update_ensemble!(ukiobj, ens_func) 
+        update_ensemble!(gmkiobj, ens_func) 
     end
     
-    return ukiobj
+    return gmkiobj
     
 end
 
