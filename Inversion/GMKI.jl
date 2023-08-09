@@ -3,7 +3,7 @@ using Statistics
 using Distributions
 using LinearAlgebra
 using DocStringExtensions
-
+using ForwardDiff
 
 """
 UKIObj{FT<:AbstractFloat, IT<:Int}
@@ -270,7 +270,7 @@ function construct_cov(gmki::GMKIObj{FT, IT}, xs::Array{FT,3}, x_means::Array{FT
     return xy_covs
 end
 
-function Gaussian_density_helper(θ_mean::Array{FT,1}, θθ_cov::Array{FT,2}, θ::Array{FT,1}) where {FT<:AbstractFloat}    
+function Gaussian_density_helper(θ_mean::Array{FT,1}, θθ_cov::Array{FT,2}, θ::Vector) where {FT<:AbstractFloat}    
     return exp( -1/2*((θ - θ_mean)'* (θθ_cov\(θ - θ_mean)) )) / ( sqrt(det(θθ_cov)) )
 
 end
@@ -282,7 +282,7 @@ function Gaussian_density(θ_mean::Array{FT,1}, θθ_cov::Array{FT,2}, θ::Array
     return exp( -1/2*((θ - θ_mean)'* (θθ_cov\(θ - θ_mean)) )) / ( (2π)^(N_θ/2)*sqrt(det(θθ_cov)) )
 
 end
-function Gaussian_mixture_density_helper(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_cov::Array{FT,3}, θ::Array{FT,1}) where {FT<:AbstractFloat}
+function Gaussian_mixture_density_helper(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_cov::Array{FT,3}, θ::Vector) where {FT<:AbstractFloat}
     ρ = 0.0
     N_modes, N_θ = size(θ_mean)
     
@@ -301,6 +301,35 @@ function Gaussian_mixture_density(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_
         ρ += θ_w[i]*Gaussian_density(θ_mean[i,:], θθ_cov[i,:,:], θ)
     end
     return ρ
+end
+
+function Gaussian_mixture_density_derivatives(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_cov::Array{FT,3}, θ::Array{FT,1}) where {FT<:AbstractFloat}
+    N_modes, N_θ = size(θ_mean)
+
+    ρ = 0.0
+    ∇ρ = zeros(N_θ)
+    ∇²ρ = zeros(N_θ, N_θ)
+   
+    
+    for i = 1:N_modes
+        ρᵢ   = Gaussian_density_helper(θ_mean[i,:], θθ_cov[i,:,:], θ)
+        ρ   += θ_w[i]*ρᵢ
+        temp = θθ_cov[i,:,:]\(θ_mean[i,:] - θ)
+        ∇ρ  += θ_w[i]*ρᵢ*temp
+        ∇²ρ += θ_w[i]*ρᵢ*( temp * temp' - inv(θθ_cov[i,:,:]) )
+    end
+    return ρ, ∇ρ, ∇²ρ
+end
+
+"""
+Compute f function without the constant in the front!
+"""
+function f_func_derivatives(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_cov::Array{FT,3}, i::IT,  θ::Array{FT,1}, Δt::FT) where {FT<:AbstractFloat, IT<:Int}
+
+    f_func = (θ)->(θ_w[i]*Gaussian_density_helper(θ_mean[i,:], θθ_cov[i,:,:], θ)/Gaussian_mixture_density_helper(θ_w, θ_mean, θθ_cov, θ))^Δt
+    
+    f, ∇f, ∇²f = f_func(θ), ForwardDiff.gradient(f_func, θ), ForwardDiff.hessian(f_func, θ) 
+    return f, ∇f, ∇²f
 end
 
 # θ_w : N_modes array
@@ -370,12 +399,65 @@ function Gaussian_mixture_power(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_co
             θ_w_p[i] = θ_w[i]^αpower * det(θθ_cov[i,:,:])^((1-αpower)/2) * sum(ws)/N_ens
       
         end
+    elseif method == "random-sampling-derivatives"
+        
+        N_ens = 10000
+        α = sqrt((N_ens-1)/2.0)
+        xs = zeros(N_ens, N_θ)
+        fs, ∇fs, ∇²fs = zeros(N_ens), zeros(N_ens, N_θ), zeros(N_ens, N_θ, N_θ)
+        for i = 1:N_modes
+            
+            Random.seed!(123);
+            chol_xx_cov = cholesky(Hermitian(θθ_cov[i,:,:]/αpower)).L
+            xs .= (θ_mean[i, :] .+ chol_xx_cov*rand(Normal(0, 1), N_θ, N_ens))'
+            
+            for j = 1:N_ens
+                fs[j], ∇fs[j,:], ∇²fs[j,:,:] = f_func_derivatives(θ_w, θ_mean, θθ_cov, i,  xs[j,:], 1 - αpower) 
+
+            end
+            
+
+            # θ_mean_p[i,:] = fs' * xs / sum(fs)
+            θ_mean_p[i,:] = θ_mean[i,:] + θθ_cov[i,:,:]/αpower * dropdims(sum(∇fs, dims=1), dims=1) / sum(fs)
+
+            # θθ_cov_p[i,:,:] = (xs - ones(N_ens)*θ_mean_p[i,:]')' * (fs .* (xs - ones(N_ens)*θ_mean_p[i,:]'))  / sum(fs)
+            θθ_cov_p[i,:,:] = θθ_cov[i,:,:]/αpower + (θ_mean_p[i,:]-θ_mean[i,:])*(θ_mean_p[i,:]-θ_mean[i,:])' + θθ_cov[i,:,:]/αpower^2 * (dropdims(sum(∇²fs, dims=1), dims=1)/sum(fs)) * θθ_cov[i,:,:]
+            
+            θ_w_p[i] = θ_w[i]^αpower * det(θθ_cov[i,:,:])^((1-αpower)/2) * sum(fs)/N_ens
+      
+        end
+
+    elseif method == "continuous-time"
+
+        Δt = 1 - αpower
+        logθ_w_p = log.(θ_w) 
+        for i = 1:N_modes
+            
+            ρ, ∇ρ, ∇²ρ = Gaussian_mixture_density_derivatives(θ_w, θ_mean, θθ_cov, θ_mean[i, :])
+            logρ, ∇logρ, ∇²logρ  =  log(ρ), ∇ρ/ρ, (∇²ρ*ρ - ∇ρ*∇ρ')/ρ^2
+       
+
+            θ_mean_p[i,:] = θ_mean[i, :] - Δt*θθ_cov[i, :, :]*∇logρ
+            θθ_cov_p[i,:] = inv( inv(θθ_cov[i, :, :]) + Δt*∇²logρ )  
+            
+            
+            @info "svd = ", svd(inv(θθ_cov[i, :, :]) + Δt*∇²logρ)
+            
+            
+            logθ_w_p[i]  -= Δt*logρ
+            
+
+        end
+
+        # Normalization
+        logθ_w_p .-= maximum(logθ_w_p)
+        logθ_w_p .-= log( sum(exp.(logθ_w_p)) )
+        θ_w_p = exp.(logθ_w_p)
 
     else
         @error("method :", method, " has not implemented")
         
     end
-    # θ_w_p ./ sum(θ_w_p)
     
     return θ_w_p, θ_mean_p, θθ_cov_p
 end

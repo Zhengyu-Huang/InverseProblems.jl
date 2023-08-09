@@ -131,7 +131,7 @@ function Gaussian_density_helper(θ_mean::Array{FT,1}, θθ_cov::Array{FT,2}, θ
     return exp( -1/2*((θ - θ_mean)'* (θθ_cov\(θ - θ_mean)) )) / ( sqrt(det(θθ_cov)) )
 end
 
-function Gaussian_mixture_density_all_helper(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_cov::Array{FT,3}, θ::Array{FT,1}) where {FT<:AbstractFloat}
+function Gaussian_mixture_density_derivatives(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_cov::Array{FT,3}, θ::Array{FT,1}) where {FT<:AbstractFloat}
     N_modes, N_θ = size(θ_mean)
 
     ρ = 0.0
@@ -158,7 +158,7 @@ function compute_logρ_gm(θ_p, θ_w, θ_mean, θθ_cov)
     ∇²logρ = zeros(N_modes, N_ens, N_θ, N_θ)
     for im = 1:N_modes
         for i = 1:N_ens
-            ρ, ∇ρ, ∇²ρ = Gaussian_mixture_density_all_helper(θ_w, θ_mean, θθ_cov, θ_p[im, i, :])
+            ρ, ∇ρ, ∇²ρ = Gaussian_mixture_density_derivatives(θ_w, θ_mean, θθ_cov, θ_p[im, i, :])
             logρ[im, i]         =   log(  ρ  )
             ∇logρ[im, i, :]     =   ∇ρ/ρ
             ∇²logρ[im, i, :, :] =  (∇²ρ*ρ - ∇ρ*∇ρ')/ρ^2
