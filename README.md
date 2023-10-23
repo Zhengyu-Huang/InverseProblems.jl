@@ -32,6 +32,7 @@ Let's start! (⚠️ under construction)
     * [Variational inference](Lectures/VariationalInference.ipynb)
       * [Gaussian variational inference](Lectures/GaussianVariationalInference.ipynb)
       * [Stein variational inference](Lectures/SteinVariationalInference.ipynb)
+      * [Wasserstein gradient flow](Lectures/WassersteinGradientFlow.ipynb)
       * [Affine invariant gradient flows](Lectures/AffineInvariance.ipynb)
     * Coupling ideas
       * [Filtering](Lectures/Filtering.ipynb)
