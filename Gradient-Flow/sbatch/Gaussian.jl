@@ -57,10 +57,10 @@ end
 
 function compute_∇logρ(s_param::Setup_Param, θ::Array{FT, 1}) where {FT<:AbstractFloat}
     C_oo, m_oo = s_param.C_oo, s_param.m_oo
-    # Φ   = 1/2*(θ - m_oo)'*(C_oo\(θ - m_oo))
+    logρ  = -1/2*(θ - m_oo)'*(C_oo\(θ - m_oo))
     ∇logρ = -C_oo\(θ - m_oo)
     # ∇²Φ = C_oo
-    return ∇logρ
+    return logρ, ∇logρ
 end
 
 
@@ -82,6 +82,8 @@ ts = LinRange(0, Δt*N_t, N_t+1)
 ω =  rand(Normal(0, 1), (20, 2))
 b = rand(Uniform(0, 2*pi), 20)
 
+N_x, N_y = 1000, 1000
+X_cont, Y_cont, Z_cont = zeros(N_x, N_y), zeros(N_x, N_y), zeros(N_x, N_y)
 for test_id = 1:length(ϵs)
     ϵ = ϵs[test_id]
     m_oo = [0.0; 0.0]
@@ -94,13 +96,17 @@ for test_id = 1:length(ϵs)
     logρ(θ) = -0.5*θ'*(C_oo\θ)
     x_min, x_max = -3, 3
     y_min, y_max = -3/sqrt(ϵ), 3/sqrt(ϵ)
-    N_x, N_y = 1000, 1000
+    
     xx_cont = Array(LinRange(x_min, x_max, N_x))
     yy_cont = Array(LinRange(y_min, y_max, N_y))
-    X_cont,Y_cont = repeat(xx_cont, 1, N_y), repeat(yy_cont, 1, N_x)'
-    Z_cont = zeros(N_x, N_y)
+#     X_cont .= repeat(xx_cont, 1, N_y) 
+#     Y_cont .= repeat(yy_cont, 1, N_x)'
+#     Z_cont = zeros(N_x, N_y)
+    
     for i = 1:N_x
         for j = 1:N_y
+            X_cont[i,j] = xx_cont[i]
+            Y_cont[i,j] = yy_cont[j]
             Z_cont[i, j] = logρ( [X_cont[i,j], Y_cont[i,j]] )
         end
     end
@@ -116,14 +122,14 @@ for test_id = 1:length(ϵs)
 
             ips_errors    = zeros(N_t+1, 3)
             for i = 1:N_t+1
-                m_i, C_i = dropdims(mean(ips_obj.θ[i], dims=1), dims=1), construct_cov(ips_obj, ips_obj.θ[i])
+                m_i, C_i = dropdims(mean(ips_obj.θ[i], dims=1), dims=1), construct_cov(ips_obj.θ[i])
                 ips_errors[i, 1] = norm(m_i .- m_oo)
                 ips_errors[i, 2] = norm(C_i .- C_oo)/norm(C_oo)
                 ips_errors[i, 3] = norm(cos_ref - cos_error_estimation_particle(m_i, C_i, ω, b ))/sqrt(length(b))
             end
             @info method, " preconditioner ", preconditioner
             @info L"\lambdaean = ", dropdims(mean(ips_obj.θ[end], dims=1), dims=1), " ", m_oo
-            @info "cov = ", construct_cov(ips_obj, ips_obj.θ[end]), " ", C_oo
+            @info "cov = ", construct_cov(ips_obj.θ[end]), " ", C_oo
             
             
 

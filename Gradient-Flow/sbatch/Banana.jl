@@ -121,6 +121,8 @@ yy = LinRange(-100, 100,  4000)
 b = rand(Uniform(0, 2*pi), 20)
 y_ranges = [[-60,80],[-20,40],[-10, 40],[-2.5, 40],[-2.5, 20]]
 
+N_x, N_y = 1000, 1000
+X_cont, Y_cont, Z_cont = zeros(N_x, N_y), zeros(N_x, N_y), zeros(N_x, N_y)
 for test_id = 1:length(ϵs)
 
     ϵ = ϵs[test_id]
@@ -140,10 +142,12 @@ for test_id = 1:length(ϵs)
     N_x, N_y = 1000, 1000
     xx_cont = Array(LinRange(x_min, x_max, N_x))
     yy_cont = Array(LinRange(y_min, y_max, N_y))
-    X_cont,Y_cont = repeat(xx_cont, 1, N_y), repeat(yy_cont, 1, N_x)'
-    Z_cont = zeros(N_x, N_y)
+#     X_cont,Y_cont = repeat(xx_cont, 1, N_y), repeat(yy_cont, 1, N_x)'
+#     Z_cont = zeros(N_x, N_y)
     for i = 1:N_x
         for j = 1:N_y
+            X_cont[i,j] = xx_cont[i]
+            Y_cont[i,j] = yy_cont[j]
             Z_cont[i, j] = logρ( [X_cont[i,j], Y_cont[i,j]] )
         end
     end

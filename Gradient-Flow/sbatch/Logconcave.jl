@@ -120,6 +120,9 @@ yy = LinRange(-10,  10,  400)
 ω =  rand(Normal(0, 1), (20, 2))
 b = rand(Uniform(0, 2*pi), 20)
 x_ranges = [[-70,70],[-30,30],[-10, 10],[-5, 5],[-3, 3]]
+ 
+N_x, N_y = 1000, 1000
+X_cont, Y_cont, Z_cont = zeros(N_x, N_y), zeros(N_x, N_y), zeros(N_x, N_y)
 for test_id = 1:length(ϵs)
     
     ϵ = ϵs[test_id]
@@ -127,7 +130,7 @@ for test_id = 1:length(ϵs)
     logρ(θ) = log_concave(θ,  ϵs[test_id])
     
     function ∇logρ(s_param::Setup_Param, θ)
-        return ForwardDiff.gradient(logρ, θ)
+        return logρ(θ), ForwardDiff.gradient(logρ, θ)
     end
     
     m_oo, C_oo, cos_ref  = compute_Eref(ϵs[test_id], ω, b)
@@ -138,10 +141,12 @@ for test_id = 1:length(ϵs)
     N_x, N_y = 1000, 1000
     xx_cont = Array(LinRange(x_min, x_max, N_x))
     yy_cont = Array(LinRange(y_min, y_max, N_y))
-    X_cont,Y_cont = repeat(xx_cont, 1, N_y), repeat(yy_cont, 1, N_x)'
-    Z_cont = zeros(N_x, N_y)
+#     X_cont,Y_cont = repeat(xx_cont, 1, N_y), repeat(yy_cont, 1, N_x)'
+#     Z_cont = zeros(N_x, N_y)
     for i = 1:N_x
         for j = 1:N_y
+            X_cont[i,j] = xx_cont[i]
+            Y_cont[i,j] = yy_cont[j]
             Z_cont[i, j] = logρ( [X_cont[i,j], Y_cont[i,j]] )
         end
     end
@@ -162,7 +167,7 @@ for test_id = 1:length(ϵs)
             ips_errors    = zeros(N_t+1, 3)
             for i = 1:N_t+1
                 ips_errors[i, 1] = norm(dropdims(mean(ips_obj.θ[i], dims=1), dims=1) .- m_oo)
-                ips_errors[i, 2] = norm(construct_cov(ips_obj, ips_obj.θ[i]) .- C_oo)/norm(C_oo)
+                ips_errors[i, 2] = norm(construct_cov(ips_obj.θ[i]) .- C_oo)/norm(C_oo)
                 ips_errors[i, 3] = norm(cos_ref - cos_error_estimation_particle(ips_obj.θ[i], ω, b ))/sqrt(length(b))
             end
             @info method, " preconditioner ", preconditioner

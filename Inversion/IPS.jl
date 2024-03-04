@@ -24,6 +24,8 @@ mutable struct IPSObj{FT<:AbstractFloat, IT<:Int}
     preconditioner::Bool
     "Kernel param"
     kernel_param
+    κ::Array{FT,2}
+    dκ::Array{FT,3}
 end
 
 
@@ -44,10 +46,10 @@ function IPSObj(
     iter = 0
     
     _,  N_θ = size(θ0)
-    
+    κ, dκ = zeros(FT, N_ens, N_ens), zeros(FT, N_ens, N_ens, N_θ)
     IPSObj{FT,IT}(
     θ, N_ens, N_θ, 
-    Δt, iter, method, preconditioner, kernel_param)
+    Δt, iter, method, preconditioner, kernel_param, κ, dκ)
 end
 
 
@@ -152,18 +154,20 @@ function compute_h(θ)
 end
 
 #compute κ(xi, xj) and ∇_xj κ(xi, xj)
-function kernel(xs; C = nothing)
+function kernel!(xs, κ, dκ; C = nothing, scale = nothing)
     N_ens, d = size(xs)
-    κ = zeros(N_ens, N_ens)
-    dκ = zeros(N_ens, N_ens, d)
     
     if C === nothing
         h = compute_h(xs)
         C = h^2
-        scale = sqrt( (1 + 4*log(N_ens + 1)/d)^d )
+        if scale === nothing
+           scale = sqrt( (1 + 4*log(N_ens + 1)/d)^d )
+        end    
     else
-        C = C
-        scale = sqrt( (1 + 2)^d )
+        C = d*C
+        if scale === nothing
+            scale = sqrt( (1 + 2/d)^d )
+        end
     end
 
      
@@ -177,38 +181,39 @@ function kernel(xs; C = nothing)
         end
     end
     
-    return scale*κ, scale*dκ
+    κ .*= scale
+    dκ .*= scale
 end
 
 
 
-#compute κ(xi, xj) and ∇_xj κ(xi, xj)
-function kernel(xs, xs_; C = nothing)
-    N_ens,  d = size(xs)
-    N_ens_, d = size(xs_)
-    κ = zeros(N_ens, N_ens_)
+# #compute κ(xi, xj) and ∇_xj κ(xi, xj)
+# function kernel(xs, xs_; C = nothing)
+#     N_ens,  d = size(xs)
+#     N_ens_, d = size(xs_)
+#     κ = zeros(N_ens, N_ens_)
     
-    if C === nothing
-        h = compute_h(xs)
-        C = h^2
-        scale = sqrt( (1 + 4*log(N_ens + 1)/d)^d )
-    else
-        C = C
-        scale = sqrt( (1 + 2)^d )
-    end
+#     if C === nothing
+#         h = compute_h(xs)
+#         C = h^2
+#         scale = sqrt( (1 + 4*log(N_ens + 1)/d)^d )
+#     else
+#         C = C
+#         scale = sqrt( (1 + 2)^d )
+#     end
 
      
     
-    for i = 1:N_ens
-        for j = 1:N_ens_
-            dpower = C\(xs[i,:] - xs_[j,:])
-            power =  -0.5* ( (xs[i,:] - xs_[j,:])' * dpower )  
-            κ[i, j] = exp(power)
-        end
-    end
+#     for i = 1:N_ens
+#         for j = 1:N_ens_
+#             dpower = C\(xs[i,:] - xs_[j,:])
+#             power =  -0.5* ( (xs[i,:] - xs_[j,:])' * dpower )  
+#             κ[i, j] = exp(power)
+#         end
+#     end
     
-    return scale*κ
-end
+#     return scale*κ
+# end
 
 
 function update_ensemble!(ips::IPSObj{FT}, ens_func::Function) where {FT<:AbstractFloat}
@@ -220,7 +225,7 @@ function update_ensemble!(ips::IPSObj{FT}, ens_func::Function) where {FT<:Abstra
     logρ = zeros(FT, N_ens)
     ∇logρ = zeros(FT, N_ens, N_θ)
     logρ, ∇logρ = ens_func(θ)
-    
+    κ, dκ = ips.κ, ips.dκ
    
     # u_mean: N_par × 1
     θ_mean = construct_mean(θ)
@@ -237,7 +242,7 @@ function update_ensemble!(ips::IPSObj{FT}, ens_func::Function) where {FT<:Abstra
         dθ = ∇logρ * Prec' + sqrt(2/Δt)*(σ*noise)'
     # Stein 
     elseif method == "Stein" || method == "Stein-Fisher-Rao"
-        κ, dκ = kernel(θ; C = (ips.preconditioner ? θθ_cov : nothing) )
+        kernel!(θ, κ, dκ; C = (ips.preconditioner ? θθ_cov : nothing), scale = ips.kernel_param)
         dθ = 1/N_ens * (Prec *  ∇logρ'  * κ)'
         for i = 1:N_ens
             dθ[i, :] += 1/N_ens * (Prec *  sum(dκ[i,:,:], dims = 1)' )
@@ -245,13 +250,13 @@ function update_ensemble!(ips::IPSObj{FT}, ens_func::Function) where {FT<:Abstra
     else
         error("method = ", method)
     end
-
+    
     θ = θ + Δt * dθ
     
     if method == "Wasserstein-Fisher-Rao" || method == "Stein-Fisher-Rao"
         # Always use the kernel without prconditioner
         # κ, _ = kernel(θ; C = (ips.preconditioner ? θθ_cov : nothing) )
-        κ, _ = kernel(θ; C = ips.kernel_param)
+        kernel!(θ, κ, dκ; C = ips.kernel_param)
         # equation 57
         Λ = log.(sum(κ, dims=2)/N_ens)[:] + sum(κ./sum(κ, dims=2) , dims=2)[:] - logρ .- sum(log.(sum(κ, dims=2)/N_ens))/N_ens .- 1 .+ sum(logρ)/N_ens
 

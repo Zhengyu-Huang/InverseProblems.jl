@@ -3,7 +3,7 @@ using Statistics
 using Distributions
 using LinearAlgebra
 using DocStringExtensions
-
+using Roots
 # generate ensemble
 Random.seed!(123)
 """
@@ -28,8 +28,8 @@ mutable struct DiffusionKI{FT<:AbstractFloat, IT<:Int}
     N_y::IT
     "current iteration number"
     iter::IT
-    "time step size"
-    Δt::FT
+    "time step, t₁=0, t₂, ..., tₙ₊₁=T"
+    ts::Array{FT,1}
     "final time"
     T::FT
     "number of iterations"
@@ -69,23 +69,21 @@ function DiffusionKI(
     # prior information
     prior_mean::Array{FT},
     prior_cov::Array{FT,2},
-    N_iter::IT,     
+    N_iter::IT,
     T::FT,
+    ts::Array{FT,1},     
     randomized_update::Bool;
     exact_init::Bool = true) where {FT<:AbstractFloat, IT<:Int}
 
     N_p, N_θ = size(θ0)
-    Δt = T/N_iter
 
     if exact_init
+        @info "Correct the initial condition, such that the empirical mean is 0, the empirical covariance is I."
+        # correct the initial condition, such that the empirical mean is 0, the empirical covariance is I.
         # shift mean to 0
-        θ0 -= (ones(N_p) * dropdims(mean(θ0, dims=1), dims=1)')
-        # #θ0_new = θ0 * X with covariance θθ0_cov
+        θ0 -= repeat(mean(θ0, dims=1), N_p, 1)   
         U1, S1, V1t = svd(θ0)
-        U2, S2, U2t = svd(N_p * prior_cov)
-        θ0 = θ0 * (V1t * (S1 .\ sqrt.(S2) .* U2t'))
-        #add θ0_mean
-        θ0 += (ones(N_p) * prior_mean')
+        θ0 = sqrt(N_p)*U1
     end
 
     θ = Array{FT,2}[]        # array of Array{FT, 2}'s
@@ -181,11 +179,12 @@ function DiffusionKI(
 
     iter = 0
     N_y = length(y)
+    
     DiffusionKI{FT,IT}(
     filter_type, θ, 
     y, Σ_η, 
     N_p, N_θ, N_y, 
-    iter, Δt, 
+    iter, ts, 
     T, N_iter, 
     randomized_update, 
     N_ens, 
@@ -201,36 +200,56 @@ end
 function update_ensemble!(diffki::DiffusionKI{FT,IT}, ens_func::Function) where {FT<:AbstractFloat, IT<:Int}
     # update particles Z_{tₖ} at tₖ to Z_{tₖ₊₁} at tₖ₊₁
     # t = T - tₖ
-    Δt = diffki.Δt
-    t = T - Δt * diffki.iter
-    λₜ = exp(-t)
-    σₜ² = 1 - exp(-2*t)
-    σₜ = sqrt(σₜ²)
+    diffki.iter += 1
+    iter = diffki.iter
+    tₖ = diffki.ts[iter]
+    Δt = diffki.ts[iter+1] - tₖ
     
     # particles at tₖ
     θ = diffki.θ[end]
     θ_p = similar(θ)
     N_p, N_θ = diffki.N_p, diffki.N_θ
 
-    mₜ = compute_mean(diffki, ens_func, θ, λₜ, σₜ)       
-
-
     if diffki.randomized_update
-        noise = rand(Normal(0, 1), (N_p, N_θ))
-        for j = 1:N_p
-            θ_p[j,:] = θ[j,:] + Δt*(θ[j,:] + 2*(λₜ*mₜ[j,:] - θ[j,:])/σₜ²) + √2*noise[j,:]
-        end
+        rhs, rhs_stoc = update_ensemble_rhs(θ, tₖ, diffki, ens_func) 
+        # update particles Z_{tₖ} at tₖ
+        θ_p = θ + Δt*rhs + sqrt(Δt)*rhs_stoc
+        
     else
-        for j = 1:N_p
-            θ_p[j,:] = θ[j,:] + Δt*(θ[j,:] + (λₜ*mₜ[j,:] - θ[j,:])/σₜ²)
-        end
-        # @info diffki.iter, norm(θ + (λₜ*mₜ - θ)/σₜ²),  λₜ, σₜ²
+        # RK2 for the deterministic system
+
+        k1, k2 = similar(θ), similar(θ)
+        rhs, rhs_stoc = update_ensemble_rhs(θ, tₖ, diffki, ens_func) 
+        k1 = Δt*rhs
+        rhs, rhs_stoc = update_ensemble_rhs(θ+k1/2.0, tₖ+Δt/2.0, diffki, ens_func) 
+        k2 = Δt*rhs
+        θ_p = θ + k2
+
+
+        # k1, k2, k3, k4 = similar(θ), similar(θ), similar(θ), similar(θ)
+        # rhs, rhs_stoc = update_ensemble_rhs(θ, tₖ, diffki, ens_func) 
+        # k1 = Δt*rhs
+        # rhs, rhs_stoc = update_ensemble_rhs(θ+k1/2.0, tₖ+Δt/2.0, diffki, ens_func) 
+        # k2 = Δt*rhs
+        # rhs, rhs_stoc = update_ensemble_rhs(θ+k2/2.0, tₖ+Δt/2.0, diffki, ens_func) 
+        # k3 = Δt*rhs
+        # rhs, rhs_stoc = update_ensemble_rhs(θ+k3, tₖ+Δt, diffki, ens_func) 
+        # k4 = Δt*rhs
+        # θ_p = θ + (k1 + 2.0*k2 + 2.0*k3 + k4)/6.0 
     end
+
     
-    diffki.iter += 1
+
+
+    
     push!(diffki.θ, θ_p)
-    return mₜ, θ_p
+    return θ_p
 end
+
+
+
+
+
 
 
 # compute mean 
@@ -359,9 +378,10 @@ function DiffusionKI_Run(
     T::FT,
     N_iter::IT;
     filter_type::String = "cubature_transform",
+    ts::Array{FT,1} = collect(LinRange(0, T, N_iter+1)),
     randomized_update::Bool = false) where {FT<:AbstractFloat, IT<:Int}
     
-    diffkiobj = DiffusionKI(filter_type, θ0, y, Σ_η, prior_mean, prior_cov, N_iter, T, randomized_update)
+    diffkiobj = DiffusionKI(filter_type, θ0, y, Σ_η, prior_mean, prior_cov, N_iter, T, ts, randomized_update)
     
     ens_func(θ_ens) = ensemble(s_param, θ_ens, forward)
     
@@ -388,3 +408,109 @@ function DiffusionKI_Run(
     
     return diffkiobj
 end
+
+
+
+
+
+
+
+function update_ensemble_rhs(θ::Array{FT, 2}, tₖ::FT, diffki::DiffusionKI{FT,IT}, ens_func::Function) where {FT<:AbstractFloat, IT<:Int}
+    # update particles Z_{tₖ} at tₖ to Z_{tₖ₊₁} at tₖ₊₁
+    # t = T - tₖ
+    
+    t = diffki.T - tₖ
+    λₜ = exp(-t)
+    σₜ² = 1 - exp(-2*t)
+    σₜ = sqrt(σₜ²)
+    
+    # particles at tₖ
+    N_p, N_θ = diffki.N_p, diffki.N_θ
+    rhs, rhs_stoc = similar(θ), similar(θ)
+    
+    mₜ = compute_mean(diffki, ens_func, θ, λₜ, σₜ)       
+
+
+    if diffki.randomized_update
+        noise = rand(Normal(0, 1), (N_p, N_θ))
+        for j = 1:N_p
+            rhs[j,:] = (θ[j,:] + 2*(λₜ*mₜ[j,:] - θ[j,:])/σₜ²) 
+            rhs_stoc[j, :] = sqrt(2.0)*noise[j,:]
+        end
+    else
+        for j = 1:N_p
+            rhs[j,:] = (θ[j,:] + (λₜ*mₜ[j,:] - θ[j,:])/σₜ²)
+            rhs_stoc[j, :] .= 0.0
+        end
+    end
+
+    return rhs, rhs_stoc
+end
+
+
+
+
+# generate mesh between a and b 
+# dx0, dx0*r, dx0*r^2 ... dx0*r^{N-2}  r ≥ 1
+# b - a = dx0*(r^{N-1} - 1)/(r - 1)
+# a ,.....   b-dx0-dx0*r,  b-dx0, b
+function GeoSpace(a, b, N; r = -1.0, dx0= -1.0)
+
+    xx = Array(LinRange(a, b, N))
+
+    if r > 1 || dx0 > 0
+        if r > 1 
+            dx0 = (b - a)/((r^(N - 1) - 1)/(r - 1))
+
+            dx = dx0
+            for i = N-1:-1:2
+                xx[i] = xx[i+1] - dx
+                dx *= r
+            end
+
+        else
+            # first use r=1.05 to generate half of the grids
+            # then compute r and generate another half of the grids
+            f(r)  = (r-1)*(b-a) - dx0*(r^(N-1) - 1)
+            Df(r) = (b-a) - dx0*(N-1)*r^(N-2)  
+            r = find_zero(f, (1+1e-4, 1.5), Roots.Bisection())
+            if r > 1.02
+                r = min(r, 1.02)
+                dx = dx0
+                Nf = div(N, 2)
+               
+                
+                # for i = 2:Nf
+                for i = N-1:-1:N-Nf+1
+                    xx[i] = xx[i+1] - dx
+                    dx *= r
+                end
+                b = xx[N-Nf+1]
+                dx0 = dx
+                
+                f = (r) -> (r-1)*(b-a)-dx0*(r^(N - Nf) - 1)
+                Df = (r) -> (b-a)-dx0*(N-Nf)*r^(N - Nf - 1)
+        
+        
+                r = find_zero(f, (1+1e-4, 2.0), Roots.Bisection())
+                # for i = Nf+1:N-1
+                for i = N-Nf:-1:2
+                    xx[i] = xx[i+1] - dx
+                    dx *= r
+                end
+
+            else
+                dx = dx0
+                for i = N-1:-1:2
+                    xx[i] = xx[i+1] - dx
+                    dx *= r
+                end
+            end
+            
+        end 
+    
+        
+    end
+
+    return xx
+end    
