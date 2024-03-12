@@ -67,6 +67,11 @@ end
 
 fig, ax = PyPlot.subplots(figsize=(7,6))
 im = ax.pcolormesh(mcmc_θiθj_cov, cmap="binary")
+ax.set_xticks([0, 4, 8, 12, 16]) 
+ax.set_xticklabels(["0", "4", "8", "12", "16"])
+ax.set_yticks([0, 4, 8, 12, 16]) 
+ax.set_yticklabels(["0", "4", "8", "12", "16"])
+
 fig.colorbar(im)
 fig.savefig("Darcy-1D-cov.pdf")
 
@@ -147,7 +152,7 @@ end
     
     
 
-markers = ["--s", "-.s", "-x", "--x", "-*", "-o", "-s"]
+markers = ["--s", "-.s", "--x", "--x", "--*", "--o", "--s"]
 colors  = ["C1", "C2", "C3", "C4", "C5", "C6", "C7"]
 labels  = [ "Wasserstein GF", "Affine invariant Wasserstein GF", 
            "Stein GF", "Affine invariant Stein GF", "Gassian approximate GF", "Gassian approximate Fisher-Rao GF",
@@ -174,7 +179,7 @@ fig.savefig("Darcy-1D-error.pdf")
 θ_ind = Array(1:N_θ)
 fig, ax = PyPlot.subplots(figsize=(13,6))
 
-ax.plot(θ_ind , mcmc_θ_mean,"--D", color="black", label="MCMC")
+ax.plot(θ_ind , mcmc_θ_mean,"-D", color="black", label="MCMC")
 ax.plot(θ_ind , mcmc_θ_mean + 3.0*mcmc_θθ_std, "--", color ="black")
 ax.plot(θ_ind , mcmc_θ_mean - 3.0*mcmc_θθ_std,  "--", color ="black")
 ax.plot(θ_ind , θ_ref, "--v", color="C9", fillstyle="none", label="Reference")
