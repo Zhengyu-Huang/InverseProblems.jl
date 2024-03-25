@@ -25,9 +25,10 @@ mutable struct Spectral_NS_Solver
 
     ν::Float64
 
-    fx::Array{Float64, 2}
-    fy::Array{Float64, 2}
+    fx::Union{Array{Float64, 2}, Nothing}
+    fy::Union{Array{Float64, 2}, Nothing}
     curl_f_hat::Array{ComplexF64, 2}
+    stochastic_forcing::Bool
 
     ub::Float64
     vb::Float64
@@ -51,6 +52,8 @@ mutable struct Spectral_NS_Solver
     k2::Array{ComplexF64, 2}
     k3::Array{ComplexF64, 2}
     k4::Array{ComplexF64, 2}
+    
+    
 end
 
 
@@ -65,20 +68,25 @@ end
 # * initialize ω0 and mean backgroud velocity ub and vb
 #
 function Spectral_NS_Solver(mesh::Spectral_Mesh, ν::Float64;
-    fx::Union{Array{Float64, 2}, Nothing} = nothing, fy::Union{Array{Float64, 2}, Nothing} = nothing, 
-    u0::Union{Array{Float64, 2}, Nothing} = nothing, v0::Union{Array{Float64, 2}, Nothing} = nothing, 
-    ω0::Union{Array{Float64, 2}, Nothing} = nothing, ub::Union{Float64, Nothing} = nothing, vb::Union{Float64, Nothing} = nothing)    
+    fx::Union{Array{Float64, 2}, Nothing} = nothing, 
+    fy::Union{Array{Float64, 2}, Nothing} = nothing, 
+    curl_f::Union{Array{Float64, 2}, Nothing} = nothing,
+    stochastic_forcing::Bool = false,
+    u0::Union{Array{Float64, 2}, Nothing} = nothing, 
+    v0::Union{Array{Float64, 2}, Nothing} = nothing, 
+    ω0::Union{Array{Float64, 2}, Nothing} = nothing, 
+    ub::Union{Float64, Nothing} = nothing, 
+    vb::Union{Float64, Nothing} = nothing)    
     N_x, N_y = mesh.N_x, mesh.N_y
     
-    if fx === nothing
-        fx = zeros(Float64, N_x, N_y)
-    end
-    if fy === nothing
-        fy = zeros(Float64, N_x, N_y)
-    end
-
+    
     curl_f_hat = zeros(ComplexF64, N_x, N_y)
-    Apply_Curl!(mesh, fx, fy, curl_f_hat) 
+    if curl_f === nothing
+        @assert(fx !== nothing && fy !== nothing)
+        Apply_Curl!(mesh, fx, fy, curl_f_hat) 
+    else
+        Trans_Grid_To_Spectral!(mesh, curl_f, curl_f_hat)
+    end
    
     
     
@@ -125,7 +133,7 @@ function Spectral_NS_Solver(mesh::Spectral_Mesh, ν::Float64;
     k3 = zeros(ComplexF64, N_x, N_y)
     k4 = zeros(ComplexF64, N_x, N_y)
     
-    Spectral_NS_Solver(mesh, ν, fx, fy, curl_f_hat, ub, vb, ω_hat, u_hat, v_hat, p_hat, ω, u, v, p, Δω_hat, δω_hat, k1, k2, k3, k4)
+    Spectral_NS_Solver(mesh, ν, fx, fy, curl_f_hat, stochastic_forcing, ub, vb, ω_hat, u_hat, v_hat, p_hat, ω, u, v, p, Δω_hat, δω_hat, k1, k2, k3, k4)
 end
 
 
@@ -268,8 +276,9 @@ mutable struct Setup_Param
     ν::Float64        # dynamic viscosity
     ub::Float64       # background velocity 
     vb::Float64
-    fx::Array{Float64, 2}
-    fy::Array{Float64, 2}
+    fx::Union{Array{Float64, 2}, Nothing}
+    fy::Union{Array{Float64, 2}, Nothing}
+    curl_f::Union{Array{Float64, 2}, Nothing}
 
     # discretization
     N::Int64            # number of grid points for both x and y directions (including both ends)
@@ -286,12 +295,14 @@ mutable struct Setup_Param
     y_locs::Array{Int64, 1}
     t_locs::Array{Int64, 1}
     symmetric::Bool
+    t_average::Bool
 
     # for parameterization
     seq_pairs::Array{Int64, 2} # indexing eigen pairs of KL expansion, length(seq_pairs) >= N_θ 
-    N_KL::Int64                # this is for generating the with certain modes (N_KL > 0), when N_KL <= 0, generating ω0_ref with all modes
-    θ_ref::Array{Float64, 1}   # coefficient of these truth modes (N_KL > 0)
+    ω0_θ_ref::Array{Float64, 1}   # coefficient of these truth modes (N_KL > 0)
     ω0_ref::Array{Float64, 2}
+    curl_f_θ_ref::Array{Float64, 1}
+    curl_f_ref::Array{Float64, 2}
 
     
     # inverse parameters
@@ -304,11 +315,15 @@ end
 function Setup_Param(ν::Float64, ub::Float64, vb::Float64,  
     N::Int64, L::Float64,  
     method::String, N_t::Int64,
-    obs_ΔNx::Int64, obs_ΔNy::Int64, obs_ΔNt::Int64, symmetric::Bool,
-    N_KL::Int64,
-    N_θ::Int64; 
-    f::Union{Function, Nothing} = nothing,
-    σ::Float64 = sqrt(2)*pi, seed::Int64=123)
+    obs_ΔNx::Int64, obs_ΔNy::Int64, obs_ΔNt::Int64;
+    symmetric::Bool = false,  # observation locations are symmetric (to test multiple modes)
+    t_average::Bool = false,  # observation is the averaged in-time
+    N_ω0_θ::Int64 = 0,  # initial condition parameter number
+    N_curl_f_θ::Int64 = 0,   # forcing parameter number
+    N_ω0_ref::Int64 = 0,  # generate the initial condition with N_ω0_ref modes, 0 indicating all modes  
+    N_curl_f_ref::Int64 = 0,       # generate the forcing with N_f_ref modes, 0 indicating all modes
+    f::Union{Function, Nothing} = nothing,  # fixed forcing, this will overwrite N_f_ref
+    σ::Float64 = sqrt(2)*pi, ω0_seed::Int64=123, f_seed::Int64=42)
     
     #observation
     if symmetric
@@ -320,35 +335,31 @@ function Setup_Param(ν::Float64, ub::Float64, vb::Float64,
     end
     t_locs = Array(obs_ΔNt:obs_ΔNt:N_t)
 
-    
-    N_y = length(x_locs)*length(y_locs)*length(t_locs)
-    @info "N_y = ", N_y
-    seq_pairs = Compute_Seq_Pairs(max(N_KL, N_θ))
-
+    N_y = (t_average ? length(x_locs)*length(y_locs) : length(x_locs)*length(y_locs)*length(t_locs))
+    seq_pairs = Compute_Seq_Pairs(max(N_ω0_θ, N_curl_f_θ, N_ω0_ref, N_curl_f_ref))
     mesh = Spectral_Mesh(N, N, L, L)
 
-    if N_KL > 0
-        # The truth is generated with first N_KL modes
-        Random.seed!(seed);
-        θ_ref = rand(Normal(0, σ), N_KL)
-        ω0_ref = Initial_ω0_KL(mesh, θ_ref, seq_pairs) 
+    # initial condition 
+    if N_ω0_ref > 0
+        Random.seed!(ω0_seed);
+        # The truth is generated with first N_ω0_ref modes
+        ω0_θ_ref = rand(Normal(0, σ), N_ω0_ref)
+        ω0_ref = Initial_ω0_KL(mesh, ω0_θ_ref, seq_pairs) 
+        ω0_θ_ref = ω0_θ_ref[1:N_ω0_θ]
     else
-        
         # The truth is generated with all modes
-        ω0_ref = Initial_ω0_KL(mesh, σ; seed=seed)
-        # project to obtain the first N_θ modes
-        θ_ref = Construct_θ0(ω0_ref, N_θ, seq_pairs, mesh)
+        ω0_ref = Initial_ω0_KL(mesh, σ; seed=ω0_seed)
+        # project to obtain the first N_ω0_θ modes
+        ω0_θ_ref = Construct_θ0(ω0_ref, N_ω0_θ, seq_pairs, mesh)
     end
-    
     ω0_hat_ref = zeros(ComplexF64, N, N)
     Trans_Grid_To_Spectral!(mesh, ω0_ref, ω0_hat_ref)
     Trans_Spectral_To_Grid!(mesh, ω0_hat_ref, ω0_ref)
 
 
-    θ_names = ["ω0"]
-
+    
+    # forcing  
     xx = Array(LinRange(0, L, N+1))
-
     fx = zeros(Float64, N, N)
     fy = zeros(Float64, N, N)
     if f !== nothing
@@ -357,9 +368,37 @@ function Setup_Param(ν::Float64, ub::Float64, vb::Float64,
                 fx[i_x, i_y], fy[i_x, i_y] = f(xx[i_x], xx[i_y])
             end
         end
+        curl_f_ref = nothing
+    else
+        # initial condition 
+        if N_curl_f_ref > 0
+            Random.seed!(f_seed);
+            # The truth is generated with first N_ω0_ref modes
+            curl_f_θ_ref = rand(Normal(0, σ), N_curl_f_ref)
+            curl_f_ref = Initial_ω0_KL(mesh, curl_f_θ_ref, seq_pairs) 
+            curl_f_θ_ref = curl_f_θ_ref[1:N_ω0_θ]
+        else
+            # The truth is generated with all modes
+            curl_f_ref = Initial_ω0_KL(mesh, σ; seed=f_seed)
+            # project to obtain the first N_ω0_θ modes
+            curl_f_θ_ref = Construct_θ0(curl_f_ref, N_curl_f_θ, seq_pairs, mesh)
+        end
+        
+        curl_f_hat_ref = zeros(ComplexF64, N, N)
+        Trans_Grid_To_Spectral!(mesh, curl_f_ref, curl_f_hat_ref)
+        Trans_Spectral_To_Grid!(mesh, curl_f_hat_ref, curl_f_ref)
     end
-    Setup_Param(ν, ub, vb, fx, fy, N, L, L/N, xx,  method, N_t, T, x_locs, y_locs, t_locs, symmetric, 
-        seq_pairs, N_KL, θ_ref, ω0_ref, θ_names, N_θ, N_y)
+
+
+    θ_names = ["ω0-f"]
+    N_θ = N_curl_f_θ + N_ω0_θ
+
+    Setup_Param(ν, ub, vb, fx, fy, curl_f_ref, 
+    N, L, L/N, xx,  
+    method, N_t, T, 
+    x_locs, y_locs, t_locs, symmetric, t_average,
+    seq_pairs, ω0_θ_ref, ω0_ref, curl_f_θ_ref, curl_f_ref,
+    θ_names, N_θ, N_y)
 end
 
 
@@ -384,7 +423,7 @@ function Initial_ω0_KL(mesh::Spectral_Mesh, σ::Float64; seed::Int64 = 123)
     # the basis is ordered as 0,1,...,N_x/2-1, -N_x/2, -N_x/2+1, ... -1
     
     N_x , N_y = mesh.N_x, mesh.N_y
-    kxx, kyy = mesh.kxx, mesh.kyy
+    kxx , kyy = mesh.kxx, mesh.kyy
     
     Random.seed!(seed);
     abk = rand(Normal(0, σ), N_x, N_y, 2)
@@ -475,10 +514,9 @@ function Initial_ω0_KL(mesh::Spectral_Mesh, θ::Array{Float64,1}, seq_pairs::Ar
     # consider C = -Δ^{-2}
     # C u = λ u  => -u = λ Δ u
     # u = e^{ik⋅x}, λ Δ^2 u = -λ |k|^4 u = - u => λ = 1/|k|^4
-    # basis are cos(k⋅x)/2π^2 and sin(k⋅x)/2π^2, k!=(0,0), zero mean.
-    # ω = ∑ ak cos(k⋅x)/2π^2|k|^2 + ∑ bk sin(k⋅x)/2π^2|k|^2,    &  kx + ky > 0 or (kx + ky = 0 and kx > 0) 
-    #   = ∑ (ak/(4π^2|k|^2) - i bk/(4π^2|k|^2) )e^{ik⋅x} + (ak/(4π^2|k|^2) + i bk/(4π^2|k|^2) )e^{-ik⋅x}
-    
+    # basis are cos(k⋅x)/sqrt(2)π and sin(k⋅x)/sqrt(2)π, k!=(0,0), zero mean.
+    # ω = ∑ ak cos(k⋅x)/sqrt(2)π|k|^2 + ∑ bk sin(k⋅x)/sqrt(2)π|k|^2,    &  kx + ky > 0 or (kx + ky = 0 and kx > 0) 
+    #   = ∑ (ak/(2sqrt(2)π|k|^2) - i bk/(2sqrt(2)π|k|^2) )e^{ik⋅x} + (ak/(2sqrt(2)π|k|^2) + i bk/(2sqrt(2)π|k|^2) )e^{-ik⋅x}
     
     
     N_x, N_y = mesh.N_x, mesh.N_y

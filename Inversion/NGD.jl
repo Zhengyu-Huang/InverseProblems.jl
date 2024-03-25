@@ -207,13 +207,14 @@ end
 """
 construct_cov xy_cov from ensemble x and mean x_mean, ensemble y and mean y_mean
 """
-function gd_cov(gd::GDObj{FT, IT}, θ::Array{FT,2}, θ_mean::Array{FT,1}, θθ_cov::Array{FT,2}, y::Array{FT, 2}) where {FT<:AbstractFloat, IT<:Int}
+function gd_cov(gd::GDObj{FT, IT}, θ::Array{FT,2}, θ_mean::Array{FT,1}, θθ_cov::Array{FT,2}, y::Array{FT, 2}, Ey::Array{FT, 1}) where {FT<:AbstractFloat, IT<:Int}
     N_ens, N_θ = gd.N_ens, size(θ_mean,1)
     mean_weights = gd.mean_weights
 
     θy_cov = zeros(FT, N_θ, N_θ)
     for i = 1: N_ens
-        θy_cov .+= mean_weights[i]*((θ[i,:]-θ_mean)*(θ[i,:]-θ_mean)'- θθ_cov)*y[i,1]
+        # θy_cov .+= mean_weights[i]*((θ[i,:]-θ_mean)*(θ[i,:]-θ_mean)' - θθ_cov)*(y[i,1] - Ey[1])
+        θy_cov .+= mean_weights[i]*((θ[i,:]-θ_mean)*(θ[i,:]-θ_mean)' )*(y[i,1] - Ey[1])
     end
 
     return θy_cov
@@ -252,24 +253,25 @@ function update_ensemble!(gd::GDObj{FT, IT}, ens_func::Function;) where {FT<:Abs
     if gd.gradient_flow == "Fisher-Rao"
         if gd.compute_gradient == "second-order"
             θ_mean_n = θ_mean - θθ_cov * construct_mean(gd, ∇Φ) * Δt
-            # θθ_cov_n = θθ_cov + Δt*(θθ_cov - θθ_cov*construct_mean(gd, ∇²Φ)*θθ_cov)
-            
             inv_θθ_cov = inv(θθ_cov)
             θθ_cov_n = Hermitian( inv( inv_θθ_cov + Δt*(construct_mean(gd, ∇²Φ) - inv_θθ_cov) ) )
             
         elseif gd.compute_gradient == "first-order"
             E∇Φ = construct_mean(gd, ∇Φ)
             θ_mean_n = θ_mean - θθ_cov * construct_mean(gd, ∇Φ) * Δt
-            θθ_cov_n = θθ_cov + Δt*(θθ_cov - θθ_cov*construct_cov(gd, ∇Φ, E∇Φ, θ, θ_mean))
+            inv_θθ_cov = inv(θθ_cov)
+            θθ_cov_n = Hermitian(inv(  inv_θθ_cov + Δt*(construct_cov(gd, ∇Φ, E∇Φ, θ, θ_mean) * inv_θθ_cov - inv_θθ_cov) ) )
             
         else #gd.compute_gradient == "zeroth-order"
             EΦ = construct_mean(gd, Φ)
+            E∇Φ = construct_mean(gd, ∇Φ)
             θ_mean_n = θ_mean - construct_cov(gd, Φ, EΦ, θ, θ_mean)[:] * Δt
-            
-            
-            θθ_cov_n = inv(inv(θθ_cov) + Δt/(1 + Δt)*(θθ_cov\gd_cov(gd, θ, θ_mean, θθ_cov,  Φ)/θθ_cov - inv(θθ_cov)))
-            
+          
+            inv_θθ_cov = inv(θθ_cov)
+            θθ_cov_n = Hermitian(inv(inv_θθ_cov + Δt*(inv_θθ_cov*gd_cov(gd,θ,θ_mean,θθ_cov,Φ,EΦ)*inv_θθ_cov - inv_θθ_cov)))
+            # θθ_cov_n = Hermitian(inv(  inv_θθ_cov + Δt*(construct_cov(gd, ∇Φ, E∇Φ, θ, θ_mean) * inv_θθ_cov - inv_θθ_cov) ) )
         end
+        
     elseif gd.gradient_flow == "Wasserstein"
         if gd.compute_gradient == "second-order"
             θ_mean_n = θ_mean - construct_mean(gd, ∇Φ) * Δt
