@@ -90,7 +90,8 @@ function Spectral_Init(N_x::Int64, N_y::Int64)
     alias_filter = zeros(Float64, N_x, N_y)
     for i = 1:N_x
         for j = 1:N_y
-            if (abs(kxx[i]) < N_x/3  && abs(kyy[j]) < N_y/3) 
+            # if (abs(kxx[i]) < N_x/3  && abs(kyy[j]) < N_y/3)
+            if (abs(kxx[i]) < N_x/4  && abs(kyy[j]) < N_y/4)
                 alias_filter[i, j] = 1.0
             end
         end
