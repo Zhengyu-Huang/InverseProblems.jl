@@ -82,7 +82,12 @@ function Spectral_NS_Solver(mesh::Spectral_Mesh, ν::Float64;
     
     curl_f_hat = zeros(ComplexF64, N_x, N_y)
     if curl_f === nothing
-        @assert(fx !== nothing && fy !== nothing)
+        if fx === nothing
+            fx = zeros(Float64, N_x, N_y)
+        end
+        if fy === nothing
+            fy = zeros(Float64, N_x, N_y)
+        end 
         Apply_Curl!(mesh, fx, fy, curl_f_hat) 
     else
         Trans_Grid_To_Spectral!(mesh, curl_f, curl_f_hat)
@@ -146,8 +151,7 @@ function Stable_Δt(mesh::Spectral_Mesh, ν::Float64, u::Array{Float64,2}, v::Ar
 
     Δt = min(Δx/u_max, Δy/v_max, Δ^2/(2*ν))
 
-    #@info "maximum stable Δt = ", Δt
-
+   
     return Δt
 end
 
@@ -179,7 +183,8 @@ function Semi_Implicit_Residual!(self::Spectral_NS_Solver, ω_hat::Array{Complex
     ub, vb = self.ub, self.vb
     Compute_Horizontal_Advection!(mesh, ω_hat, δω_hat, ub, vb)
 
-    δω_hat .= self.curl_f_hat - δω_hat
+    curl_f_hat = self.stochastic_forcing ? Stochastic_Forcing(mesh, self.curl_f_hat, Δt) : self.curl_f_hat
+    δω_hat .= curl_f_hat - δω_hat
 
     Δω_hat = self.Δω_hat
     
@@ -299,10 +304,10 @@ mutable struct Setup_Param
 
     # for parameterization
     seq_pairs::Array{Int64, 2} # indexing eigen pairs of KL expansion, length(seq_pairs) >= N_θ 
-    ω0_θ_ref::Array{Float64, 1}   # coefficient of these truth modes (N_KL > 0)
-    ω0_ref::Array{Float64, 2}
-    curl_f_θ_ref::Array{Float64, 1}
-    curl_f_ref::Array{Float64, 2}
+    ω0_θ_ref::Union{Array{Float64, 1}, Nothing}   # coefficient of these truth modes (N_KL > 0)
+    ω0_ref::Union{Array{Float64, 2}, Nothing}
+    curl_f_θ_ref::Union{Array{Float64, 1}, Nothing}
+    curl_f_ref::Union{Array{Float64, 2}, Nothing}
 
     
     # inverse parameters
@@ -344,13 +349,13 @@ function Setup_Param(ν::Float64, ub::Float64, vb::Float64,
         Random.seed!(ω0_seed);
         # The truth is generated with first N_ω0_ref modes
         ω0_θ_ref = rand(Normal(0, σ), N_ω0_ref)
-        ω0_ref = Initial_ω0_KL(mesh, ω0_θ_ref, seq_pairs) 
+        ω0_ref = Random_Field_From_Theta(mesh, ω0_θ_ref, seq_pairs) 
         ω0_θ_ref = ω0_θ_ref[1:N_ω0_θ]
     else
         # The truth is generated with all modes
-        ω0_ref = Initial_ω0_KL(mesh, σ; seed=ω0_seed)
+        ω0_ref = Random_Field(mesh, σ; seed=ω0_seed)
         # project to obtain the first N_ω0_θ modes
-        ω0_θ_ref = Construct_θ0(ω0_ref, N_ω0_θ, seq_pairs, mesh)
+        ω0_θ_ref = Theta_From_Random_Field(ω0_ref, N_ω0_θ, seq_pairs, mesh)
     end
     ω0_hat_ref = zeros(ComplexF64, N, N)
     Trans_Grid_To_Spectral!(mesh, ω0_ref, ω0_hat_ref)
@@ -369,17 +374,18 @@ function Setup_Param(ν::Float64, ub::Float64, vb::Float64,
             end
         end
         curl_f_ref = nothing
+        curl_f_θ_ref = nothing
     else
         # initial condition 
         if N_curl_f_ref > 0
             Random.seed!(f_seed);
             # The truth is generated with first N_ω0_ref modes
             curl_f_θ_ref = rand(Normal(0, σ), N_curl_f_ref)
-            curl_f_ref = Initial_ω0_KL(mesh, curl_f_θ_ref, seq_pairs) 
+            curl_f_ref = Random_Field_From_Theta(mesh, curl_f_θ_ref, seq_pairs) 
             curl_f_θ_ref = curl_f_θ_ref[1:N_ω0_θ]
         else
             # The truth is generated with all modes
-            curl_f_ref = Initial_ω0_KL(mesh, σ; seed=f_seed)
+            curl_f_ref = Random_Field(mesh, σ; seed=f_seed)
             # project to obtain the first N_ω0_θ modes
             curl_f_θ_ref = Construct_θ0(curl_f_ref, N_curl_f_θ, seq_pairs, mesh)
         end
@@ -406,39 +412,46 @@ end
 # u = ∑ f_k e^{ik⋅x}, we have  f_{k} = conj(f_{-k})
 # we can also use cos(k⋅x)/2π^2 and sin(k⋅x)/2π^2 as basis (L2 norm is 1)
 # with (kx + ky > 0 || (kx + ky == 0 && kx > 0)) 
-function Mode_Helper(kx, ky)
-    return (kx + ky > 0 || (kx + ky == 0 && kx > 0)) 
+function Z2_plus(kx, ky)
+    return (ky > 0 || (ky == 0 && kx > 0)) 
+end
+function Z2_minus(kx, ky)
+    return Z2_plus(-kx, -ky)
 end
 
-
 # Generate random numbers and initialize ω0 with all fourier modes
-function Initial_ω0_KL(mesh::Spectral_Mesh, σ::Float64; seed::Int64 = 123)
+function Random_Field(mesh::Spectral_Mesh, σ::Float64; seed::Int64 = 123)
     # consider C = -Δ^{-1}
     # C u = λ u  => -u = λ Δ u
     # u = e^{ik⋅x}, λ Δ u = -λ |k|^2 u = - u => λ = 1/|k|^2
     # basis are cos(k⋅x)/√2π and sin(k⋅x)/√2π, k!=(0,0), zero mean.
-    # ω = ∑ ak cos(k⋅x)/√2π|k|^2 + ∑ bk sin(k⋅x)/√2π|k|^2,    &  kx + ky > 0 or (kx + ky = 0 and kx > 0) 
-    #   = ∑ (ak/(2√2π|k|^2) - i bk/(2√2π|k|^2) )e^{ik⋅x} + (ak/(2√2π|k|^2) + i bk/(2√2π^2|k|^2) )e^{-ik⋅x}
-    
-    # the basis is ordered as 0,1,...,N_x/2-1, -N_x/2, -N_x/2+1, ... -1
+    # for kx != 0 or ky != 0
+    # ω = ∑ ak sin(k⋅x)/√2π|k|^2     if ky > 0 or (ky = 0 and kx > 0) 
+    #   + ∑ bk cos(k⋅x)/√2π|k|^2,    otherwise
+    #   = ∑ (bk/(2√2π|k|^2) - i ak/(2√2π|k|^2) )e^{ik⋅x} + (bk/(2√2π|k|^2) + i ak/(2√2π^2|k|^2) )e^{-ik⋅x}
     
     N_x , N_y = mesh.N_x, mesh.N_y
     kxx , kyy = mesh.kxx, mesh.kyy
     
     Random.seed!(seed);
-    abk = rand(Normal(0, σ), N_x, N_y, 2)
+    abks = rand(Normal(0, σ), N_x, N_y)
     
     ω0_hat = zeros(ComplexF64, N_x, N_y)
     ω0 = zeros(Float64, N_x, N_y)
     for ix = 1:N_x
         for iy = 1:N_y
             kx, ky = kxx[ix], kyy[iy]
-            if Mode_Helper(kx, ky)
-                ak, bk = abk[ix, iy, 1], abk[ix, iy, 2]
-                ω0_hat[ix, iy] = (ak - bk*im)/(2*sqrt(2)*pi*(kx^2+ky^2))
+            abk = abks[ix, iy]
+            if Z2_plus(kx, ky)
+                #sin(kx)
+                ω0_hat[ix, iy] -= abk*im/(2*sqrt(2)*pi*(kx^2+ky^2))
                 # (ix=1 iy=1 => kx=0 ky=0) 1 => 1, i => n-i+2
-                ω0_hat[(ix==1 ? 1 : N_x-ix+2), (iy==1 ? 1 : N_y-iy+2)] = (ak + bk*im)/(2*sqrt(2)*pi*(kx^2+ky^2))
-                
+                ω0_hat[(ix==1 ? 1 : N_x-ix+2), (iy==1 ? 1 : N_y-iy+2)] += abk*im/(2*sqrt(2)*pi*(kx^2+ky^2))  
+            elseif Z2_minus(kx, ky)
+                #cos(kx)
+                ω0_hat[ix, iy] += abk/(2*sqrt(2)*pi*(kx^2+ky^2))
+                # (ix=1 iy=1 => kx=0 ky=0) 1 => 1, i => n-i+2
+                ω0_hat[(ix==1 ? 1 : N_x-ix+2), (iy==1 ? 1 : N_y-iy+2)] += abk/(2*sqrt(2)*pi*(kx^2+ky^2))  
             end
         end
     end
@@ -446,27 +459,31 @@ function Initial_ω0_KL(mesh::Spectral_Mesh, σ::Float64; seed::Int64 = 123)
     Trans_Spectral_To_Grid!(mesh, N_x*N_y * ω0_hat, ω0)
     
     #####
-#     ω0_test = zeros(Float64, N_x, N_y)
-#     X, Y = zeros(Float64, N_x, N_y), zeros(Float64, N_x, N_y)
-#     Δx, Δy = mesh.Δx, mesh.Δy
-#     for ix = 1:N_x
-#         for iy = 1:N_y
-#             X[ix, iy] = (ix-1)*Δx
-#             Y[ix, iy] = (iy-1)*Δy
-#         end
-#     end
+    # ω0_test = zeros(Float64, N_x, N_y)
+    # X, Y = zeros(Float64, N_x, N_y), zeros(Float64, N_x, N_y)
+    # Δx, Δy = mesh.Δx, mesh.Δy
+    # for ix = 1:N_x
+    #     for iy = 1:N_y
+    #         X[ix, iy] = (ix-1)*Δx
+    #         Y[ix, iy] = (iy-1)*Δy
+    #     end
+    # end
     
-#     for ix = 1:N_x
-#         for iy = 1:N_y
-#             kx, ky = kxx[ix], kyy[iy]
-#             if (abs(kx) < N_x/3 && abs(ky) < N_y/3) && (kx + ky > 0 || (kx + ky == 0 && kx > 0)) 
-#                 ak, bk = abk[ix, iy, 1], abk[ix, iy, 2]
-#                 ω0_test .+= (ak * cos.(kx*X + ky*Y) + bk * sin.(kx*X + ky*Y))/(sqrt(2)*pi*(kx^2 + ky^2))
-#             end
-#         end
-#     end
-#     @info  "Error", norm(ω0 - ω0_test)
-#     error("Stop")
+    # for ix = 1:N_x
+    #     for iy = 1:N_y
+    #         kx, ky = kxx[ix], kyy[iy]
+    #         if (abs(kx) < N_x/3 && abs(ky) < N_y/3) 
+    #             abk = abks[ix, iy]
+    #             if (Z2_plus(kx, ky)) 
+    #                 ω0_test .+= (abk * sin.(kx*X + ky*Y))/(sqrt(2)*pi*(kx^2 + ky^2))
+    #             elseif (Z2_minus(kx, ky)) 
+    #                 ω0_test .+= (abk * cos.(kx*X + ky*Y))/(sqrt(2)*pi*(kx^2 + ky^2))
+    #             end 
+    #         end
+    #     end
+    # end
+    # @info  "Error", norm(ω0 - ω0_test)
+    # error("Stop")
     
     
     
@@ -475,24 +492,147 @@ end
 
 
 
+# Generate random numbers and initialize ω0 with all fourier modes
+function Stochastic_Forcing(mesh::Spectral_Mesh, curl_f_hat::Array{ComplexF64, 2}, Δt::Float64)
+    # consider C = -Δ^{-1}
+    # C u = λ u  => -u = λ Δ u
+    # u = e^{ik⋅x}, λ Δ u = -λ |k|^2 u = - u => λ = 1/|k|^2
+    # ω = ∑ ak sin(k⋅x)/√2π|k|^2     if ky > 0 or (ky = 0 and kx > 0) 
+    #   + ∑ bk cos(k⋅x)/√2π|k|^2,    otherwise
+    #   = ∑ (bk/(2√2π|k|^2) - i ak/(2√2π|k|^2) )e^{ik⋅x} + (bk/(2√2π|k|^2) + i ak/(2√2π^2|k|^2) )e^{-ik⋅x}
+    
+    N_x , N_y = mesh.N_x, mesh.N_y
+    kxx , kyy = mesh.kxx, mesh.kyy
+    
+    dWk = rand(Normal(0, 1), N_x, N_y)/sqrt(Δt)
+    
+    curl_f_hat_dW = zeros(ComplexF64, N_x, N_y)
+    for ix = 1:N_x
+        for iy = 1:N_y
+            kx, ky = kxx[ix], kyy[iy]
+            re_fk, im_fk = real(curl_f_hat[ix, iy]), imag(curl_f_hat[ix, iy])
+            if Z2_plus(kx, ky)
+                curl_f_hat_dW[ix, iy] -= im_fk*dWk[ix,iy]*im
+                # (ix=1 iy=1 => kx=0 ky=0) 1 => 1, i => n-i+2
+                curl_f_hat_dW[(ix==1 ? 1 : N_x-ix+2), (iy==1 ? 1 : N_y-iy+2)] += im_fk*dWk[ix,iy]*im 
+            elseif Z2_minus(kx, ky)
+                curl_f_hat_dW[ix, iy] += re_fk*dWk[ix,iy]
+                # (ix=1 iy=1 => kx=0 ky=0) 1 => 1, i => n-i+2
+                curl_f_hat_dW[(ix==1 ? 1 : N_x-ix+2), (iy==1 ? 1 : N_y-iy+2)] += re_fk*dWk[ix,iy]
+            
+            end
+        end
+    end
+    curl_f_hat_dW .*= mesh.alias_filter
+    return curl_f_hat_dW
+end
+
+
+
+
+# Generate ω field with energy decay function E
+# kxx = [0,1,...,[N_x/2]-1, -[N_x/2], -[N_x/2]+1, ... -1]   
+# kyy = [0,1,...,[N_y/2]-1, -[N_y/2], -[N_y/2]+1, ... -1]
+function Random_Vor_Field(mesh::Spectral_Mesh, E::Function; seed::Int64 = 123)
+    # u = ∑ uₖ e^{ik⋅x}  v = ∑ vₖ e^{ik⋅x}
+    # ω = ∑ (vₖ kx - uₖ ky)i e^{ik⋅x}  =  ∑ ωₖ e^{ik⋅x} ; ωₖ = (vₖ kx - uₖ ky)i
+    # ∇ ̇[u v] =  ∑ (uₖ kx + vₖ ky)ie^{ik⋅x} = 0
+    # E(k) = 1/2(|uₖ|² + |vₖ|²) = 1/(2 k⋅k) [|vₖ kx - uₖ ky|² + |uₖ kx + vₖ ky|²] = |ωₖ|²/(2 k⋅k)
+    # E(|k|) = π|k|(|uₖ|² + |vₖ|²) =  π|k||ωₖ|²/(k⋅k)
+    
+    # We first sample |ωₖ| ~ (E(|k|) |k| / π)^(1/2)
+    # ωₖ = |ωₖ|exp{(η1(k) + η2(k)i) }
+    
+    N_x , N_y = mesh.N_x, mesh.N_y
+    kxx , kyy = mesh.kxx, mesh.kyy
+    
+    Random.seed!(seed);
+    η = rand(Uniform(0, 2π), N_x, N_y, 2)
+    
+    ω0_hat = zeros(ComplexF64, N_x, N_y)
+    ω0 = zeros(Float64, N_x, N_y)
+    for ix = 1:N_x
+        for iy = 1:N_y
+            kx, ky = kxx[ix], kyy[iy]
+            
+            Eₖ = E(sqrt(kx^2 + ky^2))
+            # Stable a posteriori LES of 2D turbulence using convolutional neural networks: 
+            # Backscattering analysis and generalization to higher Re via transfer learning
+            if kx ≥ 0 && ky ≥ 0
+                ηk =  η[ix, iy, 1] + η[ix, iy, 2]
+            elseif kx < 0 && ky ≥ 0
+                ηk = -η[N_x-ix+2, iy, 1] + η[N_x-ix+2, iy, 2]
+            elseif kx < 0 && ky < 0
+                ηk = -η[N_x-ix+2, N_y-iy+2, 1] - η[N_x-ix+2, N_y-iy+2, 2]
+            else # kx ≥0 & ky < 0
+                ηk = η[ix, N_y-iy+2, 1] - η[ix, N_y-iy+2, 2]
+            end
+            ωₖ = sqrt( Eₖ*sqrt(kx^2 + ky^2)/π ) * exp(ηk*im)
+            ω0_hat[ix, iy] = ωₖ    
+        end
+    end
+    ω0_hat .*= mesh.alias_filter
+    Trans_Spectral_To_Grid!(mesh, N_x*N_y * ω0_hat, ω0)
+    ω0
+end
+
+
+# Generate ω field with energy decay function E
+# kxx = [0,1,...,[N_x/2]-1, -[N_x/2], -[N_x/2]+1, ... -1]   
+# kyy = [0,1,...,[N_y/2]-1, -[N_y/2], -[N_y/2]+1, ... -1]
+function Compute_Energy_Spectrum(mesh::Spectral_Mesh, ω::Array{Float64,2})
+    # u = ∑ uₖ e^{ik⋅x}  v = ∑ vₖ e^{ik⋅x}
+    # ω = ∑ (vₖ kx - uₖ ky)i e^{ik⋅x}  =  ∑ ωₖ e^{ik⋅x} ; ωₖ = (vₖ kx - uₖ ky)i
+    # ∇ ̇[u v] =  ∑ (uₖ kx + vₖ ky)ie^{ik⋅x} = 0
+    # E(k) = 1/2(|uₖ|² + |vₖ|²) = 1/(2 k⋅k) [|vₖ kx - uₖ ky|² + |uₖ kx + vₖ ky|²] = |ωₖ|²/(2 k⋅k)
+    # E(|k|) = π|k|(|uₖ|² + |vₖ|²) =  π|k||ωₖ|²/(k⋅k)
+    
+    # We first sample |ωₖ| ~ (E(|k|) |k| / π)^(1/2)
+    # ωₖ = |ωₖ|exp{i (η1(k) + η2(k)i) }
+    
+    N_x , N_y = mesh.N_x, mesh.N_y
+    kxx , kyy = mesh.kxx, mesh.kyy
+    N_k = round(Int64, sqrt( (N_x/2)^2 + (N_y/2)^2 ) )
+    E = zeros(Float64, N_k)
+
+    ω_hat = zeros(ComplexF64, N_x, N_y)
+    Trans_Grid_To_Spectral!(mesh, ω, ω_hat)
+
+    for ix = 1:N_x
+        for iy = 1:N_y
+            if ix == 1 && iy == 1
+                continue
+            end
+
+            kx, ky = kxx[ix], kyy[iy]
+        
+            k = sqrt(kx^2 + ky^2)
+            
+            E[round(Int64, k)] += abs2(ω_hat[ix, iy]) / (2*(kx^2 + ky^2)) 
+        end
+    end
+
+    E/(N_x*N_y)^2
+end
+
+
 # For fourier modes, consider the zero-mean real field
 # u = ∑ f_k e^{ik⋅x}, we have  f_{k} = conj(f_{-k})
 # we can also use cos(k⋅x)/2π^2 and sin(k⋅x)/2π^2 as basis (L2 norm is 1)
-# with (kx + ky > 0 || (kx + ky == 0 && kx > 0)) 
+# with (ky > 0 || (kx + ky == 0 && kx > 0)) 
 # And these fourier modes are sorted by 1/|k|^2 and the first N_KL modes 
 # are computed in terms of (kx, ky) pair
 function Compute_Seq_Pairs(N_KL::Int64)
     seq_pairs = zeros(Int64, N_KL, 2)
-    trunc_N_x = trunc(Int64, sqrt(2*N_KL)) + 1
+    trunc_N_x = trunc(Int64, sqrt(N_KL)) + 1
     
-    seq_pairs = zeros(Int64, div(((2trunc_N_x+1)^2 - 1), 2), 2)
-    seq_pairs_mag = zeros(Int64, div(((2trunc_N_x+1)^2 - 1),2))
+    seq_pairs = zeros(Int64, (2trunc_N_x+1)^2 - 1, 2)
+    seq_pairs_mag = zeros(Int64, (2trunc_N_x+1)^2 - 1)
     
     seq_pairs_i = 0
     for kx = -trunc_N_x:trunc_N_x
         for ky = -trunc_N_x:trunc_N_x
-            if Mode_Helper(kx, ky)
-                
+            if (kx != 0 || ky != 0)
                 seq_pairs_i += 1
                 seq_pairs[seq_pairs_i, :] .= kx, ky
                 seq_pairs_mag[seq_pairs_i] = kx^2 + ky^2
@@ -507,71 +647,68 @@ end
 
 
 # we can also use cos(k⋅x)/2π^2 and sin(k⋅x)/2π^2 as basis (L2 norm is 1) for zero-mean real fields
-# with (kx + ky > 0 || (kx + ky == 0 && kx > 0)) 
-# θ = [ak;bk]
-# ω0 = ∑_k ak cos(k⋅x)/2π^2|k|^2 + bk sin(k⋅x)/2π^2|k|^2
-function Initial_ω0_KL(mesh::Spectral_Mesh, θ::Array{Float64,1}, seq_pairs::Array{Int64,2})
-    # consider C = -Δ^{-2}
-    # C u = λ u  => -u = λ Δ u
-    # u = e^{ik⋅x}, λ Δ^2 u = -λ |k|^4 u = - u => λ = 1/|k|^4
-    # basis are cos(k⋅x)/sqrt(2)π and sin(k⋅x)/sqrt(2)π, k!=(0,0), zero mean.
-    # ω = ∑ ak cos(k⋅x)/sqrt(2)π|k|^2 + ∑ bk sin(k⋅x)/sqrt(2)π|k|^2,    &  kx + ky > 0 or (kx + ky = 0 and kx > 0) 
-    #   = ∑ (ak/(2sqrt(2)π|k|^2) - i bk/(2sqrt(2)π|k|^2) )e^{ik⋅x} + (ak/(2sqrt(2)π|k|^2) + i bk/(2sqrt(2)π|k|^2) )e^{-ik⋅x}
+# ω = ∑ ak sin(k⋅x)/√2π|k|^2     if ky > 0 or (ky = 0 and kx > 0) 
+#   + ∑ bk cos(k⋅x)/√2π|k|^2,    otherwise
+#   = ∑ (bk/(2√2π|k|^2) - i ak/(2√2π|k|^2) )e^{ik⋅x} + (bk/(2√2π|k|^2) + i ak/(2√2π^2|k|^2) )e^{-ik⋅x}
     
+function Random_Field_From_Theta(mesh::Spectral_Mesh, θ::Array{Float64,1}, seq_pairs::Array{Int64,2})
     
     N_x, N_y = mesh.N_x, mesh.N_y
     kxx, kyy = mesh.kxx, mesh.kyy
     
     ω0_hat = zeros(ComplexF64, N_x, N_y)
     ω0 = zeros(Float64, N_x, N_y)
-    abk = reshape(θ, Int64(length(θ)/2), 2)
-    N_KL = size(abk,1)
-    for i = 1:N_KL
+    N_θ = length(θ)
+    for i = 1:N_θ
         kx, ky = seq_pairs[i,:]
-        if Mode_Helper(kx, ky)
-            ak, bk = abk[i,:]
-            ix = (kx >= 0 ? kx + 1 : N_x + kx + 1) 
-            iy = (ky >= 0 ? ky + 1 : N_y + ky + 1) 
-            
-            ω0_hat[ix, iy] = (ak - bk*im)/(2*sqrt(2)*pi*(kx^2+ky^2))
-            
+        ix = (kx >= 0 ? kx + 1 : N_x + kx + 1) 
+        iy = (ky >= 0 ? ky + 1 : N_y + ky + 1) 
+        if Z2_plus(kx, ky)
+            ω0_hat[ix, iy] -= θ[i]*im/(2*sqrt(2)*pi*(kx^2+ky^2))
             # 1 => 1, i => n-i+2
-            ω0_hat[(ix==1 ? 1 : N_x-ix+2), (iy==1 ? 1 : N_y-iy+2)] = (ak + bk*im)/(2*sqrt(2)*pi*(kx^2+ky^2))
+            ω0_hat[(ix==1 ? 1 : N_x-ix+2), (iy==1 ? 1 : N_y-iy+2)] += θ[i]*im/(2*sqrt(2)*pi*(kx^2+ky^2))
+        elseif Z2_minus(kx, ky)
+            ω0_hat[ix, iy] += θ[i]/(2*sqrt(2)*pi*(kx^2+ky^2))
+            # 1 => 1, i => n-i+2
+            ω0_hat[(ix==1 ? 1 : N_x-ix+2), (iy==1 ? 1 : N_y-iy+2)] += θ[i]/(2*sqrt(2)*pi*(kx^2+ky^2))
+        
         end
     end
     ω0_hat .*= mesh.alias_filter
     Trans_Spectral_To_Grid!(mesh, N_x*N_y * ω0_hat, ω0)
     
 #     ######
-#     ω0_test = zeros(Float64, N_x, N_y)
-#     X, Y = zeros(Float64, N_x, N_y), zeros(Float64, N_x, N_y)
-#     Δx, Δy = mesh.Δx, mesh.Δy
-#     for ix = 1:N_x
-#         for iy = 1:N_y
-#             X[ix, iy] = (ix-1)*Δx
-#             Y[ix, iy] = (iy-1)*Δy
-#         end
-#     end
-    
-#     for i = 1:N_KL
-#         kx, ky = seq_pairs[i,:]
-#         ak, bk = abk[i,:]
-#         @assert((abs(kx) < N_x/3 && abs(ky) < N_y/3) && (kx + ky > 0 || (kx + ky == 0 && kx > 0))) 
-#         ω0_test .+= (ak * cos.(kx*X + ky*Y) + bk * sin.(kx*X + ky*Y))/(sqrt(2)*pi*(kx^2 + ky^2))
-#     end
-#     @info  "Error", norm(ω0 - ω0_test), norm(ω0) , norm(ω0_test)
-#     error("Stop")
-    
-    
-    ω0
+    # ω0_test = zeros(Float64, N_x, N_y)
+    # X, Y = zeros(Float64, N_x, N_y), zeros(Float64, N_x, N_y)
+    # Δx, Δy = mesh.Δx, mesh.Δy
+    # for ix = 1:N_x
+    #     for iy = 1:N_y
+    #         X[ix, iy] = (ix-1)*Δx
+    #         Y[ix, iy] = (iy-1)*Δy
+    #     end
+    # end
+
+
+    # for i = 1:N_θ
+    #     kx, ky = seq_pairs[i,:]
+    #     @info kx, ky, N_x/3, N_y/3
+    #     @assert((abs(kx) < N_x/3 && abs(ky) < N_y/3) && !((kx==0)&&(ky==0))) 
+    #     abk = θ[i]
+    #     if (Z2_plus(kx, ky)) 
+    #         ω0_test .+= (abk * sin.(kx*X + ky*Y))/(sqrt(2)*pi*(kx^2 + ky^2))
+    #     elseif (Z2_minus(kx, ky)) 
+    #         ω0_test .+= (abk * cos.(kx*X + ky*Y))/(sqrt(2)*pi*(kx^2 + ky^2))
+    #     end 
+    # end
+
+    # @info  "Error", norm(ω0 - ω0_test), norm(ω0) , norm(ω0_test)
+    # error("Stop")
+    # ω0
 end
 
 # project  ω0 on the first N_θ dominant modes
 # namely, ∑ ak cos(k⋅x) + bk sin(k⋅x) with least square fitting
-function Construct_θ0(ω0::Array{Float64, 2}, N_θ::Int64, seq_pairs::Array{Int64,2}, mesh::Spectral_Mesh)
-    @assert(N_θ%2 == 0)
-    abk0 = zeros(Float64, Int64(N_θ/2), 2)
-    
+function Theta_From_Random_Field(ω0::Array{Float64, 2}, N_θ::Int64, seq_pairs::Array{Int64,2}, mesh::Spectral_Mesh)
     
     N_x , N_y = mesh.N_x, mesh.N_y
     Δx , Δy   = mesh.Lx/N_x, mesh.Ly/N_y
@@ -588,14 +725,16 @@ function Construct_θ0(ω0::Array{Float64, 2}, N_θ::Int64, seq_pairs::Array{Int
     
     for i = 1:Int64(N_θ/2)
         kx, ky = seq_pairs[i,:]
-        A[:,i]              = (cos.(kx*X + ky*Y)/(sqrt(2)*pi*(kx^2 + ky^2)))[:]
-        A[:,i+Int64(N_θ/2)] = (sin.(kx*X + ky*Y)/(sqrt(2)*pi*(kx^2 + ky^2)))[:]
+        if Z2_plus(kx,ky)
+            A[:,i] = (sin.(kx*X + ky*Y)/(sqrt(2)*pi*(kx^2 + ky^2)))[:]
+        elseif Z2_minus(kx,ky)
+            A[:,i] = (cos.(kx*X + ky*Y)/(sqrt(2)*pi*(kx^2 + ky^2)))[:]
+        else
+            error("kx,ky = ", kx, ky)
+        end
     end
     
-    x = A\ω0[:]
-    
-    abk0[1:Int64(N_θ/2), :] = reshape(x, Int64(N_θ/2), 2)
-    θ0 = abk0[:]
+    θ0 = A\ω0[:]
 
     return θ0
     
@@ -658,7 +797,7 @@ function forward(s_param::Setup_Param, θ::Array{Float64,1})
     seq_pairs = s_param.seq_pairs
     mesh = Spectral_Mesh(N_x, N_y, Lx, Ly)
 
-    ω0 = Initial_ω0_KL(mesh, θ, seq_pairs)   
+    ω0 = Random_Field_From_Theta(mesh, θ, seq_pairs)   
     data = forward_helper(s_param, ω0; symmetric = s_param.symmetric)
     
     return data[:]
