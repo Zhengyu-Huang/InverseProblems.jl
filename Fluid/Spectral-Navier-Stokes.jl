@@ -59,9 +59,11 @@ end
 
 # constructor of the Spectral_NS_Solver
 #
-# There are two forcing intialization approaches
-# * initialize fx and fy components, user shoul make sure they are zero-mean and periodic
-# * initialize ∇×f, curl_f
+# There are several forcing intialization approaches
+# first check curl_f_hat
+# then check curl_f, compute curl_f_hat
+# then check fx and fy, compute curl_f_hat
+# set curl_f_hat to 0
 #
 # There are velocity(vorticity) intialization approaches
 # * initialize u0 and v0 components, user should make sure they are incompressible div ⋅ (u0 , v0) = 0
@@ -71,6 +73,7 @@ function Spectral_NS_Solver(mesh::Spectral_Mesh, ν::Float64;
     fx::Union{Array{Float64, 2}, Nothing} = nothing, 
     fy::Union{Array{Float64, 2}, Nothing} = nothing, 
     curl_f::Union{Array{Float64, 2}, Nothing} = nothing,
+    curl_f_hat::Union{Array{ComplexF64, 2}, Nothing} = nothing,
     stochastic_forcing::Bool = false,
     u0::Union{Array{Float64, 2}, Nothing} = nothing, 
     v0::Union{Array{Float64, 2}, Nothing} = nothing, 
@@ -80,17 +83,23 @@ function Spectral_NS_Solver(mesh::Spectral_Mesh, ν::Float64;
     N_x, N_y = mesh.N_x, mesh.N_y
     
     
-    curl_f_hat = zeros(ComplexF64, N_x, N_y)
-    if curl_f === nothing
-        if fx === nothing
-            fx = zeros(Float64, N_x, N_y)
+    if curl_f_hat === nothing
+        curl_f_hat = zeros(ComplexF64, N_x, N_y)
+        
+        if curl_f === nothing
+            if fx === nothing
+                fx = zeros(Float64, N_x, N_y)
+            end
+            if fy === nothing
+                fy = zeros(Float64, N_x, N_y)
+            end 
+            Apply_Curl!(mesh, fx, fy, curl_f_hat) 
+            
+        else
+            Trans_Grid_To_Spectral!(mesh, curl_f, curl_f_hat)
+            
+
         end
-        if fy === nothing
-            fy = zeros(Float64, N_x, N_y)
-        end 
-        Apply_Curl!(mesh, fx, fy, curl_f_hat) 
-    else
-        Trans_Grid_To_Spectral!(mesh, curl_f, curl_f_hat)
     end
    
     
@@ -492,14 +501,8 @@ end
 
 
 
-# Generate random numbers and initialize ω0 with all fourier modes
+# Generate stochastics forcing
 function Stochastic_Forcing(mesh::Spectral_Mesh, curl_f_hat::Array{ComplexF64, 2}, Δt::Float64)
-    # consider C = -Δ^{-1}
-    # C u = λ u  => -u = λ Δ u
-    # u = e^{ik⋅x}, λ Δ u = -λ |k|^2 u = - u => λ = 1/|k|^2
-    # ω = ∑ ak sin(k⋅x)/√2π|k|^2     if ky > 0 or (ky = 0 and kx > 0) 
-    #   + ∑ bk cos(k⋅x)/√2π|k|^2,    otherwise
-    #   = ∑ (bk/(2√2π|k|^2) - i ak/(2√2π|k|^2) )e^{ik⋅x} + (bk/(2√2π|k|^2) + i ak/(2√2π^2|k|^2) )e^{-ik⋅x}
     
     N_x , N_y = mesh.N_x, mesh.N_y
     kxx , kyy = mesh.kxx, mesh.kyy
@@ -651,7 +654,7 @@ end
 #   + ∑ bk cos(k⋅x)/√2π|k|^2,    otherwise
 #   = ∑ (bk/(2√2π|k|^2) - i ak/(2√2π|k|^2) )e^{ik⋅x} + (bk/(2√2π|k|^2) + i ak/(2√2π^2|k|^2) )e^{-ik⋅x}
     
-function Random_Field_From_Theta(mesh::Spectral_Mesh, θ::Array{Float64,1}, seq_pairs::Array{Int64,2})
+function Random_Field_From_Theta(mesh::Spectral_Mesh, θ::Array{Float64,1}, seq_pairs::Array{Int64,2}; freq_or_not::Bool = false)
     
     N_x, N_y = mesh.N_x, mesh.N_y
     kxx, kyy = mesh.kxx, mesh.kyy
@@ -675,7 +678,12 @@ function Random_Field_From_Theta(mesh::Spectral_Mesh, θ::Array{Float64,1}, seq_
         end
     end
     ω0_hat .*= mesh.alias_filter
-    Trans_Spectral_To_Grid!(mesh, N_x*N_y * ω0_hat, ω0)
+    
+    if freq_or_not
+        return ω0_hat
+    else
+        return Trans_Spectral_To_Grid!(mesh, N_x*N_y * ω0_hat, ω0)
+    end
     
 #     ######
     # ω0_test = zeros(Float64, N_x, N_y)
