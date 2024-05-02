@@ -92,3 +92,5 @@ You are welcome to submit an issue for any questions related to InverseProblems.
 
 4. Yifan Chen, Daniel Zhengyu Huang, Jiaoyang Huang, Sebastian Reich, and Andrew M. Stuart. "[Gradient Flows for Sampling: Mean-Field Models, Gaussian Approximations
 and Affine Invariance](https://arxiv.org/pdf/2302.11024.pdf)."
+
+5. Daniel Zhengyu Huang, Jiaoyang Huang, and Zhengjiang Lin. "[Convergence Analysis of Probability Flow ODE for Score-based Generative Models](https://arxiv.org/pdf/2404.09730)."
