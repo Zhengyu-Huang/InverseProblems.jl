@@ -58,8 +58,6 @@ function GMGDObj(metric::String,
     θθ_cov = Array{FT,3}[]   # array of Array{FT, 2}'s
     push!(θθ_cov, θθ0_cov)   # insert parameters at end of array (in this case just 1st entry)
     
-    
-
     iter = 0
 
     GMGDObj(logθ_w, θ_mean, θθ_cov, N_ens,
@@ -69,7 +67,6 @@ function GMGDObj(metric::String,
                   update_covariance,
                   metric,
                   expectation_method)
-
 end
 
 
@@ -209,6 +206,12 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func_logρ::Function, dt::FT) w
             
             if update_covariance
                 θθ_cov_n[im, :, :] =  inv( inv(θθ_cov[im, :, :]) + dt*(∇²logρ_mean[im, :, :] + ∇²V_mean[im, :, :]) )
+                # θθ_cov_n[im, :, :] =  (1 + dt)*inv( inv(θθ_cov[im, :, :]) + dt*(∇²logρ_mean[im, :, :] + ∇²V_mean[im, :, :]) )
+                
+                if det(θθ_cov_n[im, :, :]) <= 0.0
+                    @info θθ_cov[im, :, :], ∇²logρ_mean[im, :, :], ∇²V_mean[im, :, :]
+                end
+                
             else
                 θθ_cov_n[im, :, :] = θθ_cov[im, :, :]
             end
@@ -260,8 +263,6 @@ function GMGD_Run(
     θ0_w::Array{FT, 1}, θ0_mean::Array{FT, 2}, θθ0_cov::Array{FT, 3},
     expectation_method::String = "unscented_transform",
     N_ens::IT = 1) where {FT<:AbstractFloat, IT<:Int}
-    
-    
     
     gmgdobj = GMGDObj(
     metric, 
