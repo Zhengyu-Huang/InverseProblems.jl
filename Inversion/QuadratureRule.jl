@@ -62,7 +62,7 @@ function generate_quadrature_rule(N_x, quadrature_type; c_weight=sqrt(N_x), N_en
         end
 
     else 
-        print("cubature tansform with quadrature order ", quadrature_order, " has not implemented.")
+        print("cubature tansform with quadrature type ", quadrature_type, " has not implemented.")
 
     end
 

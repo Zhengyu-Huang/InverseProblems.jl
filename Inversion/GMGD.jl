@@ -183,7 +183,8 @@ use G(x_mean) instead of FG(x)
 function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt::FT) where {FT<:AbstractFloat, IT<:Int}
     
     update_covariance = gmgd.update_covariance
-    
+    sqrt_matrix_type = gmgd.sqrt_matrix_type
+
     gmgd.iter += 1
     N_x,  N_modes = gmgd.N_x, gmgd.N_modes
 
@@ -193,13 +194,13 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt::FT) where {
 
     sqrt_xx_cov, inv_sqrt_xx_cov = [], []
     for im = 1:N_modes
-        sqrt_cov, inv_sqrt_cov = compute_sqrt_matrix(xx_cov[im,:,:]; type=compute_sqrt_matrix_type) 
+        sqrt_cov, inv_sqrt_cov = compute_sqrt_matrix(xx_cov[im,:,:]; type=sqrt_matrix_type) 
         push!(sqrt_xx_cov, sqrt_cov)
         push!(inv_sqrt_xx_cov, inv_sqrt_cov) 
     end
 
     ###########  Entropy term
-    c_weights_GM, mean_weights_GM = gmgd.c_weights_GM, gmgd.mean_weights_GM
+    N_ens, c_weights_GM, mean_weights_GM = gmgd.N_ens, gmgd.c_weights_GM, gmgd.mean_weights_GM
     logρ_mean, ∇logρ_mean, ∇²logρ_mean  = compute_logρ_gm_expectation(exp.(logx_w), x_mean, sqrt_xx_cov, inv_sqrt_xx_cov, c_weights_GM, mean_weights_GM)
     
     ############ Generate sigma points
@@ -210,10 +211,11 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt::FT) where {
     ###########  Potential term
     V, ∇V, ∇²V = func(x_p)
 
+    Φᵣ_mean, ∇Φᵣ_mean, ∇²Φᵣ_mean = zeros(N_modes), zeros(N_modes, N_x), zeros(N_modes, N_x, N_x)
     for im = 1:N_modes
-        Φᵣ_mean, ∇Φᵣ_mean, ∇²Φᵣ_mean = gmgd.Bayesian_inverse_problem ? 
-        compute_expectation_BIP(x_mean[im,:,:], inv_sqrt_xx_cov[im], V[im,:,:], c_weight_BIP) : 
-        compute_expectation(V[im], ∇V[im,:], ∇²V[im,:,:], mean_weights) 
+        Φᵣ_mean[im], ∇Φᵣ_mean[im,:], ∇²Φᵣ_mean[im,:,:] = gmgd.Bayesian_inverse_problem ? 
+        compute_expectation_BIP(x_mean[im,:], inv_sqrt_xx_cov[im], V[im,:,:], gmgd.c_weight_BIP) : 
+        compute_expectation(V[im,:], ∇V[im,:,:], ∇²V[im,:,:,:], gmgd.mean_weights) 
     end
     
     x_mean_n = copy(x_mean)
@@ -279,14 +281,13 @@ end
 function ensemble_BIP(x_ens, forward, N_f)
     N_modes, N_ens, N_x = size(x_ens)
     V = zeros(N_modes, N_ens, N_f)   
-
     for im = 1:N_modes
         for i = 1:N_ens
             V[im, i, :] = forward(x_ens[im, i, :])
         end
     end
-
-    return V
+    
+    return V, nothing, nothing
 end
 
 function GMGD_Run(
@@ -294,9 +295,9 @@ function GMGD_Run(
     T::FT,
     N_iter::IT,
     # Initial condition
-    x0_w::Array{FT, 1}, x0_mean::Array{FT, 2}, xx0_cov::Array{FT, 3},
-    update_covariance::Bool, 
-    sqrt_matrix_type::String,
+    x0_w::Array{FT, 1}, x0_mean::Array{FT, 2}, xx0_cov::Array{FT, 3};
+    update_covariance::Bool = true, 
+    sqrt_matrix_type::String = "Cholesky",
     # setup for Gaussian mixture part
     quadrature_type_GM::String = "cubature_transform_o5",
     c_weight_GM::FT = sqrt(3.0),
@@ -324,7 +325,6 @@ function GMGD_Run(
         c_weight_BIP = c_weight_BIP,
         N_ens = N_ens) 
 
-
     func(x_ens) = Bayesian_inverse_problem ? ensemble_BIP(x_ens, forward, N_f) : ensemble(x_ens, forward)  
     
     dt = T/N_iter
@@ -335,6 +335,41 @@ function GMGD_Run(
     return gmgdobj
     
 end
+
+
+
+###### Plot function 
+
+function Gaussian_density_helper(x_mean::Array{FT,1}, inv_sqrt_xx_cov, x::Array{FT,1}) where {FT<:AbstractFloat}
+    return exp( -1/2*((x - x_mean)'* (inv_sqrt_xx_cov'*inv_sqrt_xx_cov*(x - x_mean)) )) * abs(det(inv_sqrt_xx_cov))
+end
+
+function Gaussian_2d(x_w, x_mean, xx_cov,  X, Y)
+    N_modes = length(x_w)
+    inv_sqrt_xx_cov = [compute_sqrt_matrix(xx_cov[im,:,:]; type="Cholesky")[2] for im = 1:N_modes]
+    # 2d Gaussian plot
+    dx, dy = X[2,1] - X[1,1], Y[1,2] - Y[1,1]
+    N_x, N_y = size(X)
+    Z = zeros(N_x, N_y)
+    
+    for ix = 1:N_x
+        for iy = 1:N_y
+            for im = 1:N_modes
+                Z[ix, iy] += x_w[im]*Gaussian_density_helper(x_mean[im,:], inv_sqrt_xx_cov[im], [X[ix,iy];Y[ix,iy]])
+            end
+        end
+    end
+    Z = Z/(sum(Z)*dx*dy)
+    
+    return Z
+    
+end
+
+
+
+
+
+
 
 
 
