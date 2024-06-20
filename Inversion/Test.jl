@@ -79,8 +79,11 @@ for compute_sqrt_matrix_type in ["Cholesky", "SVD"]
         push!(∇²Φᵣ_means, ∇²Φᵣ_mean)
     end 
 end
+
 for i = 1:length(Φᵣ_means)
     @assert(abs(Φᵣ_means[1] - Φᵣ_means[i]) < 1.0e-8)
     @assert(norm(∇Φᵣ_means[1] - ∇Φᵣ_means[i]) < 1.0e-8)
     @assert(norm(∇²Φᵣ_means[1] - ∇²Φᵣ_means[i]) < 1.0e-8)
 end
+
+

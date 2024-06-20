@@ -11,6 +11,8 @@ GMGDObj{FT<:AbstractFloat, IT<:Int}
 Struct that is used in sampling e^{-V} with Gaussian mixture gradient descent
 """
 mutable struct GMGDObj{FT<:AbstractFloat, IT<:Int}
+    "object name"
+    name::String
     "a vector of arrays of size (N_modes) containing the modal weights of the parameters"
     logx_w::Vector{Array{FT, 1}}
     "a vector of arrays of size (N_modes x N_parameters) containing the modal means of the parameters"
@@ -87,9 +89,10 @@ function GMGDObj(# initial condition
     
     N_ens, c_weights, mean_weights = generate_quadrature_rule(N_x, quadrature_type; c_weight=c_weight_BIP, N_ens=N_ens)
     
-    
-
-    GMGDObj(logx_w, x_mean, xx_cov, N_modes, N_x,
+     
+    name = (Bayesian_inverse_problem ? "Derivative free GMGD" : "GMGD")
+    GMGDObj(name,
+            logx_w, x_mean, xx_cov, N_modes, N_x,
             iter, update_covariance,
             sqrt_matrix_type,
             ## Gaussian mixture expectation
@@ -339,12 +342,7 @@ end
 
 
 ###### Plot function 
-
-function Gaussian_density_helper(x_mean::Array{FT,1}, inv_sqrt_xx_cov, x::Array{FT,1}) where {FT<:AbstractFloat}
-    return exp( -1/2*((x - x_mean)'* (inv_sqrt_xx_cov'*inv_sqrt_xx_cov*(x - x_mean)) )) * abs(det(inv_sqrt_xx_cov))
-end
-
-function Gaussian_2d(x_w, x_mean, xx_cov,  X, Y)
+function Gaussian_mixture_2d(x_w, x_mean, xx_cov,  X, Y)
     N_modes = length(x_w)
     inv_sqrt_xx_cov = [compute_sqrt_matrix(xx_cov[im,:,:]; type="Cholesky")[2] for im = 1:N_modes]
     # 2d Gaussian plot
@@ -363,6 +361,87 @@ function Gaussian_2d(x_w, x_mean, xx_cov,  X, Y)
     
     return Z
     
+end
+
+
+function posterior_BIP_2d(func_F, X, Y)
+    dx, dy = X[2,1] - X[1,1], Y[1,2] - Y[1,1]
+    N_x, N_y = size(X)
+    Z = zeros(N_x, N_y)
+    for i = 1:N_x
+        for j = 1:N_y
+            F = func_F([X[i,j] ; Y[i,j]])
+            Z[i,j] = exp(-F'*F/2)
+        end
+    end
+    Z /= (sum(Z)*dx*dy) 
+
+    return Z
+end
+
+
+function posterior_2d(func_V, X, Y)
+    dx, dy = X[2,1] - X[1,1], Y[1,2] - Y[1,1]
+    N_x, N_y = size(X)
+    Z = zeros(N_x, N_y)
+    for i = 1:N_x
+        for j = 1:N_y
+            V = func_V([X[i,j] ; Y[i,j]])
+            Z[i,j] = exp(-V)
+        end
+    end
+    Z /= (sum(Z)*dx*dy) 
+
+    return Z
+end
+
+
+
+function visualization_2d(ax; Nx=2000, Ny=2000, x_lim=[-4.0,4.0], y_lim=[-4.0,4.0], func_F = nothing, func_V = nothing, objs=nothing)
+
+    # visualization 
+    x_min, x_max = x_lim
+    y_min, y_max = y_lim
+
+    xx = LinRange(x_min, x_max, Nx)
+    yy = LinRange(y_min, y_max, Ny)
+    dx, dy = xx[2] - xx[1], yy[2] - yy[1]
+    X,Y = repeat(xx, 1, Ny), repeat(yy, 1, Nx)'   #'
+
+    Z_ref = (func_V === nothing ? posterior_BIP_2d(func_F, X, Y) : posterior_2d(func_V, X, Y))
+    color_lim = (minimum(Z_ref), maximum(Z_ref))
+    ax[1].pcolormesh(X, Y, Z_ref, cmap="viridis", clim=color_lim)
+
+
+   
+    N_obj = length(objs)
+    
+    N_iter = length(objs[1].logx_w) - 1
+    error = zeros(N_obj, N_iter+1)
+        
+    for (iobj, obj) in enumerate(objs)
+        for iter = 0:N_iter  
+            x_w = exp.(obj.logx_w[iter+1]); x_w /= sum(x_w)
+            x_mean = obj.x_mean[iter+1]
+            xx_cov = obj.xx_cov[iter+1]
+            Z = Gaussian_mixture_2d(x_w, x_mean, xx_cov,  X, Y)
+            error[iobj, iter+1] = norm(Z - Z_ref,1)*dx*dy
+            
+            if iter == N_iter
+                ax[1+iobj].pcolormesh(X, Y, Z, cmap="viridis", clim=color_lim)
+                N_modes = size(x_mean, 1)
+                for im =1:N_modes 
+                    ax[1+iobj].scatter([x_mean[im,1];], [x_mean[im,2];], marker="o", color="red", facecolors="none")
+                end
+
+            end
+        end
+        
+    end
+    for i_obj = 1:N_obj
+        ax[N_obj+2].semilogy(Array(0:N_iter), error[i_obj, :], label=objs[i_obj].name)
+    end
+    ax[N_obj+2].legend()
 end
 
 
