@@ -229,11 +229,12 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt::FT) where {
     
     for im = 1:N_modes
         x_mean_n[im, :]  =  x_mean[im, :] - dt*xx_cov[im, :, :]*(∇logρ_mean[im, :] + ∇Φᵣ_mean[im, :]) 
-
+        # @info "mode ", im, " mean residual ", ∇logρ_mean[im, :] , ∇Φᵣ_mean[im, :], ∇logρ_mean[im, :] + ∇Φᵣ_mean[im, :]
         if update_covariance
             xx_cov_n[im, :, :] =  inv( inv(xx_cov[im, :, :]) + dt*(∇²logρ_mean[im, :, :] + ∇²Φᵣ_mean[im, :, :]) )
             # xx_cov_n[im, :, :] =  (1 + dt)*inv( inv(xx_cov[im, :, :]) + dt*(∇²logρ_mean[im, :, :] + ∇²V_mean[im, :, :]) )
-            
+            # @info "cov residual ", ∇²logρ_mean[im, :, :], ∇²Φᵣ_mean[im, :, :], ∇²logρ_mean[im, :, :] + ∇²Φᵣ_mean[im, :, :]
+        
             if det(xx_cov_n[im, :, :]) <= 0.0
                 @info xx_cov[im, :, :], ∇²logρ_mean[im, :, :], ∇²Φᵣ_mean[im, :, :]
             end
@@ -248,6 +249,8 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt::FT) where {
             ρlogρ_Φᵣ += exp(logx_w[im])*(logρ_mean[im] + Φᵣ_mean[im])
         end
         logx_w_n[im] = logx_w[im] - dt*(logρ_mean[im] + Φᵣ_mean[im] - ρlogρ_Φᵣ)
+
+        # @info "weight residual ", logρ_mean[im], Φᵣ_mean[im], ρlogρ_Φᵣ, logρ_mean[im] + Φᵣ_mean[im] - ρlogρ_Φᵣ
         
     end
        
