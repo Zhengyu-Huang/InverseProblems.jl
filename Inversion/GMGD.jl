@@ -250,12 +250,6 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt::FT) where {
         x_mean_n[im, :]  =  x_mean[im, :] - 2*dt*xx_cov_n[im, :, :]*(∇logρ_mean[im, :] + ∇Φᵣ_mean[im, :]) 
         
 
-        if im == 20
-            @info "mode ", im, "  ",  x_mean_n[im, :], x_mean[im, :]
-            @info "mean residual ",   ∇logρ_mean[im, :] , ∇Φᵣ_mean[im, :], ∇logρ_mean[im, :] + ∇Φᵣ_mean[im, :]
-            @info xx_cov[im, :, :],   xx_cov_n[im, :, :], ∇²logρ_mean[im, :, :], ∇²Φᵣ_mean[im, :, :]
-        end
-        
         
         
         ρlogρ_Φᵣ = 0 
@@ -350,7 +344,7 @@ function GMGD_Run(
     
     dt = T/N_iter
     for i in 1:N_iter
-        @info "iter = ", i, " / ", N_iter
+        if i%div(N_iter, 10) == 0  @info "iter = ", i, " / ", N_iter  end
         
         update_ensemble!(gmgdobj, func, dt) 
     end
@@ -458,16 +452,16 @@ function visualization_2d(ax; Nx=2000, Ny=2000, x_lim=[-4.0,4.0], y_lim=[-4.0,4.
                 ax[1+iobj].pcolormesh(X, Y, Z, cmap="viridis", clim=color_lim)
                 N_modes = size(x_mean, 1)
                 
+
                 ax[1+iobj].scatter([obj.x_mean[1][:,1];], [obj.x_mean[1][:,2];], marker="x", color="grey") 
                 ax[1+iobj].scatter([x_mean[:,1];], [x_mean[:,2];], marker="o", color="red", facecolors="none")
-                
 
             end
         end
         
     end
     for i_obj = 1:N_obj
-        ax[N_obj+2].semilogy(Array(0:N_iter), error[i_obj, :], label=objs[i_obj].name)
+        ax[N_obj+2].semilogy(Array(0:N_iter), error[i_obj, :], label=objs[i_obj].name*" (K="*string(size(objs[i_obj].x_mean[1], 1))*")")
     end
     ax[N_obj+2].legend()
 end
