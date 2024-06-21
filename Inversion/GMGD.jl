@@ -109,6 +109,7 @@ function Gaussian_density_helper(x_mean::Array{FT,1}, inv_sqrt_xx_cov, x::Array{
     return exp( -1/2*((x - x_mean)'* (inv_sqrt_xx_cov'*inv_sqrt_xx_cov*(x - x_mean)) )) * abs(det(inv_sqrt_xx_cov))
 end
 
+
 # avoid computing 1/(2π^N_x/2) for ρ, ∇ρ, ∇²ρ
 function Gaussian_mixture_density_derivatives(x_w::Array{FT,1}, x_mean::Array{FT,2}, inv_sqrt_xx_cov, x::Array{FT,1}) where {FT<:AbstractFloat}
     N_modes, N_x = size(x_mean)
@@ -204,14 +205,16 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt::FT) where {
 
     ###########  Entropy term
     N_ens, c_weights_GM, mean_weights_GM = gmgd.N_ens, gmgd.c_weights_GM, gmgd.mean_weights_GM
+   
     logρ_mean, ∇logρ_mean, ∇²logρ_mean  = compute_logρ_gm_expectation(exp.(logx_w), x_mean, sqrt_xx_cov, inv_sqrt_xx_cov, c_weights_GM, mean_weights_GM)
-    
+
     ############ Generate sigma points
     x_p = zeros(N_modes, N_ens, N_x)
     for im = 1:N_modes
         x_p[im,:,:] = construct_ensemble(x_mean[im,:], sqrt_xx_cov[im]; c_weights = gmgd.c_weights)
     end
     ###########  Potential term
+
     V, ∇V, ∇²V = func(x_p)
 
     Φᵣ_mean, ∇Φᵣ_mean, ∇²Φᵣ_mean = zeros(N_modes), zeros(N_modes, N_x), zeros(N_modes, N_x, N_x)
@@ -220,7 +223,7 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt::FT) where {
         compute_expectation_BIP(x_mean[im,:], inv_sqrt_xx_cov[im], V[im,:,:], gmgd.c_weight_BIP) : 
         compute_expectation(V[im,:], ∇V[im,:,:], ∇²V[im,:,:,:], gmgd.mean_weights) 
     end
-    
+
     x_mean_n = copy(x_mean)
     xx_cov_n = copy(xx_cov)
     logx_w_n = copy(logx_w)
@@ -254,8 +257,6 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt::FT) where {
         
     end
        
-    
-
     # Normalization
     logx_w_n .-= maximum(logx_w_n)
     logx_w_n .-= log( sum(exp.(logx_w_n)) )
@@ -345,6 +346,15 @@ end
 
 
 ###### Plot function 
+
+
+function Gaussian_density_2d(x_mean::Array{FT,1}, inv_sqrt_xx_cov, X, Y) where {FT<:AbstractFloat}
+    dx = [X[:]' ; Y[:]'] - repeat(x_mean, 1, length(X))
+
+    return reshape( exp.( -1/2*sum(dx .* ((inv_sqrt_xx_cov'*inv_sqrt_xx_cov)*dx), dims=1)) .* abs(det(inv_sqrt_xx_cov)), size(X))
+
+
+end
 function Gaussian_mixture_2d(x_w, x_mean, xx_cov,  X, Y)
     N_modes = length(x_w)
     inv_sqrt_xx_cov = [compute_sqrt_matrix(xx_cov[im,:,:]; type="Cholesky")[2] for im = 1:N_modes]
@@ -353,13 +363,11 @@ function Gaussian_mixture_2d(x_w, x_mean, xx_cov,  X, Y)
     N_x, N_y = size(X)
     Z = zeros(N_x, N_y)
     
-    for ix = 1:N_x
-        for iy = 1:N_y
-            for im = 1:N_modes
-                Z[ix, iy] += x_w[im]*Gaussian_density_helper(x_mean[im,:], inv_sqrt_xx_cov[im], [X[ix,iy];Y[ix,iy]])
-            end
-        end
+    
+    for im = 1:N_modes
+        Z .+= x_w[im]*Gaussian_density_2d(x_mean[im,:], inv_sqrt_xx_cov[im], X, Y)
     end
+
     Z = Z/(sum(Z)*dx*dy)
     
     return Z
@@ -433,9 +441,10 @@ function visualization_2d(ax; Nx=2000, Ny=2000, x_lim=[-4.0,4.0], y_lim=[-4.0,4.
             if iter == N_iter
                 ax[1+iobj].pcolormesh(X, Y, Z, cmap="viridis", clim=color_lim)
                 N_modes = size(x_mean, 1)
-                for im =1:N_modes 
-                    ax[1+iobj].scatter([x_mean[im,1];], [x_mean[im,2];], marker="o", color="red", facecolors="none")
-                end
+                
+                ax[1+iobj].scatter([obj.x_mean[1][:,1];], [obj.x_mean[1][:,2];], marker="x", color="grey") 
+                ax[1+iobj].scatter([x_mean[:,1];], [x_mean[:,2];], marker="o", color="red", facecolors="none")
+                
 
             end
         end
