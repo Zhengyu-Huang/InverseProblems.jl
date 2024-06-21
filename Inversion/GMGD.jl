@@ -231,20 +231,31 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt::FT) where {
 
     
     for im = 1:N_modes
-        x_mean_n[im, :]  =  x_mean[im, :] - dt*xx_cov[im, :, :]*(∇logρ_mean[im, :] + ∇Φᵣ_mean[im, :]) 
-        # @info "mode ", im, " mean residual ", ∇logρ_mean[im, :] , ∇Φᵣ_mean[im, :], ∇logρ_mean[im, :] + ∇Φᵣ_mean[im, :]
+        # x_mean_n[im, :]  =  x_mean[im, :] - dt*xx_cov[im, :, :]*(∇logρ_mean[im, :] + ∇Φᵣ_mean[im, :]) 
+        
         if update_covariance
             xx_cov_n[im, :, :] =  inv( inv(xx_cov[im, :, :]) + dt*(∇²logρ_mean[im, :, :] + ∇²Φᵣ_mean[im, :, :]) )
             # xx_cov_n[im, :, :] =  (1 + dt)*inv( inv(xx_cov[im, :, :]) + dt*(∇²logρ_mean[im, :, :] + ∇²V_mean[im, :, :]) )
             # @info "cov residual ", ∇²logρ_mean[im, :, :], ∇²Φᵣ_mean[im, :, :], ∇²logρ_mean[im, :, :] + ∇²Φᵣ_mean[im, :, :]
         
             if det(xx_cov_n[im, :, :]) <= 0.0
-                @info xx_cov[im, :, :], ∇²logρ_mean[im, :, :], ∇²Φᵣ_mean[im, :, :]
+                @info "error! negative determinant for mode ", im,  x_mean[im, :], xx_cov[im, :, :], ∇²logρ_mean[im, :, :], ∇²Φᵣ_mean[im, :, :]
+                @info " mean residual ", ∇logρ_mean[im, :] , ∇Φᵣ_mean[im, :], ∇logρ_mean[im, :] + ∇Φᵣ_mean[im, :]
             end
             
         else
             xx_cov_n[im, :, :] = xx_cov[im, :, :]
         end
+
+        x_mean_n[im, :]  =  x_mean[im, :] - 2*dt*xx_cov_n[im, :, :]*(∇logρ_mean[im, :] + ∇Φᵣ_mean[im, :]) 
+        
+
+        if im == 20
+            @info "mode ", im, "  ",  x_mean_n[im, :], x_mean[im, :]
+            @info "mean residual ",   ∇logρ_mean[im, :] , ∇Φᵣ_mean[im, :], ∇logρ_mean[im, :] + ∇Φᵣ_mean[im, :]
+            @info xx_cov[im, :, :],   xx_cov_n[im, :, :], ∇²logρ_mean[im, :, :], ∇²Φᵣ_mean[im, :, :]
+        end
+        
         
         
         ρlogρ_Φᵣ = 0 
@@ -261,6 +272,9 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt::FT) where {
     logx_w_n .-= maximum(logx_w_n)
     logx_w_n .-= log( sum(exp.(logx_w_n)) )
 
+
+    # @info "x_mean_n = ", x_mean_n
+    # @info "xx_cov_n = ", xx_cov_n
 
     ########### Save resutls
     push!(gmgd.x_mean, x_mean_n)   # N_ens x N_params
@@ -336,6 +350,8 @@ function GMGD_Run(
     
     dt = T/N_iter
     for i in 1:N_iter
+        @info "iter = ", i, " / ", N_iter
+        
         update_ensemble!(gmgdobj, func, dt) 
     end
     
