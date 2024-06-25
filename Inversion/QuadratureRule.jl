@@ -122,10 +122,13 @@ function compute_expectation_BIP(x_mean, inv_sqrt_cov, V, c_weight)
     cTc = c' * c
     Φᵣ_mean = 1/2*(sum(ATA) + 2*tr(ATA) + 2*sum(ATc) + tr(BTB) + cTc)
     # ∇Φᵣ_mean = inv_sqrt_cov'*(sum(BTA,dims=2) + 2*diag(BTA) + BTc)
+    # ∇Φᵣ_mean = inv_sqrt_cov'*(3*diag(BTA) + BTc)
     # Ignore second order effect
     ∇Φᵣ_mean = inv_sqrt_cov'*(BTc)
     # ∇²Φᵣ_mean = inv_sqrt_cov'*( Diagonal(2*dropdims(sum(ATA, dims=2), dims=2) + 4*diag(ATA) + 2*ATc) + BTB)*inv_sqrt_cov
     # ∇²Φᵣ_mean = inv_sqrt_cov'*(Diagonal(6*diag(ATA)) + BTB)*inv_sqrt_cov
+    # ∇²Φᵣ_mean = inv_sqrt_cov'*( Diagonal(2*fill(sum(ATA)/N_x, N_x) + 4*diag(ATA) + 2*ATc) + BTB)*inv_sqrt_cov
+    
     ∇²Φᵣ_mean = inv_sqrt_cov'*( Diagonal(6*diag(ATA) + 2*ATc) + BTB)*inv_sqrt_cov
              
     return Φᵣ_mean, ∇Φᵣ_mean, ∇²Φᵣ_mean
