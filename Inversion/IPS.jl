@@ -5,7 +5,7 @@ using EllipsisNotation
 using PyPlot
 """
 IPSObj{FT<:AbstractFloat, IT<:Int}
-Structure that is used in Gaussian Interaction Particle System (IPS)
+Structure that is used in Interaction Particle System (IPS)
 """
 mutable struct IPSObj{FT<:AbstractFloat, IT<:Int}
     "a vector of arrays of size N_ensemble x N_parameters containing the parameters (in each IPS iteration a new array of parameters is added)"
@@ -18,7 +18,7 @@ mutable struct IPSObj{FT<:AbstractFloat, IT<:Int}
     Δt::FT
     "current iteration number"
     iter::IT
-    "method, Wasserstein, Stein"
+    "method, Wasserstein, underdamped-Langevin, Stein, Stein-Fisher-Rao, Wasserstein-Fisher-Rao"
     method::String
     "Preconditioner, true or false"
     preconditioner::Bool
@@ -96,16 +96,16 @@ construct_initial_ensemble(N_ens::IT, priors; rng_seed=42) where {IT<:Int}
 Construct the initial parameters, by sampling N_ens samples from specified
 prior distributions.
 """
-function construct_cov(x::Array{FT,2}, x_mean::Array{FT, 1}, y::Array{FT,2}, y_mean::Array{FT, 1}) where {FT<:AbstractFloat}
+function construct_cov(x::Array{FT,2}, x_mean::Array{FT, 1}, y::Array{FT,2}, y_mean::Array{FT, 1}; sqrt_cov::Bool = false) where {FT<:AbstractFloat}
     N_ens, N_x, N_y = size(x, 1), size(x_mean,1), size(y_mean,1)
     
     xy_cov = zeros(FT, N_x, N_y)
+    dx = (x' - x_mean * ones(N_ens)')/sqrt(N_ens-1)
+    dy = (y' - y_mean * ones(N_ens)')/sqrt(N_ens-1)
     
-    for i = 1: N_ens
-        xy_cov .+= (x[i,:] - x_mean)*(y[i,:] - y_mean)'
-    end
+    xy_cov = dx * dy'
     
-    return xy_cov/(N_ens - 1)
+    return (sqrt_cov ? (xy_cov, dx, dy) : xy_cov)
 end
 
 
@@ -114,10 +114,10 @@ construct_initial_ensemble(N_ens::IT, priors; rng_seed=42) where {IT<:Int}
 Construct the initial parameters, by sampling N_ens samples from specified
 prior distributions.
 """
-function construct_cov(x::Array{FT,2}) where {FT<:AbstractFloat}
+function construct_cov(x::Array{FT,2}; sqrt_cov::Bool = false) where {FT<:AbstractFloat}
     
     x_mean =  construct_mean(x)
-    return construct_cov(x, x_mean, x, x_mean)
+    return construct_cov(x, x_mean, x, x_mean; sqrt_cov = sqrt_cov)
 end
 
 """
@@ -229,17 +229,17 @@ function update_ensemble!(ips::IPSObj{FT}, ens_func::Function) where {FT<:Abstra
    
     # u_mean: N_par × 1
     θ_mean = construct_mean(θ)
-    θθ_cov = construct_cov(θ, θ_mean, θ, θ_mean)
+    θθ_cov, sqrt_θθ_cov, _ = construct_cov(θ, θ_mean, θ, θ_mean; sqrt_cov = true)
     Prec = (ips.preconditioner ? θθ_cov : I)
 
     if method == "Wasserstein" || method == "Wasserstein-Fisher-Rao"
-        noise = rand(Normal(0, 1), (N_θ, N_ens))
+        noise = rand(Normal(0, 1), ((ips.preconditioner ? N_ens : N_θ), N_ens))
         if ips.preconditioner & !isposdef(θθ_cov)
             @info θθ_cov
             @info eigen(θθ_cov)
         end
-        σ = (ips.preconditioner ? cholesky(Hermitian(θθ_cov)).L : I)
-        dθ = ∇logρ * Prec' + sqrt(2/Δt)*(σ*noise)'
+        σ = (ips.preconditioner ? sqrt_θθ_cov : I)
+        dθ = ∇logρ * Prec + sqrt(2/Δt)*(σ*noise)'
     # Stein 
     elseif method == "Stein" || method == "Stein-Fisher-Rao"
         kernel!(θ, κ, dκ; C = (ips.preconditioner ? θθ_cov : nothing), scale = ips.kernel_param)
