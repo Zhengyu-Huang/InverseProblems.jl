@@ -111,7 +111,7 @@ end
 
 
 # avoid computing 1/(2π^N_x/2) for ρ, ∇ρ, ∇²ρ
-function Gaussian_mixture_density_derivatives(x_w::Array{FT,1}, x_mean::Array{FT,2}, inv_sqrt_xx_cov, x::Array{FT,1}) where {FT<:AbstractFloat}
+function Gaussian_mixture_density_derivatives(x_w::Array{FT,1}, x_mean::Array{FT,2}, inv_sqrt_xx_cov, x::Array{FT,1}; hessian_correct::Bool = false) where {FT<:AbstractFloat}
     N_modes, N_x = size(x_mean)
 
     ρ = 0.0
@@ -123,7 +123,7 @@ function Gaussian_mixture_density_derivatives(x_w::Array{FT,1}, x_mean::Array{FT
         ρ   += x_w[i]*ρᵢ
         temp = inv_sqrt_xx_cov[i]'*inv_sqrt_xx_cov[i]*(x_mean[i,:] - x)
         ∇ρ  += x_w[i]*ρᵢ*temp
-        ∇²ρ += x_w[i]*ρᵢ*( temp * temp' - inv_sqrt_xx_cov[i]'*inv_sqrt_xx_cov[i])
+        ∇²ρ += (hessian_correct ? x_w[i]*ρᵢ*( temp * temp') : x_w[i]*ρᵢ*( temp * temp' - inv_sqrt_xx_cov[i]'*inv_sqrt_xx_cov[i]))
     end
 
     return ρ, ∇ρ, ∇²ρ
@@ -131,18 +131,18 @@ end
 
 
 
-function compute_logρ_gm(x_p, x_w, x_mean, inv_sqrt_xx_cov)
+function compute_logρ_gm(x_p, x_w, x_mean, inv_sqrt_xx_cov; hessian_correct::Bool = false)
     N_modes, N_ens, N_x = size(x_p)
     logρ = zeros(N_modes, N_ens)
     ∇logρ = zeros(N_modes, N_ens, N_x)
     ∇²logρ = zeros(N_modes, N_ens, N_x, N_x)
     for im = 1:N_modes
         for i = 1:N_ens
-            ρ, ∇ρ, ∇²ρ = Gaussian_mixture_density_derivatives(x_w, x_mean, inv_sqrt_xx_cov, x_p[im, i, :])
+            ρ, ∇ρ, ∇²ρ = Gaussian_mixture_density_derivatives(x_w, x_mean, inv_sqrt_xx_cov, x_p[im, i, :]; hessian_correct = hessian_correct)
             
             logρ[im, i]         =   log(  ρ  ) - N_x/2.0 * log(2π)
             ∇logρ[im, i, :]     =   ∇ρ/ρ
-            ∇²logρ[im, i, :, :] =  (∇²ρ*ρ - ∇ρ*∇ρ')/ρ^2
+            ∇²logρ[im, i, :, :] =  (hessian_correct ? (∇²ρ*ρ - ∇ρ*∇ρ')/ρ^2 - inv_sqrt_xx_cov[im]'*inv_sqrt_xx_cov[im] : (∇²ρ*ρ - ∇ρ*∇ρ')/ρ^2)
         end
     end
 
@@ -152,7 +152,7 @@ end
 
 
 
-function compute_logρ_gm_expectation(x_w, x_mean, sqrt_xx_cov, inv_sqrt_xx_cov, c_weights_GM, mean_weights_GM)
+function compute_logρ_gm_expectation(x_w, x_mean, sqrt_xx_cov, inv_sqrt_xx_cov, c_weights_GM, mean_weights_GM; hessian_correct::Bool = false)
     x_w = x_w / sum(x_w)
     N_modes, N_x = size(x_mean)
     _, N_ens = size(c_weights_GM)
@@ -163,7 +163,7 @@ function compute_logρ_gm_expectation(x_w, x_mean, sqrt_xx_cov, inv_sqrt_xx_cov,
         xs[im,:,:] = construct_ensemble(x_mean[im, :], sqrt_xx_cov[im]; c_weights = c_weights_GM)
     end
     
-    logρ, ∇logρ, ∇²logρ = compute_logρ_gm(xs, x_w, x_mean, inv_sqrt_xx_cov)
+    logρ, ∇logρ, ∇²logρ = compute_logρ_gm(xs, x_w, x_mean, inv_sqrt_xx_cov; hessian_correct = hessian_correct)
    
     for im = 1:N_modes
         logρ_mean[im], ∇logρ_mean[im,:], ∇²logρ_mean[im,:,:] = compute_expectation(logρ[im,:], ∇logρ[im,:,:], ∇²logρ[im,:,:,:], mean_weights_GM)
@@ -173,6 +173,33 @@ function compute_logρ_gm_expectation(x_w, x_mean, sqrt_xx_cov, inv_sqrt_xx_cov,
 end
    
 
+
+function compute_logρ_gm_expectation(x_w, x_mean, sqrt_xx_cov, inv_sqrt_xx_cov)
+    x_w = x_w / sum(x_w)
+    N_modes, N_x = size(x_mean)
+    logρ_mean, ∇logρ_mean, ∇²logρ_mean = zeros(N_modes), zeros(N_modes, N_x), zeros(N_modes, N_x, N_x)
+    
+    
+    for im = 1:N_modes
+        x = x_mean[im,:]
+        ρ, ∇ρ, ∇²ρ = 0.0, zeros(N_x), zeros(N_x, N_x)
+    
+        for i = 1:N_modes
+            ρᵢ   = Gaussian_density_helper(x_mean[i,:], inv_sqrt_xx_cov[i], x)
+            ρ   += x_w[i]*ρᵢ
+            temp = inv_sqrt_xx_cov[i]'*inv_sqrt_xx_cov[i]*(x_mean[i,:] - x)
+            ∇ρ  += x_w[i]*ρᵢ*temp
+            ∇²ρ += x_w[i]*ρᵢ*temp * temp' # - x_w[i]*ρᵢ*inv_sqrt_xx_cov[i]'*inv_sqrt_xx_cov[i]
+        end
+        #∇²ρ -= inv_sqrt_xx_cov[im]'*inv_sqrt_xx_cov[im]
+
+        logρ_mean[im] = log(  ρ  ) - N_x/2.0 * log(2π) 
+        ∇logρ_mean[im,:]  = ∇ρ/ρ
+        ∇²logρ_mean[im,:,:] = (∇²ρ*ρ - ∇ρ*∇ρ')/ρ^2    - inv_sqrt_xx_cov[im]'*inv_sqrt_xx_cov[im]
+    end
+
+    return  logρ_mean, ∇logρ_mean, ∇²logρ_mean
+end
 
 
 
@@ -206,8 +233,10 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt::FT) where {
     ###########  Entropy term
     N_ens, c_weights_GM, mean_weights_GM = gmgd.N_ens, gmgd.c_weights_GM, gmgd.mean_weights_GM
    
-    logρ_mean, ∇logρ_mean, ∇²logρ_mean  = compute_logρ_gm_expectation(exp.(logx_w), x_mean, sqrt_xx_cov, inv_sqrt_xx_cov, c_weights_GM, mean_weights_GM)
-
+    logρ_mean, ∇logρ_mean, ∇²logρ_mean  = compute_logρ_gm_expectation(exp.(logx_w), x_mean, sqrt_xx_cov, inv_sqrt_xx_cov, c_weights_GM, mean_weights_GM; hessian_correct=true)
+    logρ_mean_, ∇logρ_mean_, ∇²logρ_mean_  = compute_logρ_gm_expectation(exp.(logx_w), x_mean, sqrt_xx_cov, inv_sqrt_xx_cov)
+    @info norm(logρ_mean - logρ_mean_)+norm(∇logρ_mean - ∇logρ_mean_)+norm(∇²logρ_mean - ∇²logρ_mean_)
+    @assert(norm(logρ_mean - logρ_mean_)+norm(∇logρ_mean - ∇logρ_mean_)+norm(∇²logρ_mean - ∇²logρ_mean_)<1.0e-8)
     ############ Generate sigma points
     x_p = zeros(N_modes, N_ens, N_x)
     for im = 1:N_modes
@@ -239,7 +268,7 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt::FT) where {
             # @info "cov residual ", ∇²logρ_mean[im, :, :], ∇²Φᵣ_mean[im, :, :], ∇²logρ_mean[im, :, :] + ∇²Φᵣ_mean[im, :, :]
         
             if det(xx_cov_n[im, :, :]) <= 0.0
-                @info "error! negative determinant for mode ", im,  x_mean[im, :], xx_cov[im, :, :], ∇²logρ_mean[im, :, :], ∇²Φᵣ_mean[im, :, :]
+                @info "error! negative determinant for mode ", im,  x_mean[im, :], xx_cov[im, :, :], inv(xx_cov[im, :, :]), ∇²logρ_mean[im, :, :], ∇²Φᵣ_mean[im, :, :]
                 @info " mean residual ", ∇logρ_mean[im, :] , ∇Φᵣ_mean[im, :], ∇logρ_mean[im, :] + ∇Φᵣ_mean[im, :]
             end
             
@@ -247,7 +276,7 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt::FT) where {
             xx_cov_n[im, :, :] = xx_cov[im, :, :]
         end
 
-        x_mean_n[im, :]  =  x_mean[im, :] - 2*dt*xx_cov_n[im, :, :]*(∇logρ_mean[im, :] + ∇Φᵣ_mean[im, :]) 
+        x_mean_n[im, :]  =  x_mean[im, :] - dt*xx_cov_n[im, :, :]*(∇logρ_mean[im, :] + ∇Φᵣ_mean[im, :]) 
         
 
         
@@ -267,8 +296,8 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt::FT) where {
     logx_w_n .-= log( sum(exp.(logx_w_n)) )
 
 
-    # @info "x_mean_n = ", x_mean_n
-    # @info "xx_cov_n = ", xx_cov_n
+    # @info "x_mean_n = ", x_mean_n[4, :]
+    # @info "xx_cov_n = ", xx_cov_n[4, :, :]
 
     ########### Save resutls
     push!(gmgd.x_mean, x_mean_n)   # N_ens x N_params
