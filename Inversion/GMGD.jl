@@ -180,38 +180,6 @@ end
    
 
 
-function compute_logρ_gm_expectation(x_w, x_mean, sqrt_xx_cov, inv_sqrt_xx_cov)
-    x_w = x_w / sum(x_w)
-    N_modes, N_x = size(x_mean)
-    logρ_mean, ∇logρ_mean, ∇²logρ_mean = zeros(N_modes), zeros(N_modes, N_x), zeros(N_modes, N_x, N_x)
-    
-    
-    for im = 1:N_modes
-        x = x_mean[im,:]
-        ρ, ∇ρ, ∇²ρ = 0.0, zeros(N_x), zeros(N_x, N_x)
-    
-        for i = 1:N_modes
-            ρᵢ   = Gaussian_density_helper(x_mean[i,:], inv_sqrt_xx_cov[i], x)
-            ρ   += x_w[i]*ρᵢ
-            temp = inv_sqrt_xx_cov[i]'*inv_sqrt_xx_cov[i]*(x_mean[i,:] - x)
-            ∇ρ  += x_w[i]*ρᵢ*temp
-            ∇²ρ += x_w[i]*ρᵢ*temp * temp' # - x_w[i]*ρᵢ*inv_sqrt_xx_cov[i]'*inv_sqrt_xx_cov[i]
-        end
-        #∇²ρ -= inv_sqrt_xx_cov[im]'*inv_sqrt_xx_cov[im]
-
-        logρ_mean[im] = log(  ρ  ) - N_x/2.0 * log(2π) 
-        ∇logρ_mean[im,:]  = ∇ρ/ρ
-        ∇²logρ_mean[im,:,:] = (∇²ρ*ρ - ∇ρ*∇ρ')/ρ^2    - inv_sqrt_xx_cov[im]'*inv_sqrt_xx_cov[im]
-
-        # if im == N_modes
-        #     @info ∇²logρ_mean[end,:,:] , ρ, ∇²ρ, ∇ρ, inv_sqrt_xx_cov[end]
-        # end
-    end
-    
-    return  logρ_mean, ∇logρ_mean, ∇²logρ_mean
-end
-
-
 
 
 """
@@ -368,7 +336,8 @@ function GMGD_Run(
     gradient_computation_order::IT = 2, 
     quadrature_type = "unscented_transform",
     c_weight_BIP::FT = sqrt(3.0),
-    N_ens::IT = -1) where {FT<:AbstractFloat, IT<:Int}
+    N_ens::IT = -1,
+    w_min::FT = 1.0e-15) where {FT<:AbstractFloat, IT<:Int}
     
 
     gmgdobj = GMGDObj(# initial condition
@@ -384,7 +353,8 @@ function GMGD_Run(
         gradient_computation_order = gradient_computation_order, 
         quadrature_type = quadrature_type,
         c_weight_BIP = c_weight_BIP,
-        N_ens = N_ens) 
+        N_ens = N_ens,
+        w_min = w_min) 
 
     func(x_ens) = Bayesian_inverse_problem ? ensemble_BIP(x_ens, forward, N_f) : ensemble(x_ens, forward)  
     
