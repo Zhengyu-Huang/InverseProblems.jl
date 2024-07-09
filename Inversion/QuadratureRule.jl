@@ -1,6 +1,16 @@
 using LinearAlgebra
 using ForwardDiff
-
+# quadrature points
+# C = √C √Cᵀ
+# xᵢ=m+√C cᵢ , here cᵢ ∈ Rᴺ
+# ∫f(x)N(θ;m,C) = ∑ wᵢf(xᵢ)
+#              
+# c_weights = [c₁;c₂;...;c_{N_ens}]
+# mean_weights = [w₁;w₂;...;w_{N_ens}]
+# x₁ᵀ                mᵀ           c₁ᵀ 
+# x₂ᵀ           =    mᵀ    +      c₂ᵀ             √Cᵀ
+# ⋮                  ⋮             ⋮
+# x_{N_ens}ᵀ         mᵀ           c_{N_ens}ᵀ  
 function generate_quadrature_rule(N_x, quadrature_type; c_weight=sqrt(N_x), N_ens = -1)
     if quadrature_type == "mean_point"
         N_ens = 1
