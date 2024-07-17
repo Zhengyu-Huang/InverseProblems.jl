@@ -44,8 +44,6 @@ mutable struct GMGDObj{FT<:AbstractFloat, IT<:Int}
     "quadrature points for expectation, 
      random_sampling,  mean_point,  unscented_transform"
     quadrature_type::String
-    "derivative_free: 0, first_order: 1, second_order: 2"
-    gradient_computation_order::Int64
     "expectation of Gaussian mixture and its derivatives"
     c_weight_BIP::FT
     c_weights::Array{FT, 2}
@@ -73,7 +71,6 @@ function GMGDObj(# initial condition
                 # setup for potential function part
                 Bayesian_inverse_problem::Bool = false,
                 N_f::IT = 1,
-                gradient_computation_order::IT = 2, 
                 quadrature_type = "unscented_transform",
                 c_weight_BIP::FT = sqrt(3.0),
                 N_ens::IT = -1,
@@ -102,7 +99,7 @@ function GMGDObj(# initial condition
             ## Gaussian mixture expectation
             quadrature_type_GM, c_weight_GM, c_weights_GM, mean_weights_GM,
             ## potential function expectation
-            Bayesian_inverse_problem, N_f, N_ens, quadrature_type, gradient_computation_order,
+            Bayesian_inverse_problem, N_f, N_ens, quadrature_type,
             c_weight_BIP, c_weights, mean_weights, w_min)
 end
 
@@ -125,7 +122,7 @@ function Gaussian_mixture_density_derivatives(x_w::Array{FT,1}, x_mean::Array{FT
     for i = 1:N_modes
         temp = inv_sqrt_xx_cov[i]'*inv_sqrt_xx_cov[i]*(x_mean[i,:] - x)
         ρᵢ   = Gaussian_density_helper(x_mean[i,:], inv_sqrt_xx_cov[i], x)
-        # TODO compute ratio
+    
         ρ   += x_w[i]*ρᵢ
         ∇ρ  += x_w[i]*ρᵢ*temp
         ∇²ρ += (hessian_correct ? x_w[i]*ρᵢ*( temp * temp') : x_w[i]*ρᵢ*( temp * temp' - inv_sqrt_xx_cov[i]'*inv_sqrt_xx_cov[i]))
@@ -143,8 +140,7 @@ function compute_logρ_gm(x_p, x_w, x_mean, inv_sqrt_xx_cov; hessian_correct::Bo
     ∇²logρ = zeros(N_modes, N_ens, N_x, N_x)
     for im = 1:N_modes
         for i = 1:N_ens
-            # ρ, ∇ρ, ∇²ρ = Gaussian_mixture_density_derivatives(x_w, x_mean, inv_sqrt_xx_cov, x_p[im, i, :]; hessian_correct = hessian_correct)
-            ρ, ∇ρ  , ∇²ρ = Gaussian_mixture_density_derivatives(x_w, x_mean, inv_sqrt_xx_cov, x_p[im, i, :]; hessian_correct = hessian_correct)
+            ρ, ∇ρ, ∇²ρ = Gaussian_mixture_density_derivatives(x_w, x_mean, inv_sqrt_xx_cov, x_p[im, i, :]; hessian_correct = hessian_correct)
             
             logρ[im, i]         =   log(  ρ  ) - N_x/2.0 * log(2π)
             ∇logρ[im, i, :]     =   ∇ρ/ρ
@@ -212,22 +208,16 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt::FT) where {
     N_ens, c_weights_GM, mean_weights_GM = gmgd.N_ens, gmgd.c_weights_GM, gmgd.mean_weights_GM
    
     logρ_mean, ∇logρ_mean, ∇²logρ_mean  = compute_logρ_gm_expectation(exp.(logx_w), x_mean, sqrt_xx_cov, inv_sqrt_xx_cov, c_weights_GM, mean_weights_GM; hessian_correct=true)
-    # logρ_mean_, ∇logρ_mean_, ∇²logρ_mean_  = compute_logρ_gm_expectation(exp.(logx_w), x_mean, sqrt_xx_cov, inv_sqrt_xx_cov)
-
-    # if isnan.(norm(∇²logρ_mean))
-    #     @info ∇²logρ_mean
-    # end
-    # @info norm(logρ_mean - logρ_mean_), norm(∇logρ_mean - ∇logρ_mean_) , norm(∇²logρ_mean), norm(∇²logρ_mean_)
-    # @assert(norm(logρ_mean - logρ_mean_)+norm(∇logρ_mean - ∇logρ_mean_)+norm(∇²logρ_mean - ∇²logρ_mean_)<1.0e-8)
     ############ Generate sigma points
     x_p = zeros(N_modes, N_ens, N_x)
     for im = 1:N_modes
         x_p[im,:,:] = construct_ensemble(x_mean[im,:], sqrt_xx_cov[im]; c_weights = gmgd.c_weights)
     end
-    ###########  Potential term
-
+    
+    ########### function evaluation, it can be F or Φᵣ
     V, ∇V, ∇²V = func(x_p)
 
+    ###########  Potential term
     Φᵣ_mean, ∇Φᵣ_mean, ∇²Φᵣ_mean = zeros(N_modes), zeros(N_modes, N_x), zeros(N_modes, N_x, N_x)
     for im = 1:N_modes
         Φᵣ_mean[im], ∇Φᵣ_mean[im,:], ∇²Φᵣ_mean[im,:,:] = gmgd.Bayesian_inverse_problem ? 
@@ -242,13 +232,10 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt::FT) where {
 
     
     for im = 1:N_modes
-        # x_mean_n[im, :]  =  x_mean[im, :] - dt*xx_cov[im, :, :]*(∇logρ_mean[im, :] + ∇Φᵣ_mean[im, :]) 
-        
+        # update covariance
         if update_covariance
             xx_cov_n[im, :, :] =  inv( inv(xx_cov[im, :, :]) + dt*(∇²logρ_mean[im, :, :] + ∇²Φᵣ_mean[im, :, :]) )
-            # xx_cov_n[im, :, :] =  (1 + dt)*inv( inv(xx_cov[im, :, :]) + dt*(∇²logρ_mean[im, :, :] + ∇²V_mean[im, :, :]) )
-            # @info "cov residual ", ∇²logρ_mean[im, :, :], ∇²Φᵣ_mean[im, :, :], ∇²logρ_mean[im, :, :] + ∇²Φᵣ_mean[im, :, :]
-        
+            
             if det(xx_cov_n[im, :, :]) <= 0.0
                 @info "error! negative determinant for mode ", im,  x_mean[im, :], xx_cov[im, :, :], inv(xx_cov[im, :, :]), ∇²logρ_mean[im, :, :], ∇²Φᵣ_mean[im, :, :]
                 @info " mean residual ", ∇logρ_mean[im, :] , ∇Φᵣ_mean[im, :], ∇logρ_mean[im, :] + ∇Φᵣ_mean[im, :]
@@ -257,26 +244,24 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt::FT) where {
         else
             xx_cov_n[im, :, :] = xx_cov[im, :, :]
         end
-
+        # update mean
         x_mean_n[im, :]  =  x_mean[im, :] - dt*xx_cov_n[im, :, :]*(∇logρ_mean[im, :] + ∇Φᵣ_mean[im, :]) 
         
 
-        
-        
-        ρlogρ_Φᵣ = 0 
-        for im = 1:N_modes
-            ρlogρ_Φᵣ += exp(logx_w[im])*(logρ_mean[im] + Φᵣ_mean[im])
-        end
-        logx_w_n[im] = logx_w[im] - dt*(logρ_mean[im] + Φᵣ_mean[im] - ρlogρ_Φᵣ)
+        # update weights
+        # dlogwₖ = ∫(ρᴳᴹ - Nₖ)(logρᴳᴹ + Φᵣ)dθ
+        # logwₖ +=  -Δt∫Nₖ(logρᴳᴹ + Φᵣ)dθ + Δt ∫ρᴳᴹ(logρᴳᴹ + Φᵣ)dθ
+        # the second term is independent of k, it is a normalization term
+        logx_w_n[im] = logx_w[im] - dt*(logρ_mean[im] + Φᵣ_mean[im])
 
-        # @info "weight residual ", logρ_mean[im], Φᵣ_mean[im], ρlogρ_Φᵣ, logρ_mean[im] + Φᵣ_mean[im] - ρlogρ_Φᵣ
-        
     end
-       
+    
     # Normalization
     w_min = gmgd.w_min
     logx_w_n .-= maximum(logx_w_n)
     logx_w_n .-= log( sum(exp.(logx_w_n)) )
+
+    # clipping, such that wₖ ≥ w_min
     x_w_n = exp.(logx_w_n)
     clip_ind = x_w_n .< w_min
     x_w_n[clip_ind] .= w_min
@@ -293,30 +278,30 @@ end
 function ensemble(x_ens, forward)
     N_modes, N_ens, N_x = size(x_ens)
 
-    V = zeros(N_modes, N_ens)   
-    ∇V = zeros(N_modes, N_ens, N_x)   
-    ∇²V = zeros(N_modes, N_ens, N_x, N_x)  
+    Φᵣ = zeros(N_modes, N_ens)   
+    ∇Φᵣ = zeros(N_modes, N_ens, N_x)   
+    ∇²Φᵣ = zeros(N_modes, N_ens, N_x, N_x)  
 
     for im = 1:N_modes
         for i = 1:N_ens
-            V[im, i], ∇V[im, i, :], ∇²V[im, i, :, :] = forward(x_ens[im, i, :])
+            Φᵣ[im, i], ∇Φᵣ[im, i, :], ∇²Φᵣ[im, i, :, :] = forward(x_ens[im, i, :])
         end
     end
 
-    return V, ∇V, ∇²V 
+    return Φᵣ, ∇Φᵣ, ∇²Φᵣ 
 end
 
 
 function ensemble_BIP(x_ens, forward, N_f)
     N_modes, N_ens, N_x = size(x_ens)
-    V = zeros(N_modes, N_ens, N_f)   
+    F = zeros(N_modes, N_ens, N_f)   
     for im = 1:N_modes
         for i = 1:N_ens
-            V[im, i, :] = forward(x_ens[im, i, :])
+            F[im, i, :] = forward(x_ens[im, i, :])
         end
     end
     
-    return V, nothing, nothing
+    return F, nothing, nothing
 end
 
 function GMGD_Run(
@@ -333,7 +318,6 @@ function GMGD_Run(
     # setup for potential function part
     Bayesian_inverse_problem::Bool = false,
     N_f::IT = 1,
-    gradient_computation_order::IT = 2, 
     quadrature_type = "unscented_transform",
     c_weight_BIP::FT = sqrt(3.0),
     N_ens::IT = -1,
@@ -350,7 +334,6 @@ function GMGD_Run(
         # setup for potential function part
         Bayesian_inverse_problem = Bayesian_inverse_problem,
         N_f = N_f,
-        gradient_computation_order = gradient_computation_order, 
         quadrature_type = quadrature_type,
         c_weight_BIP = c_weight_BIP,
         N_ens = N_ens,
@@ -372,6 +355,108 @@ end
 
 
 ###### Plot function 
+
+function Gaussian_density_1d(x_mean::Array{FT,1}, inv_sqrt_xx_cov, xx) where {FT<:AbstractFloat}
+    dx = [xx[:]' ;] - repeat(x_mean, 1, length(xx))
+    return exp.( -1/2*(dx .* (inv_sqrt_xx_cov'*(inv_sqrt_xx_cov*dx)))) .* abs(det(inv_sqrt_xx_cov))
+end
+
+function Gaussian_mixture_1d(x_w, x_mean, xx_cov,  xx)
+    
+    N_modes = length(x_w)
+    inv_sqrt_xx_cov = [compute_sqrt_matrix(xx_cov[im,:,:]; type="Cholesky")[2] for im = 1:N_modes]
+    
+    # 1d Gaussian plot
+    dx = xx[2] - xx[1]
+    N_x = length(xx)
+    y = zeros(N_x)
+    
+    for im = 1:N_modes
+        y .+= x_w[im]*Gaussian_density_1d(x_mean[im,:], inv_sqrt_xx_cov[im], xx)'
+    end
+
+    y = y/(sum(y)*dx)
+    
+    return y 
+end
+
+
+function posterior_BIP_1d(func_F, xx)
+    dx = xx[2] - xx[1]
+    N_x = length(xx)
+    y = zeros(N_x)
+    for i = 1:N_x
+        F = func_F([xx[i];])
+        y[i] = exp(-F'*F/2)
+    end
+    y /= (sum(y)*dx) 
+
+    return y
+end
+
+
+
+function posterior_1d(func_V, xx)
+    dx = xx[2] - xx[1]
+    N_x = length(xx)
+    y = zeros(N_x)
+    for i = 1:N_x
+        V = func_V([xx[i];])
+        y[i] = exp(-V)
+    end
+    y /= (sum(y)*dx) 
+
+    return y
+end
+    
+
+
+function visualization_1d(ax; Nx=2000, x_lim=[-4.0,4.0], func_F = nothing, func_V = nothing, objs=nothing)
+
+    # visualization 
+    x_min, x_max = x_lim
+    
+    xx = LinRange(x_min, x_max, Nx)
+    dx = xx[2] - xx[1] 
+    
+    yy_ref = (func_V === nothing ? posterior_BIP_1d(func_F, xx) : posterior_1d(func_V, xx))
+    color_lim = (minimum(yy_ref), maximum(yy_ref))
+    
+    ax[1].plot(xx, yy_ref, "--", label="Reference", color="grey", linewidth=2, fillstyle="none", markevery=25)
+    ax[2].plot(xx, yy_ref, "--", label="Reference", color="grey", linewidth=2, fillstyle="none", markevery=25)
+           
+   
+    N_obj = length(objs)
+    
+    N_iter = length(objs[1].logx_w) - 1
+    error = zeros(N_obj, N_iter+1)
+        
+    for (iobj, obj) in enumerate(objs)
+        for iter = 0:N_iter  
+            x_w = exp.(obj.logx_w[iter+1]); x_w /= sum(x_w)
+            x_mean = obj.x_mean[iter+1]
+            xx_cov = obj.xx_cov[iter+1]
+            yy = Gaussian_mixture_1d(x_w, x_mean, xx_cov,  xx)
+            error[iobj, iter+1] = norm(yy - yy_ref,1)*dx
+            
+            if iter == N_iter
+                ax[iobj].plot(xx, yy, "--", label="Reference", color="red", linewidth=2, fillstyle="none", markevery=25)
+                N_modes = size(x_mean, 1)
+                
+
+                ax[iobj].scatter(obj.x_mean[1], exp.(obj.logx_w[1]), marker="x", color="grey") 
+                ax[iobj].scatter(x_mean, x_w, marker="o", color="red", facecolors="none")
+
+            end
+        end
+        
+    end
+    for i_obj = 1:N_obj
+        ax[N_obj+1].semilogy(Array(0:N_iter), error[i_obj, :], label=objs[i_obj].name*" (K="*string(size(objs[i_obj].x_mean[1], 1))*")")
+    end
+    ax[N_obj+1].legend()
+end
+
 
 
 function Gaussian_density_2d(x_mean::Array{FT,1}, inv_sqrt_xx_cov, X, Y) where {FT<:AbstractFloat}
@@ -481,11 +566,6 @@ function visualization_2d(ax; Nx=2000, Ny=2000, x_lim=[-4.0,4.0], y_lim=[-4.0,4.
     end
     ax[N_obj+2].legend()
 end
-
-
-
-
-
 
 
 
