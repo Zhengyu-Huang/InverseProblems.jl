@@ -295,8 +295,8 @@ end
 function ensemble_BIP(x_ens, forward, N_f)
     N_modes, N_ens, N_x = size(x_ens)
     F = zeros(N_modes, N_ens, N_f)   
-    for im = 1:N_modes
-        for i = 1:N_ens
+    Threads.@threads for i = 1:N_ens
+        for im = 1:N_modes
             F[im, i, :] = forward(x_ens[im, i, :])
         end
     end
