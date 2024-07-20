@@ -51,6 +51,8 @@ mutable struct GMGDObj{FT<:AbstractFloat, IT<:Int}
     "weight clipping"
     w_min::FT
 
+    "predicted phi_r"
+    phi_r_pred::Vector
     
 end
 
@@ -92,6 +94,8 @@ function GMGDObj(# initial condition
     
      
     name = (Bayesian_inverse_problem ? "Derivative free GMGD" : "GMGD")
+
+    phi_r_pred = []
     GMGDObj(name,
             logx_w, x_mean, xx_cov, N_modes, N_x,
             iter, update_covariance,
@@ -100,7 +104,7 @@ function GMGDObj(# initial condition
             quadrature_type_GM, c_weight_GM, c_weights_GM, mean_weights_GM,
             ## potential function expectation
             Bayesian_inverse_problem, N_f, N_ens, quadrature_type,
-            c_weight_BIP, c_weights, mean_weights, w_min)
+            c_weight_BIP, c_weights, mean_weights, w_min, phi_r_pred)
 end
 
 
@@ -185,7 +189,7 @@ define the function as
     ens_func(x_ens) = MyG(phys_params, x_ens, other_params)
 use G(x_mean) instead of FG(x)
 """
-function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt::FT) where {FT<:AbstractFloat, IT<:Int}
+function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt_max::FT) where {FT<:AbstractFloat, IT<:Int}
     
     update_covariance = gmgd.update_covariance
     sqrt_matrix_type = gmgd.sqrt_matrix_type
@@ -232,13 +236,22 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt::FT) where {
 
     
     for im = 1:N_modes
+        dt = dt_max
         # update covariance
         if update_covariance
-            xx_cov_n[im, :, :] =  inv( inv(xx_cov[im, :, :]) + dt*(∇²logρ_mean[im, :, :] + ∇²Φᵣ_mean[im, :, :]) )
+
+            temp_A, temp_B = inv(xx_cov[im, :, :]), (∇²logρ_mean[im, :, :] + ∇²Φᵣ_mean[im, :, :])
+            while !isposdef(Hermitian(temp_A+dt*temp_B))
+                dt/=2.0
+                @info "Reduce dt to ", dt
+            end
+
+            xx_cov_n[im, :, :] =   inv( Hermitian(inv(xx_cov[im, :, :]) + dt*(∇²logρ_mean[im, :, :] + ∇²Φᵣ_mean[im, :, :]) ))
             
-            if det(xx_cov_n[im, :, :]) <= 0.0
+            if !isposdef(xx_cov_n[im, :, :])
                 @info "error! negative determinant for mode ", im,  x_mean[im, :], xx_cov[im, :, :], inv(xx_cov[im, :, :]), ∇²logρ_mean[im, :, :], ∇²Φᵣ_mean[im, :, :]
                 @info " mean residual ", ∇logρ_mean[im, :] , ∇Φᵣ_mean[im, :], ∇logρ_mean[im, :] + ∇Φᵣ_mean[im, :]
+                @assert(isposdef(xx_cov_n[im, :, :]))
             end
             
         else
@@ -273,6 +286,7 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt::FT) where {
     push!(gmgd.x_mean, x_mean_n)   # N_ens x N_params
     push!(gmgd.xx_cov, xx_cov_n)   # N_ens x N_data
     push!(gmgd.logx_w, logx_w_n)   # N_ens x N_data
+    push!(gmgd.phi_r_pred, Φᵣ_mean)
 end
 
 function ensemble(x_ens, forward)
@@ -343,7 +357,7 @@ function GMGD_Run(
     
     dt = T/N_iter
     for i in 1:N_iter
-        if i%div(N_iter, 10) == 0  @info "iter = ", i, " / ", N_iter  end
+        if i%max(1,div(N_iter, 10)) == 0  @info "iter = ", i, " / ", N_iter  end
         
         update_ensemble!(gmgdobj, func, dt) 
     end

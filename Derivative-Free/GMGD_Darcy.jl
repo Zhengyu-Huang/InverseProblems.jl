@@ -104,12 +104,12 @@ end
 
 
 N, L = 80, 1.0
-obs_ΔN = 5
+obs_ΔNx, obs_ΔNy = 6, 8
 d = 2.0
 τ = 3.0
 N_KL = 128
 N_θ = 128
-darcy = Setup_Param(N, L, N_KL, obs_ΔN, N_θ, d, τ)
+darcy = Setup_Param(N, L, N_KL, obs_ΔNx, obs_ΔNy, N_θ, d, τ)
 
 
 
@@ -135,8 +135,6 @@ y = y_noiseless + rand(Normal(0, σ_η), N_y)
  
 N_iter = 50
  
-
-N_θ = darcy.N_θ = 128
 μ_0 = zeros(Float64, N_θ)  # prior/initial mean 
 σ_0 = 10.0
 Σ_0 = Array(Diagonal(fill(σ_0^2, N_θ)))  # prior/initial covariance
@@ -165,15 +163,16 @@ Random.seed!(63);
 
 
 dt = 0.5
+T = dt*N_iter
 func_args = (y, μ_0, σ_η, σ_0)
-func_F(x) = darcy_F(darcy, x, func_args)
+func_F(x) = darcy_F(darcy, func_args, x)
         
 gmgdobj = GMGD_Run(
         func_F, 
         T,
         N_iter,
         # Initial condition
-        x0_w, x0_mean, xx0_cov;
+        θ0_w, θ0_mean, θθ0_cov;
         sqrt_matrix_type = "Cholesky",
         # setup for Gaussian mixture part
         quadrature_type_GM = "mean_point",
@@ -198,9 +197,9 @@ N_ens = 2N_θ + 1
 # errors = zeros(Float64, (3, N_iter+1, 4))
 # # GMKI-1
 # for i = 1:N_iter+1
-#     errors[1, i, 1] = norm(darcy.logκ_2d - compute_logκ_2d(darcy, gmkiobj.θ_mean[i]))/norm(darcy.logκ_2d)
-#     errors[2, i, 1] = 0.5*(gmkiobj.y_pred[i] - gmkiobj.y)'*(gmkiobj.Σ_η\(gmkiobj.y_pred[i] - gmkiobj.y))
-#     errors[3, i, 1] = norm(gmkiobj.θθ_cov[i])
+#     errors[1, i, 1] = norm(darcy.logκ_2d - compute_logκ_2d(darcy, gmgdobj.x_mean[i]))/norm(darcy.logκ_2d)
+#     errors[2, i, 1] = 0.5*(gmgdobj.y_pred[i] - gmgdobj.y)'*(gmgdobj.Σ_η\(gmgdobj.y_pred[i] - gmgdobj.y))
+#     errors[3, i, 1] = norm(gmgdobj.θθ_cov[i])
 # end
 
 # ax1.plot(ites, errors[1, :, 1], "-.x", color = "C0", fillstyle="none", markevery=1, label= "GMKI-1 (J=$N_ens)")
@@ -221,18 +220,21 @@ N_ens = 2N_θ + 1
 
 
 # visulize the log permeability field
-fig_logk, ax_logk = PyPlot.subplots(ncols = 4, sharex=true, sharey=true, figsize=(20,5))
+fig_logk, ax_logk = PyPlot.subplots(ncols = 5, sharex=true, sharey=true, figsize=(20,4))
 for ax in ax_logk ;  ax.set_xticks([]) ; ax.set_yticks([]) ; end
 color_lim = (minimum(darcy.logκ_2d), maximum(darcy.logκ_2d))
 
 plot_field(darcy, darcy.logκ_2d, color_lim, ax_logk[1]) 
 ax_logk[1].set_title("Truth")
-plot_field(darcy, compute_logκ_2d(darcy, gmkiobj.θ_mean[N_iter][1,:]),  color_lim, ax_logk[2]) 
-ax_logk[2].set_title("Mode 1")
-plot_field(darcy, compute_logκ_2d(darcy, gmkiobj.θ_mean[N_iter][2,:]),  color_lim, ax_logk[3]) 
-ax_logk[3].set_title("Mode 2")
-plot_field(darcy, compute_logκ_2d(darcy, gmkiobj.θ_mean[N_iter][3,:]),  color_lim, ax_logk[4]) 
-ax_logk[4].set_title("Mode 3")
+plot_field(darcy, darcy.logκ_2d[end:-1:1, :],  color_lim, ax_logk[2]) 
+ax_logk[2].set_title("Truth (mirrored)")
+
+plot_field(darcy, compute_logκ_2d(darcy, gmgdobj.x_mean[N_iter][1,:]),  color_lim, ax_logk[3]) 
+ax_logk[3].set_title("Mode 1")
+plot_field(darcy, compute_logκ_2d(darcy, gmgdobj.x_mean[N_iter][2,:]),  color_lim, ax_logk[4]) 
+ax_logk[4].set_title("Mode 2")
+plot_field(darcy, compute_logκ_2d(darcy, gmgdobj.x_mean[N_iter][3,:]),  color_lim, ax_logk[5]) 
+ax_logk[5].set_title("Mode 3")
 
 
 fig_logk.tight_layout()
@@ -253,9 +255,9 @@ for m = 1:N_modes
         else
             logκ_2d_truth = darcy.logκ_2d[end:-1:1, :]
         end
-        errors[1, i, m] = norm(logκ_2d_truth - compute_logκ_2d(darcy, gmkiobj.θ_mean[i][m,:]))/norm(darcy.logκ_2d)
-        errors[2, i, m] = 0.5*(gmkiobj.y_pred[i][m,:] - gmkiobj.y)'*(gmkiobj.Σ_η\(gmkiobj.y_pred[i][m,:] - gmkiobj.y))
-        errors[3, i, m] = norm(gmkiobj.θθ_cov[i][m,:,:])
+        errors[1, i, m] = norm(logκ_2d_truth - compute_logκ_2d(darcy, gmgdobj.x_mean[i][m,:]))/norm(darcy.logκ_2d)
+        errors[2, i, m] = gmgdobj.phi_r_pred[i][m]
+        errors[3, i, m] = norm(gmgdobj.xx_cov[i][m,:,:])
     end
 end
 
@@ -283,9 +285,9 @@ ax3.set_ylabel("Frobenius norm of covariance")
 ax3.legend()
 
 
-θ_w = exp.(hcat(gmkiobj.logθ_w...))
+x_w = exp.(hcat(gmgdobj.logx_w...))
 for m = 1: N_modes
-    ax4.plot(ites, θ_w[m, 1:N_iter], marker=linestyles[m], color = "C"*string(m), fillstyle="none", markevery=markevery, label= "mode "*string(m))
+    ax4.plot(ites, x_w[m, 1:N_iter], marker=linestyles[m], color = "C"*string(m), fillstyle="none", markevery=markevery, label= "mode "*string(m))
 end
 ax4.set_xlabel("Iterations")
 ax4.set_ylabel("Weights")
@@ -301,23 +303,23 @@ n_ind = 16
 θ_ind = Array(1:n_ind)
 ax.scatter(θ_ind, θ_ref[θ_ind], s = 100, marker="x", color="black", label="Truth")
 for m = 1:N_modes
-    ax.scatter(θ_ind, gmkiobj.θ_mean[N_iter][m,θ_ind], s = 50, marker="o", color="C"*string(m), facecolors="none", label="Mode "*string(m))
+    ax.scatter(θ_ind, gmgdobj.x_mean[N_iter][m,θ_ind], s = 50, marker="o", color="C"*string(m), facecolors="none", label="Mode "*string(m))
 end
 
 Nx = 1000
 for i in θ_ind
-    θ_min = minimum(gmkiobj.θ_mean[N_iter][:,i] .- 3sqrt.(gmkiobj.θθ_cov[N_iter][:,i,i]))
-    θ_max = maximum(gmkiobj.θ_mean[N_iter][:,i] .+ 3sqrt.(gmkiobj.θθ_cov[N_iter][:,i,i]))
+    x_min = minimum(gmgdobj.x_mean[N_iter][:,i] .- 3sqrt.(gmgdobj.xx_cov[N_iter][:,i,i]))
+    x_max = maximum(gmgdobj.x_mean[N_iter][:,i] .+ 3sqrt.(gmgdobj.xx_cov[N_iter][:,i,i]))
         
     xxs = zeros(N_modes, Nx)  
     zzs = zeros(N_modes, Nx)  
     for m =1:N_modes
-        xxs[m, :], zzs[m, :] = Gaussian_1d(gmkiobj.θ_mean[N_iter][m,i], gmkiobj.θθ_cov[N_iter][m,i,i], Nx, θ_min, θ_max)
-        zzs[m, :] *= exp(gmkiobj.logθ_w[N_iter][m]) * 3
+        xxs[m, :], zzs[m, :] = Gaussian_1d(gmgdobj.x_mean[N_iter][m,i], gmgdobj.xx_cov[N_iter][m,i,i], Nx, x_min, x_max)
+        zzs[m, :] *= exp(gmgdobj.logx_w[N_iter][m]) * 3
     end
     label = nothing
     if i == 1
-        label = "GMKI"
+        label = "DF-GMGD"
     end
     ax.plot(sum(zzs, dims=1)' .+ i, xxs[1,:], linestyle="-", color="C0", fillstyle="none", label=label)
     ax.plot(fill(i, Nx), xxs[1,:], linestyle=":", color="black", fillstyle="none")

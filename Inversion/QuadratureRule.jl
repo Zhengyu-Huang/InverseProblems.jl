@@ -140,8 +140,11 @@ function compute_expectation_BIP(x_mean, inv_sqrt_cov, V, c_weight)
     # ∇²Φᵣ_mean = inv_sqrt_cov'*(Diagonal(6*diag(ATA)) + BTB)*inv_sqrt_cov
     # ∇²Φᵣ_mean = inv_sqrt_cov'*( Diagonal(2*fill(sum(ATA)/N_x, N_x) + 4*diag(ATA) + 2*ATc) + BTB)*inv_sqrt_cov
     # ∇²Φᵣ_mean = inv_sqrt_cov'*( Diagonal(2*ATc) + BTB)*inv_sqrt_cov
-    ∇²Φᵣ_mean = inv_sqrt_cov'*( Diagonal(6*diag(ATA) + 2*ATc) + BTB)*inv_sqrt_cov
-             
+    # ∇²Φᵣ_mean = inv_sqrt_cov'*(Diagonal(6*diag(ATA) ) + BTB)*inv_sqrt_cov
+    # @info ATc, diag(ATA) , c,  "??"
+    # ∇²Φᵣ_mean = inv_sqrt_cov'*( Diagonal(6*diag(ATA) + 2*ATc) + BTB)*inv_sqrt_cov
+    ∇²Φᵣ_mean = inv_sqrt_cov'*( Diagonal(6*diag(ATA)) + BTB)*inv_sqrt_cov
+    # @assert(norm(∇²Φᵣ_mean - ∇²Φᵣ_mean1) < 1e-10)         
     return Φᵣ_mean, ∇Φᵣ_mean, ∇²Φᵣ_mean
 end
 

@@ -45,7 +45,7 @@ mutable struct Setup_Param{FT<:AbstractFloat, IT<:Int}
 end
 
 
-function Setup_Param(N::IT, L::FT, N_KL::IT, obs_ΔN::IT, 
+function Setup_Param(N::IT, L::FT, N_KL::IT, obs_ΔNx::IT, obs_ΔNy::IT, 
                      N_θ::IT, d::FT=2.0, τ::FT=3.0; seed::IT=123)  where {FT<:AbstractFloat, IT<:Int}
 
     xx = Array(LinRange(0, L, N))
@@ -54,8 +54,8 @@ function Setup_Param(N::IT, L::FT, N_KL::IT, obs_ΔN::IT,
     logκ_2d, φ, λ, θ_ref = generate_θ_KL(xx, N_KL, d, τ, seed=seed)
     f_2d = compute_f_2d(xx)
 
-    x_locs = Array(obs_ΔN:obs_ΔN:N-obs_ΔN)
-    y_locs = Array(obs_ΔN:obs_ΔN:N-obs_ΔN)
+    x_locs = Array(obs_ΔNx:obs_ΔNx:N-obs_ΔNx)
+    y_locs = Array(obs_ΔNy:obs_ΔNy:N-obs_ΔNy)
     N_y = length(x_locs)*length(y_locs)
 
     θ_names=["logκ"]

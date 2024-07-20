@@ -328,7 +328,7 @@ end
 
 function Setup_Param(ν::Float64, ub::Float64, vb::Float64,  
     N::Int64, L::Float64,  
-    method::String, N_t::Int64,
+    method::String, N_t::Int64, T::Float64,
     obs_ΔNx::Int64, obs_ΔNy::Int64, obs_ΔNt::Int64;
     symmetric::Bool = false,  # observation locations are symmetric (to test multiple modes)
     t_average::Bool = false,  # observation is the averaged in-time
@@ -765,7 +765,7 @@ function forward_helper(s_param::Setup_Param, ω0::Array{Float64,2}; symmetric::
     
     solver = Spectral_NS_Solver(mesh, ν; fx = s_param.fx, fy = s_param.fy, ω0 = ω0, ub = s_param.ub, vb = s_param.vb)  
     Δt_max = Stable_Δt(mesh, ν, solver.u, solver.v)
-    
+    T, N_t = s_param.T, s_param.N_t
     Δt = T/N_t
     @assert(Δt <= Δt_max)
     # initialize observation 
@@ -822,6 +822,15 @@ function aug_forward(s_param::Setup_Param, θ::Array{Float64,1})
     
     return [data; θ]
 end
+
+
+function NS_F(s_param::Setup_Param, args, θ::Array{Float64, 1}) 
+    y_obs, r₀, ση, σ₀ = args
+    Gθ  = forward(s_param, θ)
+    return [(y_obs  - Gθ)./ση; (r₀ - θ)./σ₀]
+
+end
+
 
 
 
