@@ -32,8 +32,9 @@ mutable struct GMGDObj{FT<:AbstractFloat, IT<:Int}
     "expectation of Gaussian mixture and its derivatives"
     quadrature_type_GM::String
     c_weight_GM::FT
-    c_weights_GM::Array{FT, 2}
+    c_weights_GM::Union{Array{FT, 2}, Nothing}
     mean_weights_GM::Array{FT, 1}
+    N_ens_GM::IT
     "when Bayesian_inverse_problem is true :  function is F, 
      otherwise the function is Phi_R,  Phi_R = 1/2 F ⋅ F"
     Bayesian_inverse_problem::Bool
@@ -102,7 +103,7 @@ function GMGDObj(# initial condition
             iter, update_covariance,
             sqrt_matrix_type,
             ## Gaussian mixture expectation
-            quadrature_type_GM, c_weight_GM, c_weights_GM, mean_weights_GM,
+            quadrature_type_GM, c_weight_GM, c_weights_GM, mean_weights_GM, N_ens_GM,
             ## potential function expectation
             Bayesian_inverse_problem, N_f, N_ens, quadrature_type,
             c_weight_BIP, c_weights, mean_weights, w_min, phi_r_pred)
@@ -159,15 +160,17 @@ end
 
 
 
-function compute_logρ_gm_expectation(x_w, x_mean, sqrt_xx_cov, inv_sqrt_xx_cov, c_weights_GM, mean_weights_GM; hessian_correct::Bool = false)
+function compute_logρ_gm_expectation(x_w, x_mean, sqrt_xx_cov, inv_sqrt_xx_cov, c_weights_GM, mean_weights_GM, N_ens_GM; hessian_correct::Bool = false)
     x_w = x_w / sum(x_w)
     N_modes, N_x = size(x_mean)
-    _, N_ens = size(c_weights_GM)
-    xs = zeros(N_modes, N_ens, N_x)
+    if c_weights_GM !== nothing
+        N_ens_GM =  size(c_weights_GM, 2)
+    end
+    xs = zeros(N_modes, N_ens_GM, N_x)
     logρ_mean, ∇logρ_mean, ∇²logρ_mean = zeros(N_modes), zeros(N_modes, N_x), zeros(N_modes, N_x, N_x)
 
     for im = 1:N_modes
-        xs[im,:,:] = construct_ensemble(x_mean[im, :], sqrt_xx_cov[im]; c_weights = c_weights_GM)
+        xs[im,:,:] = construct_ensemble(x_mean[im, :], sqrt_xx_cov[im]; c_weights = c_weights_GM, N_ens = N_ens_GM)
     end
     
     logρ, ∇logρ, ∇²logρ = compute_logρ_gm(xs, x_w, x_mean, inv_sqrt_xx_cov; hessian_correct = hessian_correct)
@@ -209,8 +212,7 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt_max::FT) whe
         push!(inv_sqrt_xx_cov, inv_sqrt_cov) 
     end
 
-    N_ens, c_weights_GM, mean_weights_GM = gmgd.N_ens, gmgd.c_weights_GM, gmgd.mean_weights_GM
-
+    N_ens = gmgd.N_ens
     ############ Generate sigma points
     x_p = zeros(N_modes, N_ens, N_x)
     for im = 1:N_modes
@@ -238,7 +240,8 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt_max::FT) whe
 
 
     ###########  Entropy term
-    logρ_mean, ∇logρ_mean, ∇²logρ_mean  = compute_logρ_gm_expectation(exp.(logx_w), x_mean, sqrt_xx_cov, inv_sqrt_xx_cov, c_weights_GM, mean_weights_GM; hessian_correct=true)
+    c_weights_GM, mean_weights_GM, N_ens_GM = gmgd.c_weights_GM, gmgd.mean_weights_GM, gmgd.N_ens_GM
+    logρ_mean, ∇logρ_mean, ∇²logρ_mean  = compute_logρ_gm_expectation(exp.(logx_w), x_mean, sqrt_xx_cov, inv_sqrt_xx_cov, c_weights_GM, mean_weights_GM, N_ens_GM; hessian_correct=true)
     
     ########## update covariance
     for im = 1:N_modes
