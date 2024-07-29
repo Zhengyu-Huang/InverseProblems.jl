@@ -70,6 +70,7 @@ function GMGDObj(# initial condition
                 # setup for Gaussian mixture part
                 quadrature_type_GM::String = "cubature_transform_o5",
                 c_weight_GM::FT = sqrt(3.0),
+                N_ens_GM::IT = -1,
                 # setup for potential function part
                 Bayesian_inverse_problem::Bool = false,
                 N_f::IT = 1,
@@ -88,7 +89,7 @@ function GMGDObj(# initial condition
     push!(xx_cov, xx0_cov)      # insert parameters at end of array (in this case just 1st entry)
     
     iter = 0
-    _, c_weights_GM, mean_weights_GM = generate_quadrature_rule(N_x, quadrature_type_GM; c_weight=c_weight_GM)
+    N_ens_GM, c_weights_GM, mean_weights_GM = generate_quadrature_rule(N_x, quadrature_type_GM; c_weight=c_weight_GM, N_ens=N_ens_GM)
     
     N_ens, c_weights, mean_weights = generate_quadrature_rule(N_x, quadrature_type; c_weight=c_weight_BIP, N_ens=N_ens)
     
@@ -208,10 +209,8 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt_max::FT) whe
         push!(inv_sqrt_xx_cov, inv_sqrt_cov) 
     end
 
-    ###########  Entropy term
     N_ens, c_weights_GM, mean_weights_GM = gmgd.N_ens, gmgd.c_weights_GM, gmgd.mean_weights_GM
-   
-    logρ_mean, ∇logρ_mean, ∇²logρ_mean  = compute_logρ_gm_expectation(exp.(logx_w), x_mean, sqrt_xx_cov, inv_sqrt_xx_cov, c_weights_GM, mean_weights_GM; hessian_correct=true)
+
     ############ Generate sigma points
     x_p = zeros(N_modes, N_ens, N_x)
     for im = 1:N_modes
@@ -229,22 +228,23 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt_max::FT) whe
         compute_expectation(V[im,:], ∇V[im,:,:], ∇²V[im,:,:,:], gmgd.mean_weights) 
     end
 
+
+
+    
+
     x_mean_n = copy(x_mean)
     xx_cov_n = copy(xx_cov)
     logx_w_n = copy(logx_w)
 
 
+    ###########  Entropy term
+    logρ_mean, ∇logρ_mean, ∇²logρ_mean  = compute_logρ_gm_expectation(exp.(logx_w), x_mean, sqrt_xx_cov, inv_sqrt_xx_cov, c_weights_GM, mean_weights_GM; hessian_correct=true)
     
+    ########## update covariance
     for im = 1:N_modes
         dt = dt_max
         # update covariance
         if update_covariance
-
-            temp_A, temp_B = inv(xx_cov[im, :, :]), (∇²logρ_mean[im, :, :] + ∇²Φᵣ_mean[im, :, :])
-            while !isposdef(Hermitian(temp_A+dt*temp_B))
-                dt/=2.0
-                @info "Reduce dt to ", dt
-            end
 
             xx_cov_n[im, :, :] =   inv( Hermitian(inv(xx_cov[im, :, :]) + dt*(∇²logρ_mean[im, :, :] + ∇²Φᵣ_mean[im, :, :]) ))
             
@@ -257,17 +257,32 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt_max::FT) whe
         else
             xx_cov_n[im, :, :] = xx_cov[im, :, :]
         end
+    end
+
+
+    ########## update mean
+    for im = 1:N_modes
+        dt = dt_max
         # update mean
         x_mean_n[im, :]  =  x_mean[im, :] - dt*xx_cov_n[im, :, :]*(∇logρ_mean[im, :] + ∇Φᵣ_mean[im, :]) 
-        
+    end
+
+
+    ########## update weights
+    for im = 1:N_modes
+        dt = dt_max
 
         # update weights
         # dlogwₖ = ∫(ρᴳᴹ - Nₖ)(logρᴳᴹ + Φᵣ)dθ
         # logwₖ +=  -Δt∫Nₖ(logρᴳᴹ + Φᵣ)dθ + Δt ∫ρᴳᴹ(logρᴳᴹ + Φᵣ)dθ
         # the second term is independent of k, it is a normalization term
         logx_w_n[im] = logx_w[im] - dt*(logρ_mean[im] + Φᵣ_mean[im])
-
     end
+    # for im = 1:N_modes
+    #     @info "mean = ", x_mean[im, :]
+    #     @info "mean update = ", norm(∇logρ_mean[im, :] + ∇Φᵣ_mean[im, :]), norm(dt*xx_cov_n[im, :, :]*(∇logρ_mean[im, :] + ∇Φᵣ_mean[im, :]))
+    # end
+    # @info "Φᵣ_mean = ", Φᵣ_mean
     
     # Normalization
     w_min = gmgd.w_min
@@ -329,6 +344,7 @@ function GMGD_Run(
     # setup for Gaussian mixture part
     quadrature_type_GM::String = "cubature_transform_o5",
     c_weight_GM::FT = sqrt(3.0),
+    N_ens_GM::IT = -1,
     # setup for potential function part
     Bayesian_inverse_problem::Bool = false,
     N_f::IT = 1,
@@ -345,6 +361,7 @@ function GMGD_Run(
         # setup for Gaussian mixture part
         quadrature_type_GM = quadrature_type_GM,
         c_weight_GM = c_weight_GM,
+        N_ens_GM = N_ens_GM,
         # setup for potential function part
         Bayesian_inverse_problem = Bayesian_inverse_problem,
         N_f = N_f,

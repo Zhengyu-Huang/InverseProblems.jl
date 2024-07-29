@@ -17,8 +17,11 @@ function generate_quadrature_rule(N_x, quadrature_type; c_weight=sqrt(N_x), N_en
         c_weights    = zeros(N_x, N_ens)
         mean_weights = ones(N_ens)
     elseif quadrature_type == "random_sampling"
-        c_weights = nothing
-        mean_weights =  nothing   
+        Random.seed!(123);
+        @assert(N_ens%2 == 0)
+        c_weights = rand(Normal(0, 1), N_x, N_ens)
+        c_weights[:,div(N_ens,2)+1:end] = -c_weights[:,1:div(N_ens,2)]
+        mean_weights =  ones(N_ens)/N_ens
     elseif  quadrature_type == "unscented_transform"
         N_ens = 2N_x+1
         c_weights = zeros(N_x, N_ens)

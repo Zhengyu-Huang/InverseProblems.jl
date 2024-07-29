@@ -9,7 +9,7 @@
 #SBATCH -o "NS_calibration"
 
 # Size of the ensemble
-module load julia/1.7.1
+# module load julia/1.7.1
 
 export JULIA_NUM_THREADS=${SLURM_CPUS_PER_TASK:=1}
 
