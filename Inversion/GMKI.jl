@@ -51,6 +51,9 @@ mutable struct GMKIObj{FT<:AbstractFloat, IT<:Int}
     iter::IT
     mixture_power_sampling_method::String
     unscented_transform::String
+
+    "weight clipping"
+    w_min::FT
 end
 
 
@@ -114,13 +117,14 @@ function GMKIObj(θ0_w::Array{FT, 1},
                 unscented_transform::String = "modified-2n+1",
                 adapt_α = false,
                 trunc_α = -1.0,
-                mixture_power_sampling_method = "random-sampling") where {FT<:AbstractFloat, IT<:Int}
+                mixture_power_sampling_method = "random-sampling",
+                w_min::FT = 1.0e-15) where {FT<:AbstractFloat, IT<:Int}
 
     ## check UKI hyperparameters
     @assert(update_freq > 0)
     if update_freq > 0 
         @assert(Δt > 0.0 && Δt < 1)
-        @info "Start UKI on the mean-field stochastic dynamical system for Bayesian inference "
+        @info "Start GMKI on the mean-field stochastic dynamical system for Bayesian inference "
         Σ_ω = nothing
     end
 
@@ -158,7 +162,7 @@ function GMKIObj(θ0_w::Array{FT, 1},
                   N_modes, N_ens, N_θ, N_y, 
                   c_weights, mean_weights, cov_weights, adapt_α, trunc_α,
                   Σ_ω, Δt,
-                  update_freq, iter, mixture_power_sampling_method, unscented_transform)
+                  update_freq, iter, mixture_power_sampling_method, unscented_transform, w_min)
 
 end
 
@@ -270,7 +274,7 @@ function construct_cov(gmki::GMKIObj{FT, IT}, xs::Array{FT,3}, x_means::Array{FT
     return xy_covs
 end
 
-function Gaussian_density_helper(θ_mean::Array{FT,1}, θθ_cov::Array{FT,2}, θ::Vector) where {FT<:AbstractFloat}    
+function Gaussian_density_helper(θ_mean::Array{FT,1}, θθ_cov::Array{FT,2}, θ::Array{FT,1}) where {FT<:AbstractFloat}    
     return exp( -1/2*((θ - θ_mean)'* (θθ_cov\(θ - θ_mean)) )) / ( sqrt(det(θθ_cov)) )
 
 end
@@ -462,24 +466,6 @@ function Gaussian_mixture_power(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_co
     return θ_w_p, θ_mean_p, θθ_cov_p
 end
 
-# reweight Gaussian mixture weights
-function reweight(θ_w::Array{FT,1}, θ_mean::Array{FT,2}, θθ_cov::Array{FT,3}, θ_s::Array{FT,2}, p_s::Array{FT,1}) where {FT<:AbstractFloat}
-    N_modes = size(θ_mean, 1)
-    N_s   = length(p_s)
-    A = zeros(N_s, N_modes)
-
-    for i = 1:N_modes
-        for j =1:N_s
-            A[i, j] = Gaussian_density_helper(θ_mean[i,:], θθ_cov[i,:,:], θ_s[j,:])
-        end
-    end
-
-    θ_w_p = A\p_s
-    θ_w_p[θ_w_p .< 0] .= 0
-    θ_w_p /= sum(θ_w_p)
-
-    return θ_w_p
-end
 """
 update gmki struct
 ens_func: The function g = G(θ)
@@ -549,27 +535,31 @@ function update_ensemble!(gmki::GMKIObj{FT, IT}, ens_func::Function) where {FT<:
     end
     
 
-    logθ_w_n .-= maximum(logθ_w_n)
-    logθ_w_n .-= log( sum(exp.(logθ_w_n)) )
+    # logθ_w_n .-= maximum(logθ_w_n)
+    # logθ_w_n .-= log( sum(exp.(logθ_w_n)) )
 
-    # Clipping
-    logθ_w_min = log(0.01)
-    logθ_w_n[logθ_w_n .< logθ_w_min] .= logθ_w_min
-    logθ_w_n .-= maximum(logθ_w_n)
-    logθ_w_n .-= log( sum(exp.(logθ_w_n)) )
+    # # Clipping
+    # logθ_w_min = log(0.01)
+    # logθ_w_n[logθ_w_n .< logθ_w_min] .= logθ_w_min
+    # logθ_w_n .-= maximum(logθ_w_n)
+    # logθ_w_n .-= log( sum(exp.(logθ_w_n)) )
     
 
-    # TODO reweight
-    REWEIGHT = false
-    if REWEIGHT
-        g_mean_n = ens_func(θ_mean_n)
-        p_n = zeros(N_modes)
-        for i = 1:N_modes
-            p_n[i] = exp(-1.0/2.0* ((y - g_mean_n[i,:])'*(gmki.Σ_η\(y - g_mean_n[i,:]))) )
-        end
-        θ_w_n = reweight(exp.(logθ_w_n), θ_mean_n, θθ_cov_n, θ_mean_n, p_n)
-        logθ_w_n .= log.(θ_w_n)
-    end
+    # Normalization
+    w_min = gmki.w_min
+    logθ_w_n .-= maximum(logθ_w_n)
+    logθ_w_n .-= log( sum(exp.(logθ_w_n)) )
+
+
+    # clipping, such that wₖ ≥ w_min
+    θ_w_n = exp.(logθ_w_n)
+    clip_ind = θ_w_n .< w_min
+    θ_w_n[clip_ind] .= w_min
+    θ_w_n[(!).(clip_ind)] /= (1 - sum(clip_ind)*w_min)/sum(θ_w_n[(!).(clip_ind)])
+    logθ_w_n .= log.(θ_w_n)
+
+
+
 
     ########### Save resutls
     push!(gmki.y_pred, g_mean)     # N_ens x N_data
@@ -592,7 +582,8 @@ function GMKI_Run(s_param, forward::Function,
     mixture_power_sampling_method = "random-sampling",
     θ_basis = nothing,
     adapt_α = false,
-    trunc_α = -1.0)
+    trunc_α = -1.0,
+    w_min = 1.0e-15)
     
     
     gmkiobj = GMKIObj(
