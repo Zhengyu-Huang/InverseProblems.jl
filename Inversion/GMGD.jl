@@ -212,12 +212,16 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt_max::FT) whe
         push!(inv_sqrt_xx_cov, inv_sqrt_cov) 
     end
 
+
     N_ens = gmgd.N_ens
+ 
     ############ Generate sigma points
     x_p = zeros(N_modes, N_ens, N_x)
     for im = 1:N_modes
         x_p[im,:,:] = construct_ensemble(x_mean[im,:], sqrt_xx_cov[im]; c_weights = gmgd.c_weights)
     end
+
+
     
     ########### function evaluation, it can be F or Φᵣ
     V, ∇V, ∇²V = func(x_p)
@@ -241,7 +245,7 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt_max::FT) whe
 
     ###########  Entropy term
     c_weights_GM, mean_weights_GM, N_ens_GM = gmgd.c_weights_GM, gmgd.mean_weights_GM, gmgd.N_ens_GM
-    logρ_mean, ∇logρ_mean, ∇²logρ_mean  = compute_logρ_gm_expectation(exp.(logx_w), x_mean, sqrt_xx_cov, inv_sqrt_xx_cov, c_weights_GM, mean_weights_GM, N_ens_GM; hessian_correct=true)
+    logρ_mean, ∇logρ_mean, ∇²logρ_mean  = compute_logρ_gm_expectation(exp.(logx_w), x_mean, sqrt_xx_cov, inv_sqrt_xx_cov, c_weights_GM, mean_weights_GM, N_ens_GM; hessian_correct=gmgd.Bayesian_inverse_problem)
     
     ########## update covariance
     for im = 1:N_modes
