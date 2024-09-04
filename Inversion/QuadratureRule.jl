@@ -17,8 +17,12 @@ function generate_quadrature_rule(N_x, quadrature_type; c_weight=sqrt(N_x), N_en
         c_weights    = zeros(N_x, N_ens)
         mean_weights = ones(N_ens)
     elseif quadrature_type == "random_sampling"
-        c_weights = nothing
-        mean_weights =  nothing   
+        Random.seed!(123);
+        @assert(N_ens%2 == 0)
+        c_weights = rand(Normal(0, 1), N_x, N_ens)
+        c_weights[:,div(N_ens,2)+1:end] = -c_weights[:,1:div(N_ens,2)]
+        
+        mean_weights =  ones(N_ens)/N_ens
     elseif  quadrature_type == "unscented_transform"
         N_ens = 2N_x+1
         c_weights = zeros(N_x, N_ens)
@@ -92,12 +96,16 @@ function compute_sqrt_matrix(C; type="Cholesky")
     return sqrt_cov, inv_sqrt_cov
 end
 
-function construct_ensemble(x_mean, sqrt_cov; c_weights = nothing, N_ens = 10)
+function construct_ensemble(x_mean, sqrt_cov; c_weights = nothing, N_ens = 100)
 
-    N_x = size(x_mean)
+    
 
     if c_weights === nothing
-        xs = ones(N_ens)*x_mean' + (sqrt_cov * rand(Normal(0, 1),N_x, N_ens))'
+        N_x = size(x_mean,1)
+        # generate random weights on the fly
+        c_weights = rand(Normal(0, 1), N_x, N_ens)
+        c_weights[:,div(N_ens,2)+1:end] = -c_weights[:,1:div(N_ens,2)]
+        xs = ones(N_ens)*x_mean' + (sqrt_cov * c_weights)'
     else
         N_ens = size(c_weights,2)
         xs = ones(N_ens)*x_mean' + (sqrt_cov * c_weights)'
@@ -140,8 +148,11 @@ function compute_expectation_BIP(x_mean, inv_sqrt_cov, V, c_weight)
     # ∇²Φᵣ_mean = inv_sqrt_cov'*(Diagonal(6*diag(ATA)) + BTB)*inv_sqrt_cov
     # ∇²Φᵣ_mean = inv_sqrt_cov'*( Diagonal(2*fill(sum(ATA)/N_x, N_x) + 4*diag(ATA) + 2*ATc) + BTB)*inv_sqrt_cov
     # ∇²Φᵣ_mean = inv_sqrt_cov'*( Diagonal(2*ATc) + BTB)*inv_sqrt_cov
-    ∇²Φᵣ_mean = inv_sqrt_cov'*( Diagonal(6*diag(ATA) + 2*ATc) + BTB)*inv_sqrt_cov
-             
+    # ∇²Φᵣ_mean = inv_sqrt_cov'*(Diagonal(6*diag(ATA) ) + BTB)*inv_sqrt_cov
+    # @info ATc, diag(ATA) , c,  "??"
+    # ∇²Φᵣ_mean = inv_sqrt_cov'*( Diagonal(6*diag(ATA) + 2*ATc) + BTB)*inv_sqrt_cov
+    ∇²Φᵣ_mean = inv_sqrt_cov'*( Diagonal(6*diag(ATA)) + BTB)*inv_sqrt_cov
+    # @assert(norm(∇²Φᵣ_mean - ∇²Φᵣ_mean1) < 1e-10)         
     return Φᵣ_mean, ∇Φᵣ_mean, ∇²Φᵣ_mean
 end
 

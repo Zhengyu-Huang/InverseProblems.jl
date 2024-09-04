@@ -45,17 +45,17 @@ mutable struct Setup_Param{FT<:AbstractFloat, IT<:Int}
 end
 
 
-function Setup_Param(N::IT, L::FT, N_KL::IT, obs_ΔN::IT, 
-                     N_θ::IT, d::FT=2.0, τ::FT=3.0; seed::IT=123)  where {FT<:AbstractFloat, IT<:Int}
+function Setup_Param(N::IT, L::FT, N_KL::IT, obs_ΔNx::IT, obs_ΔNy::IT, 
+                     N_θ::IT, d::FT=2.0, τ::FT=3.0, σ0::FT=1.0; seed::IT=123)  where {FT<:AbstractFloat, IT<:Int}
 
     xx = Array(LinRange(0, L, N))
     Δx = xx[2] - xx[1]
     
-    logκ_2d, φ, λ, θ_ref = generate_θ_KL(xx, N_KL, d, τ, seed=seed)
+    logκ_2d, φ, λ, θ_ref = generate_θ_KL(xx, N_KL, d, τ, σ0; seed=seed)
     f_2d = compute_f_2d(xx)
 
-    x_locs = Array(obs_ΔN:obs_ΔN:N-obs_ΔN)
-    y_locs = Array(obs_ΔN:obs_ΔN:N-obs_ΔN)
+    x_locs = Array(obs_ΔNx+1:obs_ΔNx:N-obs_ΔNx)
+    y_locs = Array(obs_ΔNy+1:obs_ΔNy:N-obs_ΔNy)
     N_y = length(x_locs)*length(y_locs)
 
     θ_names=["logκ"]
@@ -135,7 +135,7 @@ They can be sorted, where the eigenvalues λ_{l} are in descending order
 
 generate_θ_KL function generates the summation of the first N_KL terms 
 =#
-function generate_θ_KL(xx::Array{FT,1}, N_KL::IT, d::FT=2.0, τ::FT=3.0; seed::IT=123) where {FT<:AbstractFloat, IT<:Int}
+function generate_θ_KL(xx::Array{FT,1}, N_KL::IT, d::FT=2.0, τ::FT=3.0, σ0::FT=1.0; seed::IT=123) where {FT<:AbstractFloat, IT<:Int}
     N = length(xx)
     X,Y = repeat(xx, 1, N), repeat(xx, 1, N)'
     
@@ -158,9 +158,9 @@ function generate_θ_KL(xx::Array{FT,1}, N_KL::IT, d::FT=2.0, τ::FT=3.0; seed::
         λ[i] = (pi^2*(seq_pairs[i, 1]^2 + seq_pairs[i, 2]^2) + τ^2)^(-d)
     end
     
-#     Random.seed!(seed);
-    rng = MersenneTwister(seed)
-    θ_ref = rand(rng, Normal(0, 1), N_KL)
+
+    Random.seed!(seed);
+    θ_ref = rand(Normal(0, σ0), N_KL)
 
     logκ_2d = zeros(FT, N, N)
     for i = 1:N_KL
@@ -521,6 +521,12 @@ function aug_forward(darcy::Setup_Param{FT, IT}, θ::Array{FT, 1}) where {FT<:Ab
     return [y ; θ]
 end
 
+function darcy_F(darcy::Setup_Param{FT, IT}, args, θ::Array{FT, 1}) where {FT<:AbstractFloat, IT<:Int}
+  
+    y_obs, r₀, ση, σ₀ = args
+    Gθ  = forward(darcy, θ)
+    return [(y_obs  - Gθ)./ση; (r₀ - θ)./σ₀]
 
+end
 
 
