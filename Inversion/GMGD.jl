@@ -35,6 +35,8 @@ mutable struct GMGDObj{FT<:AbstractFloat, IT<:Int}
     c_weights_GM::Union{Array{FT, 2}, Nothing}
     mean_weights_GM::Array{FT, 1}
     N_ens_GM::IT
+    "whether correct Hessian approximation"
+    Hessian_correct_GM::Bool
     "when Bayesian_inverse_problem is true :  function is F, 
      otherwise the function is Phi_R,  Phi_R = 1/2 F ⋅ F"
     Bayesian_inverse_problem::Bool
@@ -72,6 +74,7 @@ function GMGDObj(# initial condition
                 quadrature_type_GM::String = "cubature_transform_o5",
                 c_weight_GM::FT = sqrt(3.0),
                 N_ens_GM::IT = -1,
+                Hessian_correct_GM::Bool = true,
                 # setup for potential function part
                 Bayesian_inverse_problem::Bool = false,
                 N_f::IT = 1,
@@ -103,7 +106,7 @@ function GMGDObj(# initial condition
             iter, update_covariance,
             sqrt_matrix_type,
             ## Gaussian mixture expectation
-            quadrature_type_GM, c_weight_GM, c_weights_GM, mean_weights_GM, N_ens_GM,
+            quadrature_type_GM, c_weight_GM, c_weights_GM, mean_weights_GM, N_ens_GM, Hessian_correct_GM,
             ## potential function expectation
             Bayesian_inverse_problem, N_f, N_ens, quadrature_type,
             c_weight_BIP, c_weights, mean_weights, w_min, phi_r_pred)
@@ -118,7 +121,7 @@ end
 
 
 # avoid computing 1/(2π^N_x/2) for ρ, ∇ρ, ∇²ρ
-function Gaussian_mixture_density_derivatives(x_w::Array{FT,1}, x_mean::Array{FT,2}, inv_sqrt_xx_cov, x::Array{FT,1}; hessian_correct::Bool = false) where {FT<:AbstractFloat}
+function Gaussian_mixture_density_derivatives(x_w::Array{FT,1}, x_mean::Array{FT,2}, inv_sqrt_xx_cov, x::Array{FT,1}, Hessian_correct_GM::Bool) where {FT<:AbstractFloat}
     N_modes, N_x = size(x_mean)
 
     ρ = 0.0
@@ -131,7 +134,7 @@ function Gaussian_mixture_density_derivatives(x_w::Array{FT,1}, x_mean::Array{FT
     
         ρ   += x_w[i]*ρᵢ
         ∇ρ  += x_w[i]*ρᵢ*temp
-        ∇²ρ += (hessian_correct ? x_w[i]*ρᵢ*( temp * temp') : x_w[i]*ρᵢ*( temp * temp' - inv_sqrt_xx_cov[i]'*inv_sqrt_xx_cov[i]))
+        ∇²ρ += (Hessian_correct_GM ? x_w[i]*ρᵢ*( temp * temp') : x_w[i]*ρᵢ*( temp * temp' - inv_sqrt_xx_cov[i]'*inv_sqrt_xx_cov[i]))
     end
 
     return ρ, ∇ρ, ∇²ρ
@@ -139,18 +142,18 @@ end
 
 
 
-function compute_logρ_gm(x_p, x_w, x_mean, inv_sqrt_xx_cov; hessian_correct::Bool = false)
+function compute_logρ_gm(x_p, x_w, x_mean, inv_sqrt_xx_cov, Hessian_correct_GM)
     N_modes, N_ens, N_x = size(x_p)
     logρ = zeros(N_modes, N_ens)
     ∇logρ = zeros(N_modes, N_ens, N_x)
     ∇²logρ = zeros(N_modes, N_ens, N_x, N_x)
     for im = 1:N_modes
         for i = 1:N_ens
-            ρ, ∇ρ, ∇²ρ = Gaussian_mixture_density_derivatives(x_w, x_mean, inv_sqrt_xx_cov, x_p[im, i, :]; hessian_correct = hessian_correct)
+            ρ, ∇ρ, ∇²ρ = Gaussian_mixture_density_derivatives(x_w, x_mean, inv_sqrt_xx_cov, x_p[im, i, :], Hessian_correct_GM)
             
             logρ[im, i]         =   log(  ρ  ) - N_x/2.0 * log(2π)
             ∇logρ[im, i, :]     =   ∇ρ/ρ
-            ∇²logρ[im, i, :, :] =  (hessian_correct ? ∇²ρ/ρ - (∇ρ/ρ^2)*∇ρ' - inv_sqrt_xx_cov[im]'*inv_sqrt_xx_cov[im] : (∇²ρ/ρ - (∇ρ/ρ^2)*∇ρ'))
+            ∇²logρ[im, i, :, :] =  (Hessian_correct_GM ? ∇²ρ/ρ - (∇ρ/ρ^2)*∇ρ' - inv_sqrt_xx_cov[im]'*inv_sqrt_xx_cov[im] : (∇²ρ/ρ - (∇ρ/ρ^2)*∇ρ'))
         end
     end
 
@@ -160,7 +163,7 @@ end
 
 
 
-function compute_logρ_gm_expectation(x_w, x_mean, sqrt_xx_cov, inv_sqrt_xx_cov, c_weights_GM, mean_weights_GM, N_ens_GM; hessian_correct::Bool = false)
+function compute_logρ_gm_expectation(x_w, x_mean, sqrt_xx_cov, inv_sqrt_xx_cov, c_weights_GM, mean_weights_GM, N_ens_GM, Hessian_correct_GM)
     x_w = x_w / sum(x_w)
     N_modes, N_x = size(x_mean)
     if c_weights_GM !== nothing
@@ -173,7 +176,7 @@ function compute_logρ_gm_expectation(x_w, x_mean, sqrt_xx_cov, inv_sqrt_xx_cov,
         xs[im,:,:] = construct_ensemble(x_mean[im, :], sqrt_xx_cov[im]; c_weights = c_weights_GM, N_ens = N_ens_GM)
     end
     
-    logρ, ∇logρ, ∇²logρ = compute_logρ_gm(xs, x_w, x_mean, inv_sqrt_xx_cov; hessian_correct = hessian_correct)
+    logρ, ∇logρ, ∇²logρ = compute_logρ_gm(xs, x_w, x_mean, inv_sqrt_xx_cov, Hessian_correct_GM)
    
     for im = 1:N_modes
         logρ_mean[im], ∇logρ_mean[im,:], ∇²logρ_mean[im,:,:] = compute_expectation(logρ[im,:], ∇logρ[im,:,:], ∇²logρ[im,:,:,:], mean_weights_GM)
@@ -245,7 +248,7 @@ function update_ensemble!(gmgd::GMGDObj{FT, IT}, func::Function, dt_max::FT) whe
 
     ###########  Entropy term
     c_weights_GM, mean_weights_GM, N_ens_GM = gmgd.c_weights_GM, gmgd.mean_weights_GM, gmgd.N_ens_GM
-    logρ_mean, ∇logρ_mean, ∇²logρ_mean  = compute_logρ_gm_expectation(exp.(logx_w), x_mean, sqrt_xx_cov, inv_sqrt_xx_cov, c_weights_GM, mean_weights_GM, N_ens_GM; hessian_correct=gmgd.Bayesian_inverse_problem)
+    logρ_mean, ∇logρ_mean, ∇²logρ_mean  = compute_logρ_gm_expectation(exp.(logx_w), x_mean, sqrt_xx_cov, inv_sqrt_xx_cov, c_weights_GM, mean_weights_GM, N_ens_GM, gmgd.Hessian_correct_GM)
     
     ########## update covariance
     for im = 1:N_modes
@@ -352,6 +355,7 @@ function GMGD_Run(
     quadrature_type_GM::String = "cubature_transform_o5",
     c_weight_GM::FT = sqrt(3.0),
     N_ens_GM::IT = -1,
+    Hessian_correct_GM::Bool = true,
     # setup for potential function part
     Bayesian_inverse_problem::Bool = false,
     N_f::IT = 1,
@@ -369,6 +373,7 @@ function GMGD_Run(
         quadrature_type_GM = quadrature_type_GM,
         c_weight_GM = c_weight_GM,
         N_ens_GM = N_ens_GM,
+        Hessian_correct_GM = Hessian_correct_GM,
         # setup for potential function part
         Bayesian_inverse_problem = Bayesian_inverse_problem,
         N_f = N_f,
