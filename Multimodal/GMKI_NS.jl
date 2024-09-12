@@ -28,7 +28,7 @@ Random.seed!(seed);
 mesh = Spectral_Mesh(N, N, L, L)
 s_param = Setup_Param(ν, ub, vb,  
     N, L,  
-    method, N_t,
+    method, N_t, T,
     obs_ΔNx, obs_ΔNy, obs_ΔNt; 
     symmetric = symmetric,
     N_ω0_θ = N_θ,
