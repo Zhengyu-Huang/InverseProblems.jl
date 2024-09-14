@@ -605,6 +605,8 @@ function GMKI_Run(s_param, forward::Function,
     
     
     for i in 1:N_iter
+        if i%max(1,div(N_iter, 10)) == 0  @info "iter = ", i, " / ", N_iter  end
+        
         update_ensemble!(gmkiobj, ens_func) 
     end
     
