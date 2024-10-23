@@ -98,7 +98,7 @@ function GMGDObj(# initial condition
     N_ens, c_weights, mean_weights = generate_quadrature_rule(N_x, quadrature_type; c_weight=c_weight_BIP, N_ens=N_ens)
     
      
-    name = (Bayesian_inverse_problem ? "Derivative free GMGD" : "GMGD")
+    name = (Bayesian_inverse_problem ? "DF-GMVI" : "GMVI")
 
     phi_r_pred = []
     GMGDObj(name,
@@ -457,7 +457,7 @@ end
     
 
 
-function visualization_1d(ax; Nx=2000, x_lim=[-4.0,4.0], func_F = nothing, func_V = nothing, objs=nothing)
+function visualization_1d(ax; Nx=2000, x_lim=[-4.0,4.0], func_F = nothing, func_V = nothing, objs=nothing, label=nothing)
 
     # visualization 
     x_min, x_max = x_lim
@@ -498,9 +498,12 @@ function visualization_1d(ax; Nx=2000, x_lim=[-4.0,4.0], func_F = nothing, func_
         
     end
     for i_obj = 1:N_obj
-        ax[N_obj+1].semilogy(Array(0:N_iter), error[i_obj, :], label=objs[i_obj].name*" (K="*string(size(objs[i_obj].x_mean[1], 1))*")")
+        ax[N_obj+1].semilogy(Array(0:N_iter), error[i_obj, :], 
+            label=(label===nothing ? label : label*" (K="*string(size(objs[i_obj].x_mean[1], 1))*")" ))
     end
-    ax[N_obj+1].legend()
+    if label!==nothing 
+       ax[N_obj+1].legend()
+    end
 end
 
 
@@ -565,7 +568,7 @@ end
 
 
 
-function visualization_2d(ax; Nx=2000, Ny=2000, x_lim=[-4.0,4.0], y_lim=[-4.0,4.0], func_F = nothing, func_V = nothing, objs=nothing)
+function visualization_2d(ax; Nx=2000, Ny=2000, x_lim=[-4.0,4.0], y_lim=[-4.0,4.0], func_F = nothing, func_V = nothing, objs=nothing, label=nothing)
 
     # visualization 
     x_min, x_max = x_lim
@@ -590,27 +593,36 @@ function visualization_2d(ax; Nx=2000, Ny=2000, x_lim=[-4.0,4.0], y_lim=[-4.0,4.
     for (iobj, obj) in enumerate(objs)
         for iter = 0:N_iter  
             x_w = exp.(obj.logx_w[iter+1]); x_w /= sum(x_w)
-            x_mean = obj.x_mean[iter+1]
-            xx_cov = obj.xx_cov[iter+1]
+            x_mean = obj.x_mean[iter+1][:,1:2]
+            xx_cov = obj.xx_cov[iter+1][:,1:2,1:2]
             Z = Gaussian_mixture_2d(x_w, x_mean, xx_cov,  X, Y)
             error[iobj, iter+1] = norm(Z - Z_ref,1)*dx*dy
             
             if iter == N_iter
+                    
                 ax[1+iobj].pcolormesh(X, Y, Z, cmap="viridis", clim=color_lim)
                 N_modes = size(x_mean, 1)
-                
-
-                ax[1+iobj].scatter([obj.x_mean[1][:,1];], [obj.x_mean[1][:,2];], marker="x", color="grey") 
-                ax[1+iobj].scatter([x_mean[:,1];], [x_mean[:,2];], marker="o", color="red", facecolors="none")
-
+                ax[1+iobj].scatter([obj.x_mean[1][:,1];], [obj.x_mean[1][:,2];], marker="x", color="grey", alpha=0.5) 
+                ax[1+iobj].scatter([x_mean[:,1];], [x_mean[:,2];], marker="o", color="red", facecolors="none", alpha=0.5)
+               
             end
         end
         
     end
     for i_obj = 1:N_obj
-        ax[N_obj+2].semilogy(Array(0:N_iter), error[i_obj, :], label=objs[i_obj].name*" (K="*string(size(objs[i_obj].x_mean[1], 1))*")")
+        ax[N_obj+2].semilogy(Array(0:N_iter), error[i_obj, :], 
+                        label=(label===nothing ? label : label*" (K="*string(size(objs[i_obj].x_mean[1], 1))*")" ))   
+   end
+    # Get the current y-axis limits
+    ymin, ymax = ax[N_obj+2].get_ylim()
+    # Ensure the lower bound of y-ticks is below 0.1
+    if ymin > 0.1
+        ax[N_obj+2].set_ylim(0.1, ymax)  # Set the lower limit to a value below 0.1
     end
-    ax[N_obj+2].legend()
+    if label!==nothing 
+       ax[N_obj+2].legend()
+    end
+   
 end
 
 
