@@ -44,7 +44,7 @@ y_noiseless_mirror = forward_helper(s_param, ω0_ref_mirror; symmetric=true, sav
 @info "y - y_mirror = ", norm(y_noiseless - y_noiseless_mirror)
 
 # compute posterior distribution by GMKI
-N_iter = 50
+N_iter = 200
 N_modes = 3
 θ0_w  = fill(1.0, N_modes)/N_modes
 
@@ -108,7 +108,7 @@ end
 
 N_ens = 2N_θ + 1
 # visulize the log permeability field
-fig_vor, ax_vor = PyPlot.subplots(ncols = 5, sharex=true, sharey=true, figsize=(20,4))
+fig_vor, ax_vor = PyPlot.subplots(ncols = 5, sharex=true, sharey=true, figsize=(16,3))
 for ax in ax_vor ;  ax.set_xticks([]) ; ax.set_yticks([]) ; end
 color_lim = (minimum(s_param.ω0_ref), maximum(s_param.ω0_ref))
 
@@ -145,7 +145,7 @@ errors = zeros(Float64, (3, N_iter, N_modes))
 
 for m = 1:N_modes
     for i = 1:N_iter
-        if m in [2,3]
+        if m in [1,2]
             grid_vor_truth = s_param.ω0_ref
         else
             grid_vor_truth = -s_param.ω0_ref[[1;end:-1:2], :]
@@ -165,7 +165,7 @@ for m = 1: N_modes
     ax1.plot(ites, errors[1, :, m], marker=linestyles[m], color = "C"*string(m), fillstyle="none", markevery=markevery, label= "mode "*string(m))
 end
 ax1.set_xlabel("Iterations")
-ax1.set_ylabel("Rel. error of a(x)")
+ax1.set_ylabel(L"Rel. error of \omega_0(x)")
 ax1.legend()
 
 for m = 1: N_modes
