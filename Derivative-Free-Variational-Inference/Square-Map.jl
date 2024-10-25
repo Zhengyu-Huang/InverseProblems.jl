@@ -75,8 +75,8 @@ function Gaussian_mixture_VI(func_V, func_F, w0, μ0, Σ0; N_iter = 100, dt = 1.
         Bayesian_inverse_problem = true, 
         N_f = N_f,
         quadrature_type = "unscented_transform",
-        c_weight_BIP = 1.0e-4,
-        w_min=1e-10)
+        c_weight_BIP = 1.0e-3,
+        w_min=1e-8)
         
         push!(objs, gmgdobj_BIP)
 
