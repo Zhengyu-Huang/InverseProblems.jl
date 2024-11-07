@@ -5,7 +5,7 @@ using SparseArrays
 using JLD2
 
 include("../Inversion/Plot.jl")
-include("../Inversion/GMGD.jl")
+include("../Inversion/DF_GMVI.jl")
 include("../Fluid/Spectral-Navier-Stokes.jl")
 include("../Fluid/Spectral-Mesh.jl")
 
@@ -72,7 +72,7 @@ T = dt*N_iter
 func_args = (y, μ_0, σ_η, σ_0)
 func_F(x) = NS_F(s_param, func_args, x)
         
-gmgdobj = GMGD_Run(
+gmgdobj = DF_GMVI_Run(
         func_F, 
         T,
         N_iter,
@@ -81,8 +81,6 @@ gmgdobj = GMGD_Run(
         sqrt_matrix_type = "Cholesky",
         # setup for Gaussian mixture part
         quadrature_type_GM = "mean_point",
-        # setup for potential function part
-        Bayesian_inverse_problem = true, 
         N_f = N_f,
         quadrature_type = "unscented_transform",
         c_weight_BIP = 1.0e-3,

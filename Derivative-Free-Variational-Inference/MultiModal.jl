@@ -52,7 +52,7 @@ function logrho(θ, args)
 end
 
 
-function V(θ, args)
+function dPhi(θ, args)
     return -logrho(θ, args), 
            -ForwardDiff.gradient(x -> logrho(x, args), θ), 
            -ForwardDiff.hessian(x -> logrho(x, args), θ)
@@ -60,7 +60,7 @@ end
 
 
 
-function Gaussian_mixture_VI(func_V, func_F, w0, μ0, Σ0; N_iter = 100, dt = 1.0e-3)
+function Gaussian_mixture_VI(func_dPhi, func_F, w0, μ0, Σ0; N_iter = 100, dt = 1.0e-3, Hessian_correct_GM=true)
 
     N_modes, N_θ = size(μ0)
     
@@ -75,9 +75,9 @@ function Gaussian_mixture_VI(func_V, func_F, w0, μ0, Σ0; N_iter = 100, dt = 1.
     
     objs = []
 
-    if func_V !== nothing
-        gmgdobj = GMGD_Run(
-        func_V, 
+    if func_dPhi !== nothing
+        gmgdobj = GMVI_Run(
+        func_dPhi, 
         T,
         N_iter,
         # Initial condition
@@ -85,10 +85,8 @@ function Gaussian_mixture_VI(func_V, func_F, w0, μ0, Σ0; N_iter = 100, dt = 1.
         sqrt_matrix_type = sqrt_matrix_type,
         # setup for Gaussian mixture part
         quadrature_type_GM = "mean_point",
-        # setup for potential function part
-        Bayesian_inverse_problem = false, 
         quadrature_type = "mean_point",
-        Hessian_correct_GM = false)
+        Hessian_correct_GM = Hessian_correct_GM)
         
         push!(objs, gmgdobj)
 
@@ -96,7 +94,7 @@ function Gaussian_mixture_VI(func_V, func_F, w0, μ0, Σ0; N_iter = 100, dt = 1.
 
     if func_F !== nothing
         N_f = length(func_F(ones(N_θ)))
-        gmgdobj_BIP = GMGD_Run(
+        gmgdobj_BIP = DF_GMVI_Run(
         func_F, 
         T,
         N_iter,
@@ -105,13 +103,11 @@ function Gaussian_mixture_VI(func_V, func_F, w0, μ0, Σ0; N_iter = 100, dt = 1.
         sqrt_matrix_type = sqrt_matrix_type,
         # setup for Gaussian mixture part
         quadrature_type_GM = "mean_point",
-        Hessian_correct_GM = true,
-        # setup for potential function part
-        Bayesian_inverse_problem = true, 
+        Hessian_correct_GM = Hessian_correct_GM, 
         N_f = N_f,
         quadrature_type = "unscented_transform",
         c_weight_BIP = 1.0e-3,
-        w_min=1e-10)
+        w_min=1e-8)
         
         push!(objs, gmgdobj_BIP)
 
