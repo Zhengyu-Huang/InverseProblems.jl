@@ -22,8 +22,6 @@ symmetric = true
 N_KL = 128
 N_θ = 128
 
-seed=22
-Random.seed!(seed);
 
 mesh = Spectral_Mesh(N, N, L, L)
 s_param = Setup_Param(ν, ub, vb,  
@@ -35,7 +33,7 @@ s_param = Setup_Param(ν, ub, vb,
     N_ω0_ref = N_KL,
     f = (x, y) -> (0, cos(4*x)),
     σ = σ_0,
-    ω0_seed=seed)
+    ω0_seed=22)
 ω0_ref = s_param.ω0_ref
 ω0_ref_mirror = -ω0_ref[[1;end:-1:2], :]
 # generate observation data
@@ -49,7 +47,7 @@ N_modes = 3
 θ0_w  = fill(1.0, N_modes)/N_modes
 
 
-
+Random.seed!(42)
 θ0_mean, θθ0_cov  = zeros(N_modes, N_θ), zeros(N_modes, N_θ, N_θ)
 for i = 1:N_modes
     θ0_mean[i, :]    .= rand(Normal(0, σ_0), N_θ) 
@@ -88,7 +86,7 @@ gmgdobj = GMGD_Run(
         N_f = N_f,
         quadrature_type = "unscented_transform",
         c_weight_BIP = 1.0e-3,
-        w_min=1e-10)
+        w_min=1e-8)
 @save "gmgdobj-NS.jld2" gmgdobj
 
 
@@ -165,7 +163,7 @@ for m = 1: N_modes
     ax1.plot(ites, errors[1, :, m], marker=linestyles[m], color = "C"*string(m), fillstyle="none", markevery=markevery, label= "mode "*string(m))
 end
 ax1.set_xlabel("Iterations")
-ax1.set_ylabel(L"Rel. error of \omega_0(x)")
+ax1.set_ylabel("Rel. error of ω₀(x)")
 ax1.legend()
 
 for m = 1: N_modes
@@ -217,7 +215,7 @@ for i in θ_ind
     end
     label = nothing
     if i == 1
-        label = "DF-GMGD"
+        label = "DF-GMVI"
     end
     ax.plot(sum(zzs, dims=1)' .+ i, xxs[1,:], linestyle="-", color="C0", fillstyle="none", label=label)
     ax.plot(fill(i, Nx), xxs[1,:], linestyle=":", color="black", fillstyle="none")
