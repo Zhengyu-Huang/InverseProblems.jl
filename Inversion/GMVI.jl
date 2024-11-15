@@ -66,11 +66,11 @@ function GMVIObj(# initial condition
                 update_covariance::Bool = true,
                 sqrt_matrix_type::String = "Cholesky",
                 # setup for Gaussian mixture part
-                quadrature_type_GM::String = "cubature_transform_o5",
+                quadrature_type_GM::String = "mean_point",
                 c_weight_GM::FT = sqrt(3.0),
                 N_ens_GM::IT = -1,
                 Hessian_correct_GM::Bool = true,
-                quadrature_type = "unscented_transform",
+                quadrature_type = "mean_point",
                 c_weight_Phi::FT = sqrt(3.0),
                 N_ens::IT = -1,
                 w_min::FT = 1.0e-15) where {FT<:AbstractFloat, IT<:Int}
@@ -236,8 +236,8 @@ function ensemble(x_ens, forward)
     ∇Φᵣ = zeros(N_modes, N_ens, N_x)   
     ∇²Φᵣ = zeros(N_modes, N_ens, N_x, N_x)  
 
-    for im = 1:N_modes
-        for i = 1:N_ens
+    for i = 1:N_ens
+        for im = 1:N_modes
             Φᵣ[im, i], ∇Φᵣ[im, i, :], ∇²Φᵣ[im, i, :, :] = forward(x_ens[im, i, :])
         end
     end
