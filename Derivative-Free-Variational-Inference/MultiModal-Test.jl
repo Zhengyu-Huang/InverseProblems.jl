@@ -58,7 +58,7 @@ if TEST_2
 
         ση = [0.5; ones(N_x-2)]
         Gtype = "Circle"
-        dt = 1e-2     #2e-2 fails
+        dt = 9e-3     #1e-2 fails
         A = [1.0 1.0; 1.0 2.0]
         y = [1.0; zeros(N_x-2)]
         func_args = (y, ση, A , Gtype)

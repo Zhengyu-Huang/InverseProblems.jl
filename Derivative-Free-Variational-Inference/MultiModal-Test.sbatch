@@ -3,8 +3,8 @@
 #SBATCH --time=96:00:00   # walltime
 #SBATCH --ntasks=1       # number of processor cores (i.e. tasks)
 #SBATCH --nodes=1         # number of nodes
-#SBATCH -J "MultiModel-Test"   # job name
-#SBATCH -o "MultiModel-Test"
+#SBATCH -J "MultiModal-Test"   # job name
+#SBATCH -o "MultiModal-Test"
 
 # Size of the ensemble
 # module load julia/1.7.1
