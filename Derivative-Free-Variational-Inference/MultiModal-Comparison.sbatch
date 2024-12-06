@@ -3,8 +3,8 @@
 #SBATCH --time=96:00:00   # walltime
 #SBATCH --ntasks=1       # number of processor cores (i.e. tasks)
 #SBATCH --nodes=1         # number of nodes
-#SBATCH -J "MultiModal-Test"   # job name
-#SBATCH -o "MultiModal-Test"
+#SBATCH -J "MultiModal-Comparison"   # job name
+#SBATCH -o "MultiModal-Comparison"
 
 # Size of the ensemble
 # module load julia/1.7.1
@@ -13,4 +13,5 @@ export JULIA_NUM_THREADS=1 #${SLURM_CPUS_PER_TASK:=1}
 
 echo $JULIA_NUM_THREADS
 
-julia MultiModal-Test.jl |& tee MultiModal-Test.log
+# julia MultiModal-Comparison-2D.jl |& tee MultiModal-Comparison-2D.log
+julia MultiModal-Comparison-100D.jl |& tee MultiModal-Comparison-100D.log
