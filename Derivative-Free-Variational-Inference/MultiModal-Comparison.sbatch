@@ -13,5 +13,5 @@ export JULIA_NUM_THREADS=1 #${SLURM_CPUS_PER_TASK:=1}
 
 echo $JULIA_NUM_THREADS
 
-# julia MultiModal-Comparison-2D.jl |& tee MultiModal-Comparison-2D.log
-julia MultiModal-Comparison-100D.jl |& tee MultiModal-Comparison-100D.log
+julia MultiModal-Comparison-2D.jl |& tee MultiModal-Comparison-2D.log
+# julia MultiModal-Comparison-100D.jl |& tee MultiModal-Comparison-100D.log

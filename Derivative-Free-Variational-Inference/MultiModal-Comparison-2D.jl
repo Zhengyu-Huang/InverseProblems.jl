@@ -116,7 +116,7 @@ function visualization_comparison_2d(ax, obj_GMNVI, obj_GMNVI_D, obj_GMWVI, ens_
                         Z = kde_last.density/(sum(kde_last.density)*dx*dy)
 
                         ax[5].pcolormesh(X, Y, Z, cmap="viridis", clim=color_lim)
-                        ax[5].scatter(last_ens[1, 1:div(last_ens_number,50):end], last_ens[2, 1:div(last_ens_number,50):end], marker=".", color="red", s=10, alpha=100/last_ens_number)
+                        ax[5].scatter(last_ens[1,:], last_ens[2,:], marker=".", color="red", s=10, alpha=100/last_ens_number)
                         ax[5].set_xlim(x_lim)
                         ax[5].set_ylim(y_lim)
 
@@ -162,7 +162,7 @@ for j = 1:N_ens
     ens_0[:,j]  = rand(MvNormal(zeros(N_x), Σ0)) + μ0
 end
 
-N_iter = 1000
+N_iter = 500
 Nx, Ny = 200,200
 
 
@@ -184,7 +184,7 @@ obj_GMWVI = Gaussian_mixture_WGFVI(func_dPhi, x0_w, x0_mean, xx0_cov; N_iter = N
 ens_MCMC=Run_StretchMove(ens_0,func_prob; output="History", N_iter=N_iter)
 
 visualization_comparison_2d(ax[1,:], obj_GMNVI, obj_GMNVI_D, obj_GMWVI, ens_MCMC ; Nx = Nx, Ny = Ny, x_lim=[-7.0, 5.0], y_lim=[-4.0, 5.0], func_F=func_F, 
-    bandwidth=(0.32,0.22), make_label=true,  N_iter= N_iter)
+    bandwidth=(0.32,0.22), make_label=false,  N_iter= N_iter)
 
 
 

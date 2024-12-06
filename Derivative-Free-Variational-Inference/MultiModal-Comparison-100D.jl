@@ -3,6 +3,7 @@ using Distributions
 using KernelDensity
 include("../Inversion/AffineInvariantMCMC.jl")
 include("./MultiModal.jl")
+include("../Inversion/GaussianMixture.jl")
 include("../Inversion/Plot.jl")
 
 
@@ -55,7 +56,7 @@ function visualization_comparison_100d(ax, ens_array ; Nx = 200, Ny = 200, x_lim
                 Z = kde_last.density/(sum(kde_last.density)*dx*dy)
 
                 ax[i+1].pcolormesh(X, Y, Z, cmap="viridis", clim=color_lim)
-                ax[i+1].scatter(last_ens[1, 1:div(last_ens_number,50):end], last_ens[2, 1:div(last_ens_number,50):end], marker=".", color="red", s=10, alpha=min(1,100/last_ens_number))
+                ax[i+1].scatter(last_ens[1,1:max(1,div(last_ens_number,1000)):end], last_ens[2,1:max(1,div(last_ens_number,1000)):end], marker=".", color="red", s=10, alpha=100/last_ens_number)
                 ax[i+1].set_xlim(x_lim)
                 ax[i+1].set_ylim(y_lim)
 
@@ -180,3 +181,11 @@ visualization_comparison_100d(ax[5,:], ens_MCMC; Nx = Nx, Ny = Ny, x_lim=[-3.0, 
     
 fig.tight_layout()
 fig.savefig("MultiModal-Comparison-100D.pdf")
+
+
+
+
+
+
+
+
